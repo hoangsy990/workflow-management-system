@@ -602,6 +602,152 @@ tbody tr:hover {
   width: auto;
 }
 
+.permission-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.7fr) minmax(0, 2fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.role-list-panel {
+  position: sticky;
+  top: 86px;
+}
+
+.role-list,
+.permission-matrix,
+.permission-rows {
+  display: grid;
+  gap: 10px;
+}
+
+.role-card {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+}
+
+.role-card:hover,
+.role-card.active {
+  border-color: var(--primary);
+  background: var(--panel-soft);
+}
+
+.role-card-title,
+.permission-summary,
+.permission-actions,
+.permission-group-head,
+.permission-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.role-card-title {
+  justify-content: space-between;
+}
+
+.role-card small,
+.permission-row small,
+.permission-row em,
+.permission-group-head span,
+.permission-summary span {
+  color: var(--muted);
+}
+
+.role-card-title small,
+.dirty-note {
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.permission-workspace {
+  min-width: 0;
+}
+
+.permission-summary {
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.permission-summary div {
+  display: grid;
+  gap: 2px;
+}
+
+.permission-summary strong {
+  font-size: 24px;
+}
+
+.permission-actions {
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.copy-role {
+  min-width: min(260px, 100%);
+  flex: 1;
+}
+
+.permission-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.permission-group-head {
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--panel-soft);
+  border-bottom: 1px solid var(--line);
+}
+
+.permission-group-head input,
+.permission-row input {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.permission-rows {
+  padding: 10px;
+}
+
+.permission-row {
+  align-items: flex-start;
+  min-height: 56px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+}
+
+.permission-row span {
+  display: grid;
+  gap: 3px;
+  min-width: 150px;
+}
+
+.permission-row em {
+  margin-left: auto;
+  font-style: normal;
+  text-align: right;
+}
+
 .kanban {
   display: grid;
   grid-template-columns: repeat(6, minmax(220px, 1fr));
@@ -977,13 +1123,33 @@ progress {
 
   .page-grid,
   .detail-grid,
-  .form-grid {
+  .form-grid,
+  .permission-layout {
     grid-template-columns: 1fr;
   }
 
   .panel.wide,
   .detail-main {
     grid-column: auto;
+  }
+
+  .role-list-panel {
+    position: static;
+  }
+
+  .role-list {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+
+  .permission-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .permission-row em {
+    grid-column: 2;
+    margin-left: 0;
+    text-align: left;
   }
 
   .metric-grid {

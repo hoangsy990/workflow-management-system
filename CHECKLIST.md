@@ -14,6 +14,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 29/07/2026 | `ROLE-MATRIX` | Nâng trang quản lý vai trò thành ma trận quyền cơ bản theo nhóm, có chọn nhóm/toàn bộ, sao chép quyền từ vai trò khác, khôi phục, cảnh báo thay đổi chưa lưu và xác nhận trước khi lưu. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose build web`, restart Docker web, QA browser trang Vai trò pass. |
 | 29/07/2026 | `DOC-UPDATE` | Tạo checklist triển khai đầy đủ theo yêu cầu cập nhật, thêm quy tắc bắt buộc cập nhật checklist sau mỗi lần sửa, cập nhật README và ARCHITECTURE cho phạm vi UI/config/report/mobile mới. | Tài liệu only; kiểm tra `git diff --stat` và heading checklist. |
 | 29/07/2026 | `a69101a` | Thêm tệp đính kèm trong bình luận công việc, tải xuống attachment, refresh token cho download, UI attachment trong chi tiết task. | `pnpm test`, `pnpm lint`, `pnpm build`, Docker API/web healthy, smoke upload/download pass. |
 | 29/07/2026 | `a4b95f6` | Tự refresh access token ở frontend, sửa dashboard hiển thị quá hạn, thêm web client test. | `pnpm test`, `pnpm lint`, `pnpm build`, Docker healthy, QA workflow UI pass. |
@@ -48,7 +49,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | --- | --- | --- |
 | Đăng nhập và quản lý tài khoản | `PARTIAL` | Login/refresh/logout/users CRUD cơ bản có. Chưa có hồ sơ người dùng đầy đủ, thiết bị đăng nhập UI, import user. |
 | Phòng ban và cơ cấu tổ chức | `PARTIAL` | Departments CRUD cơ bản có. Company/branch/team schema có; UI sơ đồ tổ chức và kéo chuyển chưa có. |
-| Vai trò và phân quyền | `PARTIAL` | RBAC tables/API và role permission UI cơ bản có. Chưa có ma trận quyền nâng cao, scope/field permissions, preview/conflict checker. |
+| Vai trò và phân quyền | `PARTIAL` | RBAC tables/API và ma trận quyền cơ bản có. Chưa có scope/field permissions, preview quyền và cảnh báo xung đột nâng cao. |
 | Thông báo | `PARTIAL` | Notification center/inbox/device token table có. Chưa có push adapter FCM/APNs/Desktop thật và lịch nhắc hạn. |
 | Bình luận và tệp đính kèm | `PARTIAL` | Comment, mention list, upload/download attachment cho task có. Reply comment, lịch sử chỉnh sửa comment, attachment cho workflow approval còn thiếu. |
 | Nhật ký hoạt động | `PARTIAL` | Audit log cho nhiều hành động chính có. Cần phủ thêm import/export/config/download/xóa tệp. |
@@ -174,7 +175,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Yêu cầu chờ tôi phê duyệt | `DONE` | Có filter pendingMine. |
 | Quản lý người dùng | `PARTIAL` | Có list/create cơ bản. |
 | Quản lý phòng ban | `PARTIAL` | Có list/create cơ bản. |
-| Quản lý vai trò và quyền | `PARTIAL` | Có chọn quyền cơ bản, chưa ma trận nâng cao. |
+| Quản lý vai trò và quyền | `PARTIAL` | Có ma trận quyền cơ bản theo nhóm, chọn nhóm/toàn bộ, copy role, reset, unsaved changes. Chưa có scope/field permission/preview/conflict checker. |
 | Nhật ký hoạt động | `DONE` | Có list. |
 | Cấu hình hệ thống | `PARTIAL` | Key/value cơ bản. |
 
@@ -362,8 +363,8 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Quyền chức năng dạng ma trận | `PARTIAL` | UI checkbox quyền cơ bản, chưa ma trận hàng/cột. |
-| Chọn toàn hàng/cột, copy role, reset, unsaved changes | `TODO` | Chưa có. |
+| Quyền chức năng dạng ma trận | `PARTIAL` | Đã có ma trận cơ bản theo nhóm quyền và từng permission code. Chưa có ma trận module x action đầy đủ và rule kế thừa/phụ thuộc quyền. |
+| Chọn toàn hàng/cột, copy role, reset, unsaved changes | `DONE` | Có chọn toàn bộ, chọn theo nhóm, sao chép quyền từ vai trò khác, khôi phục và cảnh báo thay đổi chưa lưu; QA browser pass. |
 | Phạm vi dữ liệu theo quyền | `PARTIAL` | Một số scope hard-coded theo permissions; chưa model cấu hình scope. |
 | Quyền theo trường | `TODO` | Chưa có. |
 | Preview quyền | `TODO` | Chưa có. |
@@ -451,15 +452,15 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Workflow designer kéo thả, node, mũi tên, panel, condition, validate, draft, publish version | `TODO` | Chưa có canvas designer. |
 | Form builder kéo thả, section/tab/condition/field permission/preview PC-mobile | `TODO` | Chưa có. |
 | Configuration center, auto code, working days/SLA | `PARTIAL` | Settings cơ bản; center nâng cao chưa. |
-| Permission matrix, data scope, dashboard role-based | `PARTIAL` | Có RBAC/dashboard; matrix/scope nâng cao chưa. |
+| Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission/preview quyền chưa. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
 | Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Lint/test/build pass hiện tại; responsive còn cần QA sâu. |
 
 ## Việc ưu tiên tiếp theo
 
-1. `TODO` Cập nhật `ARCHITECTURE.md` theo các mục UI/config/report mới từ yêu cầu 17-34.
-2. `TODO` Cập nhật README link checklist và note trạng thái Docker hiện đã chạy được.
+1. `DONE` Cập nhật `ARCHITECTURE.md` theo các mục UI/config/report mới từ yêu cầu 17-34.
+2. `DONE` Cập nhật README link checklist và note trạng thái Docker hiện đã chạy được.
 3. `TODO` Tách frontend component system cơ bản khỏi `App.tsx`.
-4. `TODO` Hoàn thiện quản trị user/department/role permission theo hướng ma trận cơ bản.
+4. `PARTIAL` Hoàn thiện quản trị user/department/role permission theo hướng ma trận cơ bản: role permission matrix đã có, user/department advanced và scope quyền còn thiếu.
 5. `TODO` Thêm Playwright/UI smoke tests cho login, task detail upload, workflow approval.
