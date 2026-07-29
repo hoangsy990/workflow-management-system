@@ -23,8 +23,10 @@ import {
   Workflow,
   XCircle
 } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api, ApiUser, getStoredSession, setStoredSession } from "./api/client";
+import { DataTable, ErrorBlock, LoadingBlock, MultiCheck } from "./components/common";
+import { useAsyncData } from "./hooks/useAsyncData";
 
 type Page =
   | "dashboard"
@@ -177,48 +179,6 @@ function formatFileSize(bytes?: number) {
 
 function cls(...values: Array<string | false | undefined>) {
   return values.filter(Boolean).join(" ");
-}
-
-function useAsyncData<T>(loader: () => Promise<T>, deps: unknown[]) {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const reload = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      setData(await loader());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Không tải được dữ liệu.");
-    } finally {
-      setLoading(false);
-    }
-  }, deps);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
-
-  return { data, loading, error, reload };
-}
-
-function LoadingBlock() {
-  return (
-    <div className="state-panel">
-      <Loader2 className="spin" size={22} />
-      <span>Đang tải dữ liệu...</span>
-    </div>
-  );
-}
-
-function ErrorBlock({ message }: { message: string }) {
-  return (
-    <div className="state-panel danger">
-      <XCircle size={22} />
-      <span>{message}</span>
-    </div>
-  );
 }
 
 function Login({ onLogin }: { onLogin: (user: ApiUser) => void }) {
@@ -508,52 +468,6 @@ function Dashboard({ setPage, setTaskId, setInstanceId }: PageProps) {
         )}
       </section>
     </section>
-  );
-}
-
-function DataTable({
-  columns,
-  rows
-}: {
-  columns: string[];
-  rows: Array<{ key: string; cells: React.ReactNode[]; onClick?: () => void }>;
-}) {
-  if (rows.length === 0) {
-    return <p className="empty-text">Chưa có dữ liệu.</p>;
-  }
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th key={column}>{column}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.key} onClick={row.onClick}>
-              {row.cells.map((cell, index) => (
-                <td key={`${row.key}-${columns[index]}`}>{cell}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="mobile-cards">
-        {rows.map((row) => (
-          <button key={row.key} className="mobile-card" type="button" onClick={row.onClick}>
-            {row.cells.map((cell, index) => (
-              <span key={`${row.key}-mobile-${columns[index]}`}>
-                <small>{columns[index]}</small>
-                <b>{cell}</b>
-              </span>
-            ))}
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -886,38 +800,6 @@ function TaskForm({ setPage, setTaskId }: PageProps) {
         </button>
       </div>
     </form>
-  );
-}
-
-function MultiCheck({
-  label,
-  items,
-  value,
-  onChange
-}: {
-  label: string;
-  items: Record<string, any>[];
-  value: string[];
-  onChange: (value: string[]) => void;
-}) {
-  return (
-    <div className="multi-check">
-      <span>{label}</span>
-      <div>
-        {items.map((item) => (
-          <label key={item.id}>
-            <input
-              type="checkbox"
-              checked={value.includes(item.id)}
-              onChange={(event) => {
-                onChange(event.target.checked ? [...value, item.id] : value.filter((id) => id !== item.id));
-              }}
-            />
-            {item.fullName ?? item.name}
-          </label>
-        ))}
-      </div>
-    </div>
   );
 }
 

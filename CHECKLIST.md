@@ -14,6 +14,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 29/07/2026 | `FRONTEND-SPLIT` | Tách UI primitives dùng chung (`LoadingBlock`, `ErrorBlock`, `DataTable`, `MultiCheck`) và hook `useAsyncData` khỏi `App.tsx` để bắt đầu hình thành component system frontend. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose build web`, restart Docker web, QA browser dashboard pass. |
 | 29/07/2026 | `ROLE-MATRIX` | Nâng trang quản lý vai trò thành ma trận quyền cơ bản theo nhóm, có chọn nhóm/toàn bộ, sao chép quyền từ vai trò khác, khôi phục, cảnh báo thay đổi chưa lưu và xác nhận trước khi lưu. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose build web`, restart Docker web, QA browser trang Vai trò pass. |
 | 29/07/2026 | `DOC-UPDATE` | Tạo checklist triển khai đầy đủ theo yêu cầu cập nhật, thêm quy tắc bắt buộc cập nhật checklist sau mỗi lần sửa, cập nhật README và ARCHITECTURE cho phạm vi UI/config/report/mobile mới. | Tài liệu only; kiểm tra `git diff --stat` và heading checklist. |
 | 29/07/2026 | `a69101a` | Thêm tệp đính kèm trong bình luận công việc, tải xuống attachment, refresh token cho download, UI attachment trong chi tiết task. | `pnpm test`, `pnpm lint`, `pnpm build`, Docker API/web healthy, smoke upload/download pass. |
@@ -267,7 +268,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Nguyên tắc thiết kế admin hiện đại, nhất quán | `PARTIAL` | UI có sidebar/topbar/cards/forms; cần chuẩn hóa component library riêng. |
-| Design system tokens/typography/spacing/components | `PARTIAL` | CSS variables và component classes có; chưa có document design system đầy đủ. |
+| Design system tokens/typography/spacing/components | `PARTIAL` | CSS variables/component classes có; đã tách UI primitives chung sang `components/common.tsx`. Chưa có tài liệu design system đầy đủ. |
 | Màu trạng thái nhất quán | `PARTIAL` | Status labels/chips có; cần audit toàn app. |
 | Bố cục PC/web: sidebar/header/main/breadcrumb | `DONE` | Có. |
 | Header/account/notification/search | `PARTIAL` | Account/notification có; global search chưa. |
@@ -438,11 +439,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Design system/layout/component library | `PARTIAL` | CSS/component classes có; docs/component library chưa. |
+| Design system/layout/component library | `PARTIAL` | Đã có common components và hook chung; docs/component library và tách page-level components chưa đủ. |
 | Wireframe màn chính | `PARTIAL` | Implemented screens đóng vai trò prototype; chưa có wireframe doc. |
 | Prototype workflow designer/form builder | `TODO` | Chưa có. |
 | Kiểm tra responsive trước khi hoàn thiện module | `PARTIAL` | Đã QA một số mobile, cần matrix. |
-| Không thiết kế màn riêng lẻ thiếu component chung | `PARTIAL` | Hiện nhiều component nằm trong App.tsx; cần tách component system. |
+| Không thiết kế màn riêng lẻ thiếu component chung | `PARTIAL` | UI primitives/hook chung đã tách khỏi `App.tsx`; các page nghiệp vụ lớn vẫn cần tách tiếp theo module. |
 
 ## 34. Tiêu chí hoàn thành UI, cấu hình và trình thiết kế
 
@@ -461,6 +462,6 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 1. `DONE` Cập nhật `ARCHITECTURE.md` theo các mục UI/config/report mới từ yêu cầu 17-34.
 2. `DONE` Cập nhật README link checklist và note trạng thái Docker hiện đã chạy được.
-3. `TODO` Tách frontend component system cơ bản khỏi `App.tsx`.
+3. `DONE` Tách frontend component system cơ bản khỏi `App.tsx`: common UI primitives và `useAsyncData` đã tách; page-level components sẽ tách theo từng module sau.
 4. `PARTIAL` Hoàn thiện quản trị user/department/role permission theo hướng ma trận cơ bản: role permission matrix đã có, user/department advanced và scope quyền còn thiếu.
 5. `TODO` Thêm Playwright/UI smoke tests cho login, task detail upload, workflow approval.
