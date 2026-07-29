@@ -81,7 +81,9 @@ const statusLabels: Record<string, string> = {
   NEEDS_INFO: "Chờ bổ sung",
   APPROVED: "Đã duyệt",
   REJECTED: "Bị từ chối",
-  COMPLETED: "Hoàn thành"
+  COMPLETED: "Hoàn thành",
+  ACTIVE: "Đang hoạt động",
+  INACTIVE: "Ngừng hoạt động"
 };
 
 const priorityLabels: Record<string, string> = {
@@ -221,6 +223,12 @@ function AppShell({
   online: boolean;
 }) {
   const activeItem = navItems.find((item) => item.page === page);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  function goToPage(nextPage: Page) {
+    setPage(nextPage);
+    setMobileMenuOpen(false);
+  }
 
   return (
     <div className={cls("app-shell", dark && "dark")}>
@@ -239,7 +247,7 @@ function AppShell({
               <button
                 key={item.page}
                 className={cls("nav-item", page === item.page && "active")}
-                onClick={() => setPage(item.page)}
+                onClick={() => goToPage(item.page)}
                 type="button"
                 title={item.label}
               >
@@ -254,7 +262,14 @@ function AppShell({
       <div className="workspace">
         <header className="topbar">
           <div className="breadcrumb">
-            <Menu size={18} />
+            <button
+              className="menu-trigger"
+              type="button"
+              title="Mở menu"
+              onClick={() => setMobileMenuOpen((open) => !open)}
+            >
+              <Menu size={18} />
+            </button>
             <span>{activeItem?.label ?? "Dashboard"}</span>
           </div>
           <div className="top-actions">
@@ -278,6 +293,25 @@ function AppShell({
           </div>
         </header>
 
+        {mobileMenuOpen && (
+          <nav className="mobile-menu-panel">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.page}
+                  className={cls(page === item.page && "active")}
+                  type="button"
+                  onClick={() => goToPage(item.page)}
+                >
+                  <Icon size={18} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        )}
+
         <main className="content">{children}</main>
       </div>
 
@@ -288,7 +322,7 @@ function AppShell({
             <button
               key={item.page}
               className={page === item.page ? "active" : ""}
-              onClick={() => setPage(item.page)}
+              onClick={() => goToPage(item.page)}
               type="button"
             >
               <Icon size={20} />
@@ -1609,4 +1643,3 @@ export default function App() {
     </AppShell>
   );
 }
-

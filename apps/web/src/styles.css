@@ -257,6 +257,17 @@ legend {
   font-weight: 700;
 }
 
+.menu-trigger {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+}
+
 .top-actions {
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -306,6 +317,10 @@ legend {
 
 .content {
   padding: 22px;
+}
+
+.mobile-menu-panel {
+  display: none;
 }
 
 .page-grid,
@@ -779,6 +794,34 @@ progress {
     padding: 14px;
   }
 
+  .mobile-menu-panel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+
+  .mobile-menu-panel button {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--text);
+    padding: 9px 10px;
+    text-align: left;
+  }
+
+  .mobile-menu-panel button.active {
+    border-color: var(--primary);
+    background: var(--panel-soft);
+    color: var(--primary-strong);
+  }
+
   .page-grid,
   .detail-grid,
   .form-grid {
@@ -873,4 +916,3 @@ progress {
     width: 100%;
   }
 }
-
