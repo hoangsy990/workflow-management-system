@@ -170,3 +170,12 @@ DATABASE_URL=postgresql://workflow:workflow@localhost:5432/workflow_management?s
 ```
 
 `pnpm smoke:web` chạy Playwright trên web `http://localhost:8080` và API `http://localhost:4000/api/v1`, vì vậy hãy chạy `docker compose up -d --build` trước. Docker Compose đã được kiểm tra với API, web và PostgreSQL. Trạng thái hiện tại được ghi lại trong [`CHECKLIST.md`](CHECKLIST.md).
+
+## CI GitHub Actions
+
+Pipeline `.github/workflows/ci.yml` chạy trên `push` và `pull_request`:
+
+- `verify`: cài dependencies, Prisma generate, lint, type-check, unit tests và build.
+- `smoke-web`: build Docker Compose, seed database demo, chờ web/API sẵn sàng và chạy `pnpm smoke:web`.
+
+Khi smoke thất bại, CI upload `docker-compose.log`, `apps/web/test-results` và `apps/web/playwright-report` làm artifact để debug.

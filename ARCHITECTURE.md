@@ -324,7 +324,7 @@ Mobile web/Tauri không được là bản PC thu nhỏ. Cần tiếp tục:
 
 ### 9.8. Kế hoạch kiểm thử mở rộng
 
-Đã có Playwright smoke suite cho web tại `apps/web/e2e/workflow-smoke.spec.ts`, chạy bằng `pnpm smoke:web` khi Docker API/web đang bật. Suite hiện phủ login, mở task vừa tạo, upload/download attachment và approve hồ sơ PAYMENT tuần tự.
+Đã có Playwright smoke suite cho web tại `apps/web/e2e/workflow-smoke.spec.ts`, chạy bằng `pnpm smoke:web` khi Docker API/web đang bật. Suite hiện phủ login, mở task vừa tạo, upload/download attachment, cập nhật progress lên chờ đánh giá, approve/reject/request-info hồ sơ PAYMENT và idempotency key chống duyệt trùng. GitHub Actions chạy `verify` và `smoke-web` trên `push`/`pull_request`.
 
 Ngoài Vitest hiện có, cần thêm UI/e2e suite:
 

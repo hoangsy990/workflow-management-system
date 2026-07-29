@@ -14,6 +14,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 29/07/2026 | `CI-SMOKE` | Mở rộng Playwright smoke lên 7 kịch bản: login, task upload/download, cập nhật progress lên chờ đánh giá, approve/reject/request-info workflow và idempotency chống duyệt trùng; nâng GitHub Actions chạy verify + Docker smoke web. | `pnpm smoke:web` 7/7, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, Docker API/web healthy. |
 | 29/07/2026 | `UI-SMOKE` | Thêm Playwright smoke test web cho login, task upload/download và duyệt hồ sơ PAYMENT tuần tự; thêm test id ổn định cho nav/table/action; sửa download filename qua CORS `Content-Disposition`. | `pnpm smoke:web`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, Docker API/web healthy. |
 | 29/07/2026 | `MOBILE-BUILD` | Thiết lập môi trường Tauri mobile trên Windows, cài/nhận Android cmdline-tools + NDK, thêm Rust lib target cho Tauri mobile, sinh icon app, build Windows desktop installer và Android arm64 APK kiểm thử. | `pnpm lint`, `pnpm test`, `pnpm build`, `tauri android init --ci`, `pnpm android:build:arm64`, `pnpm --filter @workflow/web desktop:build`; iOS `WAITING` do Windows không hỗ trợ Tauri iOS build. |
 | 29/07/2026 | `FRONTEND-SPLIT` | Tách UI primitives dùng chung (`LoadingBlock`, `ErrorBlock`, `DataTable`, `MultiCheck`) và hook `useAsyncData` khỏi `App.tsx` để bắt đầu hình thành component system frontend. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose build web`, restart Docker web, QA browser dashboard pass. |
@@ -226,7 +227,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API bổ sung. Cần integration tests đầy đủ hơn. |
 | Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có 4 + smoke API nhiều luồng. Chưa có integration transaction failure tự động. |
 | Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
-| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Đã có Playwright smoke cho login, task upload/download và workflow approval tuần tự. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
+| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, task upload/download, progress lên chờ đánh giá, approve/reject/request-info workflow và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
 | Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `PARTIAL` | Windows desktop build và Android arm64 APK build đã pass. Chưa QA cài/chạy trên thiết bị Android, chưa có Edge/iOS/macOS matrix. |
 
 ## 14. Triển khai
@@ -240,7 +241,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Dockerfile + Docker Compose app/database | `DONE` | Build/run đã fix và QA. |
 | Hướng dẫn Docker/dev/prod/backup | `DONE` | README có. Cần cập nhật checklist link và note Docker hiện đã chạy được. |
 | Health-check endpoint | `DONE` | `/health`. |
-| CI pipeline lint/test/build | `TODO` | Chưa có GitHub Actions. |
+| CI pipeline lint/test/build | `DONE` | GitHub Actions có job `verify` chạy install/prisma generate/lint/typecheck/test/build và job `smoke-web` chạy Docker Compose seed + Playwright smoke. |
 
 ## 15. Cách làm việc và tiêu chí hoàn thành
 
@@ -424,7 +425,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
-| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, tạo task qua API, mở detail UI, upload/download attachment và approve PAYMENT. Còn thiếu progress/reject/request-info/double-click duplicate action UI tests. |
+| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, tạo task qua API, mở detail UI, upload/download attachment, cập nhật progress, approve/reject/request-info và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
 | Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; builder/designer tests chưa. |
 | Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 
@@ -467,3 +468,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 3. `DONE` Tách frontend component system cơ bản khỏi `App.tsx`: common UI primitives và `useAsyncData` đã tách; page-level components sẽ tách theo từng module sau.
 4. `PARTIAL` Hoàn thiện quản trị user/department/role permission theo hướng ma trận cơ bản: role permission matrix đã có, user/department advanced và scope quyền còn thiếu.
 5. `DONE` Thêm Playwright/UI smoke tests cho login, task detail upload/download và workflow approval tuần tự; còn mở rộng thêm progress/reject/responsive/offline ở các lượt sau.
+6. `DONE` Mở rộng Playwright smoke cho progress, reject, request-info và idempotency key chống duyệt trùng.
+7. `DONE` Nâng GitHub Actions CI để chạy verify và Docker web smoke.
+8. `TODO` Tách tiếp page-level components theo module `tasks`, `workflows`, `admin` để giảm kích thước `App.tsx`.
+9. `TODO` Hoàn thiện user/department advanced UI và data scope/field permission.

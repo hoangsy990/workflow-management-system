@@ -953,7 +953,9 @@ function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage: (page
             <h2>{data.title}</h2>
             <p>{data.code}</p>
           </div>
-          <span className={cls("status-chip", data.displayStatus)}>{statusLabels[data.displayStatus ?? data.status]}</span>
+          <span className={cls("status-chip", data.displayStatus)} data-testid="task-detail-status">
+            {statusLabels[data.displayStatus ?? data.status]}
+          </span>
         </div>
         <p className="description">{data.description}</p>
         {localError && <p className="form-error">{localError}</p>}
@@ -972,7 +974,7 @@ function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage: (page
           </span>
           <span>
             <small>Tiến độ</small>
-            <b>{data.progress}%</b>
+            <b data-testid="task-detail-progress">{data.progress}%</b>
           </span>
         </div>
         <section className="attachment-section">
@@ -987,9 +989,27 @@ function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage: (page
           />
         </section>
         <div className="progress-box">
-          <input type="range" min={0} max={100} value={progress} onChange={(event) => setProgress(Number(event.target.value))} />
-          <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ghi chú tiến độ" />
-          <button className="primary-button compact" type="button" disabled={busy} onClick={() => void saveProgress()}>
+          <input
+            data-testid="task-progress-range"
+            type="range"
+            min={0}
+            max={100}
+            value={progress}
+            onChange={(event) => setProgress(Number(event.target.value))}
+          />
+          <textarea
+            data-testid="task-progress-note"
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="Ghi chú tiến độ"
+          />
+          <button
+            className="primary-button compact"
+            data-testid="task-progress-submit"
+            type="button"
+            disabled={busy}
+            onClick={() => void saveProgress()}
+          >
             Cập nhật tiến độ
           </button>
         </div>
@@ -1405,7 +1425,9 @@ function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: string | 
             <h2>{data.code}</h2>
             <p>{data.template?.name}</p>
           </div>
-          <span className="status-chip">{statusLabels[data.status] ?? data.status}</span>
+          <span className="status-chip" data-testid="workflow-instance-status">
+            {statusLabels[data.status] ?? data.status}
+          </span>
         </div>
         <div className="json-view">{JSON.stringify(data.formData ?? {}, null, 2)}</div>
         <div className="approval-actions">
