@@ -1,5 +1,17 @@
 # WorkFlow Management System - Kiến trúc
 
+## 0. Theo dõi tiến độ và trạng thái hoàn thành
+
+Trạng thái triển khai chi tiết được theo dõi tại [`CHECKLIST.md`](CHECKLIST.md). Mỗi lần sửa code, migration, seed, tài liệu, Docker hoặc UI phải cập nhật checklist trong cùng commit.
+
+Quy ước trạng thái:
+
+- `DONE`: đã triển khai và kiểm tra.
+- `PARTIAL`: đã có một phần chạy được nhưng còn thiếu chức năng, QA, test hoặc tài liệu.
+- `TODO`: chưa triển khai.
+- `WAITING`: chờ môi trường, chứng chỉ, thiết bị hoặc cấu hình bên ngoài.
+- `BLOCKED`: đang bị chặn bởi lỗi hoặc điều kiện không thể tự xử lý.
+
 ## 1. Công nghệ được chọn và lý do
 
 Repository ban đầu trống, vì vậy hệ thống được khởi tạo mới theo hướng **modular monolith**.
@@ -207,3 +219,110 @@ Mọi policy chạy ở backend; frontend chỉ dùng quyền để điều ch�
 - Production config, staging config.
 - Monitoring health-check và audit review.
 
+## 9. Bổ sung kiến trúc UI/UX, cấu hình và báo cáo
+
+Yêu cầu cập nhật mở rộng phạm vi từ hệ thống nghiệp vụ chạy được sang sản phẩm quản trị nội bộ hoàn chỉnh. Các nhóm dưới đây được quản lý trong `CHECKLIST.md` và triển khai theo giai đoạn để không làm hỏng nền tảng đang chạy.
+
+### 9.1. Design system và frontend structure
+
+Frontend hiện dùng React/Vite với CSS variables và các component nội bộ trong `App.tsx`. Giai đoạn tiếp theo cần tách thành cấu trúc:
+
+- `src/components/layout`: sidebar, topbar, breadcrumb, bottom navigation.
+- `src/components/ui`: button, input, select, textarea, table, mobile card, modal, sheet, status chip, file picker, empty/error/loading/skeleton.
+- `src/features/tasks`: list, filters, form, detail, kanban, calendar, progress, evaluation, comments, attachments.
+- `src/features/workflows`: templates, form builder, workflow designer, instances, approvals, history.
+- `src/features/admin`: users, departments, org chart, roles, permission matrix, settings, shared categories.
+- `src/features/reports`: task reports, workflow reports, drill-down, export jobs.
+- `src/api`: API client, auth refresh, upload/download, error mapping.
+
+Design system cần tài liệu hóa token màu, typography, spacing, status colors, light/dark mode, focus states và responsive rules. Data table trên desktop phải chuyển thành mobile cards; filter nâng cao trên mobile dùng bottom sheet hoặc full-screen filter.
+
+### 9.2. Trình thiết kế quy trình trực quan
+
+Workflow designer sẽ là module UI riêng, không thay đổi mô hình backend hiện có. Backend tiếp tục lưu version, steps, assignees, transitions và conditions có cấu trúc. UI cần thêm:
+
+- Canvas kéo thả node.
+- Node start, form, handler, approval, condition, parallel approval, notification, wait, create task, end.
+- Panel cấu hình node và đường nối.
+- Condition builder dùng field/operator/value/group, không `eval`.
+- Validate workflow trước khi publish.
+- Preview và compare versions.
+
+Trong phiên bản đầu tiên của designer, dữ liệu lưu vẫn map về các bảng `workflow_steps`, `workflow_step_assignees`, `workflow_transitions`, `workflow_conditions`.
+
+### 9.3. Form builder kéo thả
+
+Form builder sẽ dùng cùng `workflow_form_fields` và `workflow_versions.form_schema`. Các khả năng cần mở rộng:
+
+- Layout trái/giữa/phải cho field palette, canvas và property panel.
+- Section, tab, grid, repeating table.
+- Field condition, calculated field, validation, default value.
+- Field permission theo role và theo step.
+- Preview PC/mobile.
+
+Backend validate form theo version đang active để hồ sơ cũ tiếp tục chạy đúng schema cũ.
+
+### 9.4. Cấu hình hệ thống và danh mục dùng chung
+
+`system_settings` hiện là key/value. Cần mở rộng UI theo nhóm:
+
+- Cấu hình chung.
+- Mã tự động.
+- Công việc.
+- Quy trình.
+- Ngày làm việc, ngày nghỉ, SLA.
+- Tệp upload.
+- Thông báo, email, push.
+- Bảo mật.
+- Dữ liệu và sao lưu.
+
+Danh mục dùng chung cần module riêng để quản trị các danh mục tùy chỉnh, có thể làm nguồn dữ liệu cho field select trong form builder.
+
+### 9.5. Tổ chức, người dùng và phân quyền nâng cao
+
+RBAC hiện có roles/permissions cơ bản. Giai đoạn tiếp theo cần:
+
+- Org chart dạng tree, list và sơ đồ tổ chức.
+- User profile gồm thiết bị đăng nhập, hoạt động gần đây, task/workflow liên quan.
+- Import user từ CSV/Excel có preview và lỗi từng dòng.
+- Permission matrix dạng module x action.
+- Data scope theo quyền.
+- Field-level permission.
+- Preview quyền theo user/role.
+- Cảnh báo xung đột quyền và bảo vệ admin cuối cùng.
+
+Policy vẫn phải thực thi ở backend và áp vào database query, không chỉ ẩn UI.
+
+### 9.6. Báo cáo và phân tích
+
+Dashboard hiện là báo cáo cơ bản. Module report riêng cần:
+
+- Báo cáo công việc theo trạng thái, phòng ban, assignee, assigner, priority, overdue, redo, completion rate, average completion time.
+- Báo cáo quy trình theo trạng thái, template, department, requester, pending, overdue, average processing time, bottleneck step, approval/reject rate.
+- Filter theo thời gian, chi nhánh, phòng ban, nhóm, user, workflow, status, priority, category, tag.
+- Drill-down từ chart/metric về danh sách dữ liệu.
+- Export Excel/CSV/PDF/print theo quyền, có audit log và giới hạn hệ thống.
+
+### 9.7. Mobile, accessibility và hiệu năng
+
+Mobile web/Tauri không được là bản PC thu nhỏ. Cần tiếp tục:
+
+- Bottom navigation theo nhóm Tổng quan, Công việc, Phê duyệt, Thông báo, Cá nhân.
+- Detail task/workflow chia section/tab.
+- Approval mobile có action rõ, nút không quá gần, có xác nhận và lý do.
+- Camera/file picker native, preview, compression, upload progress, cancel, retry.
+- Keyboard navigation, focus state, tooltip, label, ARIA cơ bản.
+- Debounce search, lazy load tabs, cache danh mục, skeleton loading.
+- Workflow designer phải hướng đến 100 node mượt.
+
+### 9.8. Kế hoạch kiểm thử mở rộng
+
+Ngoài Vitest hiện có, cần thêm UI/e2e suite:
+
+- Login, refresh token, logout.
+- Task create/progress/evaluate/comment/upload/download.
+- Workflow submit/approve/reject/request info/return/idempotency.
+- Permission visibility và backend denial.
+- Form validation, draft restore, dark mode, offline state.
+- Responsive ở phone nhỏ, phone lớn, tablet, laptop, desktop.
+- Browser matrix Chrome/Edge; Android/iOS/Windows desktop khi có môi trường phù hợp.

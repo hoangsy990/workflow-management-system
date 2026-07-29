@@ -2,6 +2,10 @@
 
 Hệ thống web quản lý công việc và quy trình phê duyệt nội bộ doanh nghiệp. Giao diện tiếng Việt, backend API dùng chung cho web, Windows, Android và iOS.
 
+## Theo dõi tiến độ
+
+Checklist triển khai đầy đủ nằm tại [`CHECKLIST.md`](CHECKLIST.md). Sau mỗi lần sửa code, tài liệu, migration, seed, Docker hoặc UI, checklist phải được cập nhật trong cùng commit với trạng thái `DONE`, `PARTIAL`, `TODO`, `WAITING` hoặc `BLOCKED`.
+
 ## Công nghệ
 
 - Backend: Fastify, TypeScript, Prisma, PostgreSQL.
@@ -147,4 +151,4 @@ pnpm build
 DATABASE_URL=postgresql://workflow:workflow@localhost:5432/workflow_management?schema=public pnpm db:validate
 ```
 
-Lưu ý: máy hiện tại chưa có Docker CLI nên chưa chạy được `docker compose up` tại chỗ.
+Docker Compose đã được kiểm tra với API, web và PostgreSQL. Trạng thái hiện tại được ghi lại trong [`CHECKLIST.md`](CHECKLIST.md).

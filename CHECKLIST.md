@@ -1,0 +1,465 @@
+﻿# WorkFlow Management System - Checklist triển khai
+
+File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi lần sửa code, tài liệu, migration, seed, Docker hoặc UI, phải cập nhật file này trong cùng commit.
+
+## Quy ước trạng thái
+
+- [x] `DONE`: đã triển khai, đã kiểm tra, không còn việc bắt buộc ngay trong phạm vi hiện tại.
+- [ ] `PARTIAL`: đã có một phần chạy được, còn thiếu chức năng/QA/test/tài liệu.
+- [ ] `TODO`: chưa triển khai.
+- [ ] `WAITING`: chờ môi trường, tài khoản, chứng chỉ, thiết bị hoặc quyết định triển khai.
+- [ ] `BLOCKED`: đang bị chặn bởi lỗi hoặc thiếu điều kiện không thể tự xử lý.
+
+## Cập nhật gần nhất
+
+| Ngày | Commit | Nội dung | Kiểm tra |
+| --- | --- | --- | --- |
+| 29/07/2026 | `DOC-UPDATE` | Tạo checklist triển khai đầy đủ theo yêu cầu cập nhật, thêm quy tắc bắt buộc cập nhật checklist sau mỗi lần sửa, cập nhật README và ARCHITECTURE cho phạm vi UI/config/report/mobile mới. | Tài liệu only; kiểm tra `git diff --stat` và heading checklist. |
+| 29/07/2026 | `a69101a` | Thêm tệp đính kèm trong bình luận công việc, tải xuống attachment, refresh token cho download, UI attachment trong chi tiết task. | `pnpm test`, `pnpm lint`, `pnpm build`, Docker API/web healthy, smoke upload/download pass. |
+| 29/07/2026 | `a4b95f6` | Tự refresh access token ở frontend, sửa dashboard hiển thị quá hạn, thêm web client test. | `pnpm test`, `pnpm lint`, `pnpm build`, Docker healthy, QA workflow UI pass. |
+| 29/07/2026 | `58de69a` | Sửa mobile navigation và Việt hóa trạng thái mẫu quy trình. | `pnpm lint`, `pnpm test`, `pnpm build`, QA browser pass. |
+| 29/07/2026 | `145f9fa` | Sửa Docker runtime build, Prisma generate và seed command. | `docker compose build`, `docker compose up -d`, health check, login API pass. |
+| 29/07/2026 | `ece9acd` | Khởi tạo hệ thống monorepo, API, web, DB, migration, seed, Docker, tài liệu ban đầu. | `pnpm lint`, `pnpm test`, `pnpm build`. |
+
+## Tổng quan giai đoạn
+
+| Giai đoạn | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Giai đoạn 1 - Nền tảng, đăng nhập, dashboard, công việc thường, RBAC cơ bản | `PARTIAL` | Chạy được bằng Docker, login/RBAC/API/task/dashboard đã có. Còn thiếu nhiều UI quản trị nâng cao, scope dữ liệu chi tiết, import/export và test UI rộng. |
+| Giai đoạn 2 - Quy trình phê duyệt, form builder, workflow designer, version | `PARTIAL` | API template/version/step/transition/instance/approval đã có; UI builder còn đơn giản, chưa có canvas kéo thả/form builder đầy đủ. |
+| Giai đoạn 3 - Cấu hình nâng cao, báo cáo, mobile, push notification, hiệu năng | `PARTIAL` | Có settings cơ bản, responsive/mobile web, notification inbox/device token table. Chưa có push adapter thật, báo cáo riêng, cấu hình nâng cao, mobile native QA. |
+
+## 1. Yêu cầu thực hiện
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Kiểm tra repository trước khi sửa | `DONE` | Repo đã được rà soát trước khi khởi tạo và trước các lượt sửa tiếp theo bằng `git status`, `rg`, đọc file liên quan. |
+| Chọn công nghệ phù hợp, modular monolith | `DONE` | Fastify + Prisma + PostgreSQL + React/Vite + Tauri shell. |
+| Database PostgreSQL hoặc MySQL | `DONE` | PostgreSQL 16 qua Docker Compose. |
+| Giao diện tiếng Việt | `PARTIAL` | Phần chính tiếng Việt. Cần tiếp tục rà toàn bộ text/lỗi/browser edge cases. |
+| Responsive desktop/tablet/mobile | `PARTIAL` | Có sidebar desktop, bottom nav/mobile cards/menu mở rộng. Cần QA thêm nhiều viewport và refine detail mobile theo tab/section. |
+| Múi giờ Asia/Ho_Chi_Minh, ngày dd/MM/yyyy | `DONE` | Backend dùng timezone cấu hình, frontend format `vi-VN` dd/MM/yyyy. |
+| Không chỉ giao diện mẫu, có DB/API/business/RBAC/validation/migration/seed/docs | `PARTIAL` | Nền tảng có đủ và chạy được; còn nhiều nghiệp vụ nâng cao trong checklist chưa xong. |
+| `ARCHITECTURE.md` trước khi code | `DONE` | Đã có. Cần cập nhật thêm các yêu cầu UI/config mới. |
+
+## 2. Module chính và nền tảng
+
+| Module | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Đăng nhập và quản lý tài khoản | `PARTIAL` | Login/refresh/logout/users CRUD cơ bản có. Chưa có hồ sơ người dùng đầy đủ, thiết bị đăng nhập UI, import user. |
+| Phòng ban và cơ cấu tổ chức | `PARTIAL` | Departments CRUD cơ bản có. Company/branch/team schema có; UI sơ đồ tổ chức và kéo chuyển chưa có. |
+| Vai trò và phân quyền | `PARTIAL` | RBAC tables/API và role permission UI cơ bản có. Chưa có ma trận quyền nâng cao, scope/field permissions, preview/conflict checker. |
+| Thông báo | `PARTIAL` | Notification center/inbox/device token table có. Chưa có push adapter FCM/APNs/Desktop thật và lịch nhắc hạn. |
+| Bình luận và tệp đính kèm | `PARTIAL` | Comment, mention list, upload/download attachment cho task có. Reply comment, lịch sử chỉnh sửa comment, attachment cho workflow approval còn thiếu. |
+| Nhật ký hoạt động | `PARTIAL` | Audit log cho nhiều hành động chính có. Cần phủ thêm import/export/config/download/xóa tệp. |
+| Dashboard và báo cáo cơ bản | `PARTIAL` | Dashboard thật từ DB có. Module báo cáo riêng, drill-down/export chưa có. |
+| Cấu hình hệ thống | `PARTIAL` | Key/value settings có. Chưa có trung tâm cấu hình đầy đủ theo nhóm. |
+
+## 3. Người dùng, phòng ban và RBAC
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| User fields: mã NV, họ tên, email, phone, password, avatar, title, department, manager, status, created, last login | `PARTIAL` | Schema/API có phần lớn. UI tạo user còn cơ bản, avatar/profile/devices chưa hoàn thiện. |
+| Company, branch, department, team, title, direct manager | `PARTIAL` | Schema có company/branch/team/departments; UI mới chủ yếu department/user. |
+| Một người thuộc một phòng ban chính và nhiều nhóm | `PARTIAL` | Schema team/team_members có; UI quản lý nhóm chưa có. |
+| Vai trò mặc định admin/manager/employee/watcher | `DONE` | Seed tạo các vai trò mặc định. |
+| RBAC linh hoạt, không hard-code theo tên vai trò | `DONE` | Backend kiểm permission code; role name không hard-code policy chính. |
+| Manager xem nhân viên trực thuộc | `PARTIAL` | Scope task theo direct report có. Cần mở rộng workflow/report/user profile. |
+| Backend kiểm quyền, không chỉ ẩn nút | `DONE` | Route preHandler/policy/service kiểm quyền. |
+
+## 4. Công việc thường
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Mã công việc tự sinh | `DONE` | `TASK-YYYYMMDD-XXXX`. |
+| Form tạo task: title, mô tả, assignee, manager, follower, department, start/due, priority, category, tags, review | `DONE` | UI/API có. |
+| Người giao việc | `PARTIAL` | Backend có `assignerId`; UI chưa chọn riêng, mặc định người tạo. |
+| Tệp đính kèm khi tạo task | `PARTIAL` | Upload ở chi tiết/comment đã có; form tạo task chưa upload ngay lúc tạo. |
+| Công việc cha/con | `PARTIAL` | Schema/service chống vòng lặp có; UI tạo parent/subtask còn thiếu. |
+| Công việc liên quan/phụ thuộc | `PARTIAL` | Schema/API create relatedTaskIds có; UI chưa có. |
+| Lặp lại ngày/tuần/tháng | `PARTIAL` | Field/schema có; scheduler sinh task lặp chưa có UI/logic đầy đủ. |
+| Custom fields | `PARTIAL` | JSON field có; UI cấu hình custom field chưa có. |
+| Validation ngày bắt đầu <= hạn | `DONE` | Backend kiểm. |
+| Audit log khi tạo/sửa task | `DONE` | Có audit log create/update/progress/evaluate/comment/attachment. |
+| Trạng thái mặc định, quá hạn tính động | `DONE` | `displayStatus=OVERDUE` tính động ở list/dashboard/detail. |
+| Cập nhật tiến độ 0-100, ghi chú, lịch sử | `DONE` | API/UI/history có. |
+| 100% -> chờ đánh giá hoặc hoàn thành | `DONE` | Domain/service/test có. |
+| Đánh giá hoàn thành/làm lại, rating, comment | `PARTIAL` | API có rating/comment; UI dùng prompt/rating mặc định 5, chưa có form đánh giá đầy đủ/attachment xác nhận. |
+| Làm lại giữ/reset tiến độ theo cấu hình | `PARTIAL` | Setting seed có nhưng service hiện giữ tiến độ, chưa áp config reset. |
+| Tiến độ task cha từ task con | `PARTIAL` | Schema flag/subTaskProgress có; auto recalc chưa đầy đủ. |
+| Comment, mention, attachment | `PARTIAL` | Comment/mention IDs/attachment upload có. Reply, `@` autocomplete văn bản, edit history còn thiếu. |
+| List view | `PARTIAL` | Có list và mobile cards. Cột người giao/ngày bắt đầu/ngày còn lại chưa đủ. |
+| Kanban view, kéo thả | `PARTIAL` | Có drag/drop status cơ bản. Cần policy UX/confirm đầy đủ và QA desktop. |
+| Calendar view | `PARTIAL` | Có nhóm theo dueDate; chưa hiển thị theo start + due dạng calendar chuẩn. |
+| Công việc của tôi với đủ tabs | `PARTIAL` | Có view assignee cơ bản; chưa đủ 7 tab. |
+| Tìm kiếm/lọc server-side đầy đủ | `PARTIAL` | Backend hỗ trợ nhiều filter. UI mới keyword/status cơ bản. |
+| Phân trang server-side | `DONE` | API paginate có. UI chưa có điều khiển trang đầy đủ. |
+
+## 5. Quy trình phê duyệt
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Workflow template fields: code/name/description/category/version/manager/allowed initiators/status | `PARTIAL` | Code/name/category/manager/version/status có; allowed initiators chưa có UI/policy đầy đủ. |
+| Form field types đầy đủ | `PARTIAL` | Schema enum có nhiều type; UI builder mới đơn giản JSON/form mẫu. |
+| Field config required/default/placeholder/validation/order/editable/visible roles | `PARTIAL` | DB columns có; UI cấu hình còn thiếu. |
+| Step types start/handler/approval/review/notification/end | `DONE` | Enum/schema/API có. |
+| Assignee resolver theo user/role/department/manager/head/form field/previous | `DONE` | Service resolver có. |
+| Sequential approval | `DONE` | API/service/test/smoke pass. |
+| Parallel approval all/any/min count/min percent | `PARTIAL` | Domain logic có; UI/template seed test đầy đủ còn hạn chế. |
+| Approve/reject/request info/return | `DONE` | API/UI/smoke pass. |
+| Forward/chuyển xử lý | `TODO` | Chưa triển khai. |
+| Approval action lưu người, thời gian, action, comment, IP | `DONE` | WorkflowApproval có fields và service ghi. |
+| Lưu step trước/sau và dữ liệu thay đổi | `PARTIAL` | History approvals/steps có; metadata before/after chưa đầy đủ. |
+| Điều kiện rẽ nhánh structured, không eval | `DONE` | Domain condition builder/test/smoke lớn tiền pass. |
+| Trạng thái hồ sơ đầy đủ | `PARTIAL` | Enum/status có; draft/submitted workflow chưa đủ UI/luồng. |
+| Version workflow không sửa trực tiếp khi có instance | `PARTIAL` | Domain assert/test có cho status; UI tạo version mới/compare còn thiếu. |
+| Compare versions | `PARTIAL` | API compare có; UI chưa có. |
+| Deadline/SLA bước | `PARTIAL` | Schema có deadline fields; notify quá hạn scheduler chưa có. |
+
+## 6. Thông báo
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Notification center trong app | `DONE` | Dashboard/notifications API có. |
+| Task assigned/follower/comment/mention/pending review/redo | `PARTIAL` | Assigned/follower/mention/pending review/redo có; comment thường/sắp hạn/quá hạn scheduler chưa đủ. |
+| Workflow pending/approved/rejected/request info | `PARTIAL` | Pending/rejected/request info có; approved notification cần rà thêm. |
+| Step due soon/overdue notification | `TODO` | Chưa có scheduler. |
+| Event-driven nội bộ để mở rộng email/Telegram/mobile | `PARTIAL` | `enqueueNotifications` và device tokens có. Adapter ngoài chưa có. |
+
+## 7. Dashboard
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Cards theo quyền: active/pending/due soon/overdue/pending review/pending approvals/my instances | `DONE` | API/UI có dữ liệu thật. |
+| Thống kê task theo trạng thái/phòng ban | `PARTIAL` | Status có UI. Department group API có nhưng UI chưa hiển thị rõ. |
+| Công việc cần chú ý | `DONE` | Có và đã sửa display overdue. |
+| Yêu cầu phê duyệt gần nhất | `PARTIAL` | Recent instances có; dashboard theo vai trò chưa tách sâu. |
+| Không hard-code demo số liệu | `DONE` | Số liệu lấy DB. |
+
+## 8. Audit log và bảo mật
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Password hash an toàn | `DONE` | bcryptjs. |
+| Chống SQL injection | `DONE` | Prisma query/transaction. |
+| Chống XSS cơ bản | `PARTIAL` | React escaping + Helmet. Cần sanitize nếu có rich text. |
+| CSRF | `DONE` | Không dùng cookie credential cho auth API hiện tại. |
+| Backend validation | `DONE` | Zod. |
+| Backend authorization | `DONE` | Auth guard + permission/policy. |
+| Upload file: giới hạn type/size/safe filename/no internal path leak | `DONE` | API upload kiểm MIME/size/safe name/storageKey. |
+| Rate limit login/API nhạy cảm | `DONE` | Fastify rate limit + login route limit. |
+| Lock/delay sau nhiều lần login sai | `DONE` | `failedLoginAttempts`, `lockedUntil`. |
+| Không log secret | `PARTIAL` | Không chủ động log token/password; cần rà production logger/redaction. |
+| Audit login/task/workflow/permission/config/download/delete file | `PARTIAL` | Nhiều hành động có. Download/delete file/config/import/export chưa phủ hết. |
+
+## 9. Giao diện trang bắt buộc
+
+| Trang | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Đăng nhập | `DONE` | Có. |
+| Dashboard | `DONE` | Có. |
+| Công việc của tôi | `PARTIAL` | Có view cơ bản, thiếu tabs đầy đủ. |
+| Danh sách toàn bộ công việc | `DONE` | Có. |
+| Kanban công việc | `PARTIAL` | Có cơ bản. |
+| Lịch công việc | `PARTIAL` | Có dạng danh sách theo ngày. |
+| Tạo công việc | `PARTIAL` | Có chính yếu, thiếu parent/related/repeat/custom/upload ngay lúc tạo. |
+| Chi tiết công việc | `PARTIAL` | Có overview/progress/comment/attachments/history; thiếu tabs mobile/reply/edit history. |
+| Danh sách mẫu quy trình | `DONE` | Có. |
+| Tạo/chỉnh sửa mẫu quy trình | `PARTIAL` | Tạo cơ bản; chỉnh sửa/version UI chưa đủ. |
+| Thiết kế biểu mẫu | `PARTIAL` | UI đơn giản, chưa kéo thả. |
+| Cấu hình bước phê duyệt | `PARTIAL` | UI đơn giản. |
+| Danh sách hồ sơ quy trình | `DONE` | Có. |
+| Tạo hồ sơ | `PARTIAL` | Tạo từ JSON/form đơn giản, chưa render form động đầy đủ. |
+| Chi tiết và lịch sử phê duyệt | `PARTIAL` | Có detail/history/action cơ bản; thiếu sơ đồ theo dõi. |
+| Yêu cầu chờ tôi phê duyệt | `DONE` | Có filter pendingMine. |
+| Quản lý người dùng | `PARTIAL` | Có list/create cơ bản. |
+| Quản lý phòng ban | `PARTIAL` | Có list/create cơ bản. |
+| Quản lý vai trò và quyền | `PARTIAL` | Có chọn quyền cơ bản, chưa ma trận nâng cao. |
+| Nhật ký hoạt động | `DONE` | Có list. |
+| Cấu hình hệ thống | `PARTIAL` | Key/value cơ bản. |
+
+## 10. Database
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Các bảng tối thiểu theo yêu cầu | `DONE` | Schema Prisma có đủ nhóm chính. |
+| `created_at`, `updated_at`, `created_by` khi cần | `PARTIAL` | Nhiều bảng có timestamps; created_by chưa phủ hết. |
+| Soft delete phù hợp | `PARTIAL` | Có nhiều bảng; chưa phủ toàn bộ danh mục/config. |
+| Optimistic locking | `PARTIAL` | `version` có ở task/workflow; chưa được yêu cầu trong mọi update UI. |
+| Transaction cho chuyển bước/phê duyệt/tạo hồ sơ | `DONE` | Có. |
+| Unique/index trường tìm kiếm | `PARTIAL` | Có index chính; cần tối ưu thêm khi dữ liệu lớn. |
+
+## 11. API và xử lý nghiệp vụ
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| API v1 nhất quán | `DONE` | `/api/v1`. |
+| Controller/service/data access/policy tách biệt | `PARTIAL` | Service tách; một số route còn query trực tiếp. |
+| Transaction nghiệp vụ quan trọng | `DONE` | Task/workflow chính có. |
+| Idempotent submit/approval | `DONE` | Idempotency key có, smoke pass. |
+| Lỗi API cấu trúc thống nhất | `DONE` | `{ error: { code, message, details } }`. |
+| Pagination/filter/sort server-side | `PARTIAL` | Pagination/filter có; sort tùy chọn UI/API chưa đầy đủ. |
+| Không N+1 | `PARTIAL` | Prisma include chính có; cần audit khi mở rộng report. |
+| OpenAPI/Swagger | `DONE` | `/docs`. |
+| Upload file an toàn | `DONE` | Có. |
+| Refresh token | `DONE` | Backend + frontend auto refresh. |
+| Device token push registration | `DONE` | API/table có. |
+
+## 12. Seed data
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Admin, manager, ít nhất 4 nhân viên, 2 phòng ban | `DONE` | Seed có. |
+| Task nhiều trạng thái | `DONE` | Seed có. |
+| Payment và leave workflows | `DONE` | Seed có. |
+| Hồ sơ pending/approved/rejected/request info | `PARTIAL` | Seed có pending/approved/rejected. Request info có từ smoke runtime, chưa seed chuẩn. |
+| Demo UI nâng cao >100 records, long names, nhiều comment/subtask/parallel workflow | `TODO` | Chưa có bộ seed stress UI. |
+
+## 13. Kiểm thử
+
+| Nhóm test | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API bổ sung. Cần integration tests đầy đủ hơn. |
+| Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có 4 + smoke API nhiều luồng. Chưa có integration transaction failure tự động. |
+| Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
+| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Web client tests refresh/download có. Chưa có Playwright suite đầy đủ. |
+| Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `WAITING` | Chưa có thiết bị/môi trường CI đa nền tảng. |
+
+## 14. Triển khai
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| `.env.example` | `DONE` | Có. |
+| Migration | `DONE` | Có `0001_init`. |
+| Seeder | `DONE` | Có. |
+| Script khởi tạo | `DONE` | `init:dev`, Docker scripts. |
+| Dockerfile + Docker Compose app/database | `DONE` | Build/run đã fix và QA. |
+| Hướng dẫn Docker/dev/prod/backup | `DONE` | README có. Cần cập nhật checklist link và note Docker hiện đã chạy được. |
+| Health-check endpoint | `DONE` | `/health`. |
+| CI pipeline lint/test/build | `TODO` | Chưa có GitHub Actions. |
+
+## 15. Cách làm việc và tiêu chí hoàn thành
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Thứ tự làm việc 1-14 theo yêu cầu | `PARTIAL` | Đã làm nhiều bước; tiếp tục theo checklist này. |
+| Sau mỗi lần sửa cập nhật checklist | `DONE` | Bắt đầu từ file này; mọi commit sau phải cập nhật. |
+| Không còn lỗi lint/type-check/test/build trước khi báo xong | `DONE` | Đang duy trì sau các commit gần nhất. |
+| Báo cáo file tạo/chỉnh sửa sau mỗi lượt | `DONE` | Đã báo trong final; tiếp tục giữ. |
+
+## 16. Đa nền tảng
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Một backend API/database dùng chung | `DONE` | Có. |
+| Web responsive | `PARTIAL` | Có; cần polish sâu mobile. |
+| Windows app chạy bằng Tauri | `PARTIAL` | Config/script có; chưa build/QA installer trên Windows trong checklist này. |
+| Android/iOS app build | `WAITING` | Script có; cần SDK/Xcode/signing/push config. |
+| Secure token storage native | `TODO` | Web dùng sessionStorage; native secure storage adapter chưa triển khai. |
+| Push notification Android/iOS/PC | `PARTIAL` | Backend device token table/API có; adapter thật chưa. |
+| Offline draft/retry network weak | `PARTIAL` | Task draft + online/offline state có; queue retry an toàn chưa đủ. |
+| Camera/mobile file picker/compression/progress/cancel/retry | `PARTIAL` | Web file picker task có. Native camera/compression/progress/cancel chưa. |
+| Build docs web/Windows/Android/iOS | `PARTIAL` | README có lệnh cơ bản, thiếu signing/cert/push chi tiết thật. |
+
+## 17. UI/UX tổng thể
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Nguyên tắc thiết kế admin hiện đại, nhất quán | `PARTIAL` | UI có sidebar/topbar/cards/forms; cần chuẩn hóa component library riêng. |
+| Design system tokens/typography/spacing/components | `PARTIAL` | CSS variables và component classes có; chưa có document design system đầy đủ. |
+| Màu trạng thái nhất quán | `PARTIAL` | Status labels/chips có; cần audit toàn app. |
+| Bố cục PC/web: sidebar/header/main/breadcrumb | `DONE` | Có. |
+| Header/account/notification/search | `PARTIAL` | Account/notification có; global search chưa. |
+| Loading/empty/error/offline state | `PARTIAL` | Có state cơ bản; skeleton chưa. |
+
+## 18. Dashboard nâng cao
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Dashboard cá nhân | `PARTIAL` | Có dashboard chung theo quyền; chưa phân layout riêng sâu. |
+| Dashboard quản lý | `PARTIAL` | Scope dữ liệu có một phần; chưa layout quản lý riêng. |
+| Dashboard quản trị | `PARTIAL` | Admin thấy toàn hệ thống; chưa widget quản trị riêng. |
+| Biểu đồ và bộ lọc | `TODO` | Chưa có biểu đồ/bộ lọc dashboard nâng cao. |
+
+## 19. UI quản lý công việc nâng cao
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Danh sách công việc đầy đủ columns/action/filter/sort/pagination | `PARTIAL` | Có list cơ bản. Còn thiếu nhiều cột/action/pagination UI. |
+| Bộ lọc nâng cao | `TODO` | Backend có nhiều filter; UI filter nâng cao chưa. |
+| Tạo task chia nhóm/tệp/liên kết/cấu hình nâng cao | `PARTIAL` | Form nhóm cơ bản có. |
+| Chi tiết task có khu vực chính/panel/thanh thao tác/timeline | `PARTIAL` | Có overview/progress/comment/file/history. Cần layout detail nâng cao/tabs. |
+| Timeline task đầy đủ thay đổi trạng thái/người/hạn/progress | `PARTIAL` | Progress history có; status/user/due logs chưa đầy đủ UI. |
+| Đánh giá task form chuẩn 1-5 sao/attachment | `TODO` | UI prompt tạm thời. |
+| Kanban/lịch hoàn thiện | `PARTIAL` | Có cơ bản. |
+
+## 20. Trình thiết kế quy trình trực quan
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Canvas kéo thả workflow | `TODO` | Chưa có. |
+| Node start/form/task/approval/condition/parallel/notification/wait/create task/end | `PARTIAL` | Backend model step/transition có; UI node trực quan chưa. |
+| Panel cấu hình node | `TODO` | Chưa có. |
+| Cấu hình đường nối/condition builder | `PARTIAL` | Backend structured conditions có; UI trực quan chưa. |
+| Kiểm tra quy trình/lỗi | `PARTIAL` | Backend validation cơ bản; UI checker chưa. |
+| Preview quy trình | `TODO` | Chưa có. |
+| Quản lý phiên bản visual | `PARTIAL` | Backend version có; UI chưa. |
+
+## 21. Form builder kéo thả
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Layout trái/giữa/phải | `TODO` | Chưa có builder kéo thả. |
+| Loại trường đầy đủ | `PARTIAL` | Backend enum có. |
+| Bố cục section/tab/grid/table | `TODO` | Chưa có UI builder. |
+| Cấu hình field/validation/default/placeholder | `PARTIAL` | DB có; UI chưa đầy đủ. |
+| Điều kiện hiển thị/calculated field/repeating table | `TODO` | Chưa có. |
+| Field permission theo step/role | `PARTIAL` | DB có; enforcement/UI chưa đầy đủ. |
+| Preview PC/mobile | `TODO` | Chưa có. |
+
+## 22. UI xử lý hồ sơ quy trình
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Danh sách hồ sơ | `DONE` | Có. |
+| Khởi tạo hồ sơ bằng form động | `PARTIAL` | JSON/form đơn giản; cần render dynamic fields. |
+| Chi tiết hồ sơ nội dung/panel quy trình/action bar | `PARTIAL` | Có detail/history/action cơ bản. |
+| Hộp thoại duyệt/từ chối/yêu cầu bổ sung | `PARTIAL` | Prompt tạm thời; cần modal/form chuẩn. |
+| Lịch sử phê duyệt | `DONE` | Có. |
+| Sơ đồ theo dõi quy trình | `TODO` | Chưa có. |
+
+## 23. Trung tâm cấu hình hệ thống
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Cấu hình chung | `PARTIAL` | Key/value settings có. |
+| Mã tự động | `TODO` | Hard-coded generator hiện tại, chưa UI/config. |
+| Cấu hình công việc | `PARTIAL` | Có seed setting redo reset nhưng chưa enforce đầy đủ/UI nhóm. |
+| Cấu hình quy trình | `TODO` | Chưa có UI nhóm. |
+| Ngày làm việc/ngày nghỉ/SLA | `TODO` | Chưa có. |
+| Cấu hình tệp | `PARTIAL` | Backend env size/type hard-coded; chưa UI. |
+| Cấu hình thông báo/email/bảo mật/backup | `TODO` | Chưa có trung tâm cấu hình đầy đủ. |
+
+## 24. Danh mục và dữ liệu dùng chung
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Task categories/tags | `PARTIAL` | Seed/list dùng được; UI quản lý riêng chưa. |
+| Danh mục tùy chỉnh có fields/status/scope/manager | `TODO` | Chưa có. |
+| Dùng danh mục tùy chỉnh làm nguồn select trong form builder | `TODO` | Chưa có. |
+
+## 25. Người dùng và tổ chức nâng cao
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Sơ đồ tổ chức tree/org/list | `TODO` | Chưa có. |
+| Kéo chuyển phòng ban | `TODO` | Chưa có. |
+| User profile đầy đủ | `TODO` | Chưa có trang hồ sơ riêng. |
+| Thiết bị đăng nhập/hoạt động gần đây/task/workflow liên quan | `PARTIAL` | Backend refresh tokens/audit/task/workflow có; UI profile chưa. |
+| Import user Excel/CSV với preview/transaction/errors | `TODO` | Chưa có. |
+
+## 26. Ma trận vai trò và phân quyền
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Quyền chức năng dạng ma trận | `PARTIAL` | UI checkbox quyền cơ bản, chưa ma trận hàng/cột. |
+| Chọn toàn hàng/cột, copy role, reset, unsaved changes | `TODO` | Chưa có. |
+| Phạm vi dữ liệu theo quyền | `PARTIAL` | Một số scope hard-coded theo permissions; chưa model cấu hình scope. |
+| Quyền theo trường | `TODO` | Chưa có. |
+| Preview quyền | `TODO` | Chưa có. |
+| Cảnh báo xung đột quyền | `TODO` | Chưa có. |
+
+## 27. Báo cáo và phân tích
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Báo cáo công việc | `PARTIAL` | Dashboard counts/groupBy cơ bản. Module report riêng chưa. |
+| Báo cáo quy trình | `PARTIAL` | Recent/count cơ bản. Module report riêng chưa. |
+| Bộ lọc báo cáo | `TODO` | Chưa có. |
+| Drill-down | `TODO` | Chưa có. |
+| Export Excel/CSV/PDF/print theo quyền + audit | `TODO` | Chưa có. |
+| Dashboard tùy chỉnh | `TODO` | Chưa có. |
+
+## 28. Mobile
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Bottom navigation | `PARTIAL` | Có bottom nav 5 mục + menu mở rộng. Chưa đúng đề xuất Tổng quan/Công việc/Phê duyệt/Thông báo/Cá nhân với FAB. |
+| Mobile cards cho list | `DONE` | DataTable chuyển card trên mobile. |
+| Mobile filter bottom sheet/fullscreen/drawer | `TODO` | Chưa có. |
+| Detail mobile chia section/tab | `PARTIAL` | Có section tuần tự; chưa tabs/section navigation chuyên biệt. |
+| Approval mobile thao tác một tay, nút cách xa, confirm/reason | `PARTIAL` | Có confirm/prompt; cần UI mobile riêng. |
+| Swipe actions | `TODO` | Chưa có. |
+| Camera/file preview/compress/progress/cancel/retry | `PARTIAL` | File picker/upload có; camera/compress/progress/cancel/retry chưa. |
+
+## 29. Trợ năng và khả năng sử dụng
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Keyboard navigation/focus/tab order | `PARTIAL` | Native buttons/forms có; cần audit focus states/tab order. |
+| Tooltip icon | `PARTIAL` | `title` có ở nhiều icon; tooltip custom chưa. |
+| Form labels đầy đủ | `PARTIAL` | Phần lớn có label. Cần audit dynamic forms. |
+| Không phụ thuộc hoàn toàn màu sắc | `PARTIAL` | Có text labels/status. Cần audit charts/status. |
+| Screen reader cơ bản | `TODO` | Chưa audit ARIA. |
+| Không vỡ chữ dài, zoom/system text | `PARTIAL` | CSS responsive có; cần QA stress long text. |
+
+## 30. Hiệu năng giao diện
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Không tải toàn bộ dữ liệu lớn | `PARTIAL` | API pagination có; một số UI dùng pageSize 100. |
+| Debounce search | `TODO` | Chưa có. |
+| Lazy load tab | `PARTIAL` | Page render theo state; chưa code splitting. |
+| Cache danh mục | `TODO` | Chưa có cache layer. |
+| Upload/import/export không treo UI, progress task dài | `PARTIAL` | Loading/busy có; upload progress/cancel chưa. |
+| Skeleton loading | `TODO` | Chưa có skeleton, chỉ loading block. |
+| Workflow designer 100 nodes mượt | `TODO` | Chưa có designer. |
+
+## 31. Kiểm thử UI và trải nghiệm
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
+| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Smoke API/browser có; cần Playwright tests. |
+| Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; builder/designer tests chưa. |
+| Chrome/Edge/Android/iOS/Windows desktop matrix | `WAITING` | Cần môi trường/CI/thiết bị. |
+
+## 32. Dữ liệu demo UI
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Task tên dài, nhiều assignee, nhiều tags, quá hạn, nhiều comment | `PARTIAL` | Một số seed/smoke có. Cần seed stress đầy đủ. |
+| Task con | `TODO` | Chưa seed rõ. |
+| Workflow form dài/bảng nhiều dòng/nhiều nhánh/parallel | `PARTIAL` | Branch có; form dài/parallel seed chưa. |
+| User tên dài, phòng ban nhiều cấp, >100 records | `TODO` | Chưa có. |
+
+## 33. Quy trình phát triển UI
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Design system/layout/component library | `PARTIAL` | CSS/component classes có; docs/component library chưa. |
+| Wireframe màn chính | `PARTIAL` | Implemented screens đóng vai trò prototype; chưa có wireframe doc. |
+| Prototype workflow designer/form builder | `TODO` | Chưa có. |
+| Kiểm tra responsive trước khi hoàn thiện module | `PARTIAL` | Đã QA một số mobile, cần matrix. |
+| Không thiết kế màn riêng lẻ thiếu component chung | `PARTIAL` | Hiện nhiều component nằm trong App.tsx; cần tách component system. |
+
+## 34. Tiêu chí hoàn thành UI, cấu hình và trình thiết kế
+
+| Checklist | Trạng thái | Ghi chú |
+| --- | --- | --- |
+| Design system rõ ràng/UI nhất quán/light-dark/responsive/card mobile/loading-empty-error-offline | `PARTIAL` | Có nền tảng, cần tài liệu và audit. |
+| Workflow designer kéo thả, node, mũi tên, panel, condition, validate, draft, publish version | `TODO` | Chưa có canvas designer. |
+| Form builder kéo thả, section/tab/condition/field permission/preview PC-mobile | `TODO` | Chưa có. |
+| Configuration center, auto code, working days/SLA | `PARTIAL` | Settings cơ bản; center nâng cao chưa. |
+| Permission matrix, data scope, dashboard role-based | `PARTIAL` | Có RBAC/dashboard; matrix/scope nâng cao chưa. |
+| Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
+| Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Lint/test/build pass hiện tại; responsive còn cần QA sâu. |
+
+## Việc ưu tiên tiếp theo
+
+1. `TODO` Cập nhật `ARCHITECTURE.md` theo các mục UI/config/report mới từ yêu cầu 17-34.
+2. `TODO` Cập nhật README link checklist và note trạng thái Docker hiện đã chạy được.
+3. `TODO` Tách frontend component system cơ bản khỏi `App.tsx`.
+4. `TODO` Hoàn thiện quản trị user/department/role permission theo hướng ma trận cơ bản.
+5. `TODO` Thêm Playwright/UI smoke tests cho login, task detail upload, workflow approval.
