@@ -23,7 +23,8 @@
     "db:validate": "pnpm --filter @workflow/api prisma:validate",
     "init:dev": "pnpm install && pnpm db:generate && pnpm db:migrate && pnpm db:seed",
     "docker:up": "docker compose up --build",
-    "docker:down": "docker compose down"
+    "docker:down": "docker compose down",
+    "docker:seed": "docker compose exec -T api node apps/api/dist/prisma/seed.js"
   },
   "devDependencies": {
     "typescript": "^5.9.2"

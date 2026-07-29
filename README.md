@@ -44,7 +44,7 @@ Sau khi sửa PATH, mở lại terminal rồi chạy `docker --version`.
 Nếu cần seed trong container API:
 
 ```bash
-docker compose exec api pnpm --filter @workflow/api prisma:seed
+pnpm docker:seed
 ```
 
 ## Chạy development không dùng Docker

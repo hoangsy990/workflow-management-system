@@ -1,5 +1,6 @@
 FROM node:24-alpine AS base
 WORKDIR /app
+ENV CI=true
 RUN corepack enable
 COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/package.json
@@ -19,14 +20,14 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable
 COPY --from=base /app/package.json /app/pnpm-workspace.yaml ./
-COPY --from=base /app/node_modules ./node_modules
-COPY --from=base /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/prisma ./apps/api/prisma
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json
 EXPOSE 4000
-CMD ["sh", "-c", "pnpm --filter @workflow/api prisma:migrate:deploy && node apps/api/dist/src/index.js"]
+CMD ["sh", "-c", "node apps/api/node_modules/prisma/build/index.js migrate deploy --schema apps/api/prisma/schema.prisma && node apps/api/dist/src/index.js"]
 
 FROM nginx:1.27-alpine AS web
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
