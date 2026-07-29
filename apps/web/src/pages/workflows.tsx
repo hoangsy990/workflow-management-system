@@ -1,5 +1,5 @@
 import { Loader2, Plus, Trash2 } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock } from "../components/common";
 import { useAsyncData } from "../hooks/useAsyncData";
@@ -62,6 +62,31 @@ type WorkflowApprovalStepDraft = {
   completionRule: string;
   deadlineAmount: number;
   deadlineUnit: string;
+};
+
+type WorkflowFormField = {
+  id?: string;
+  name: string;
+  code: string;
+  type: string;
+  isRequired?: boolean;
+  defaultValue?: unknown;
+  placeholder?: string | null;
+  displayOrder?: number;
+};
+
+type WorkflowVersionDetail = {
+  id: string;
+  versionNo: number;
+  status: string;
+  fields?: WorkflowFormField[];
+};
+
+type WorkflowTemplateDetail = {
+  id: string;
+  name: string;
+  code: string;
+  versions?: WorkflowVersionDetail[];
 };
 
 const fieldTypeOptions = [
@@ -137,6 +162,93 @@ function newApprovalStep(index: number): WorkflowApprovalStepDraft {
     deadlineAmount: 1,
     deadlineUnit: "DAY"
   };
+}
+
+const currencyFormatter = new Intl.NumberFormat("vi-VN");
+
+function activeWorkflowVersion(template?: WorkflowTemplateDetail | null) {
+  return template?.versions?.find((version) => version.status === "ACTIVE") ?? template?.versions?.[0] ?? null;
+}
+
+function defaultFieldValue(field: WorkflowFormField) {
+  if (field.defaultValue !== undefined && field.defaultValue !== null) {
+    return field.defaultValue;
+  }
+  if (field.type === "CHECKBOX") {
+    return false;
+  }
+  return "";
+}
+
+function buildInitialWorkflowValues(fields: WorkflowFormField[]) {
+  return fields.reduce<Record<string, unknown>>((values, field) => {
+    if (field.type !== "HEADING") {
+      values[field.code] = defaultFieldValue(field);
+    }
+    return values;
+  }, {});
+}
+
+function isBlankWorkflowValue(value: unknown) {
+  return value === undefined || value === null || value === "";
+}
+
+function validateWorkflowValues(fields: WorkflowFormField[], values: Record<string, unknown>) {
+  return fields.reduce<Record<string, string>>((errors, field) => {
+    if (field.type === "HEADING") {
+      return errors;
+    }
+    const value = values[field.code];
+    if (field.isRequired && isBlankWorkflowValue(value)) {
+      errors[field.code] = "Trường này là bắt buộc.";
+      return errors;
+    }
+    if (isBlankWorkflowValue(value)) {
+      return errors;
+    }
+    if ((field.type === "NUMBER" || field.type === "CURRENCY") && !Number.isFinite(Number(value))) {
+      errors[field.code] = "Vui lòng nhập số hợp lệ.";
+    }
+    if ((field.type === "DATE" || field.type === "DATETIME") && Number.isNaN(new Date(String(value)).getTime())) {
+      errors[field.code] = "Vui lòng chọn ngày hợp lệ.";
+    }
+    return errors;
+  }, {});
+}
+
+function serializeWorkflowValues(fields: WorkflowFormField[], values: Record<string, unknown>) {
+  return fields.reduce<Record<string, unknown>>((payload, field) => {
+    if (field.type === "HEADING") {
+      return payload;
+    }
+    const value = values[field.code];
+    if (field.type === "CHECKBOX") {
+      payload[field.code] = Boolean(value);
+      return payload;
+    }
+    if (field.type === "NUMBER" || field.type === "CURRENCY") {
+      payload[field.code] = isBlankWorkflowValue(value) ? null : Number(value);
+      return payload;
+    }
+    payload[field.code] = typeof value === "string" ? value.trim() : value ?? null;
+    return payload;
+  }, {});
+}
+
+function displayWorkflowValue(field: WorkflowFormField, value: unknown) {
+  if (field.type === "CHECKBOX") {
+    return value ? "Có" : "Không";
+  }
+  if ((field.type === "NUMBER" || field.type === "CURRENCY") && typeof value === "number") {
+    return field.type === "CURRENCY" ? `${currencyFormatter.format(value)} đ` : currencyFormatter.format(value);
+  }
+  if ((field.type === "DATE" || field.type === "DATETIME") && typeof value === "string" && value) {
+    return formatDate(value);
+  }
+  if (typeof value === "object" && value !== null) {
+    return JSON.stringify(value);
+  }
+  return String(value ?? "");
 }
 
 export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
@@ -388,21 +500,107 @@ export function WorkflowInstances({ setPage, setInstanceId, pendingMine = false 
   );
 }
 
+function WorkflowDynamicField({
+  field,
+  value,
+  error,
+  onChange
+}: {
+  field: WorkflowFormField;
+  value: unknown;
+  error?: string;
+  onChange: (value: unknown) => void;
+}) {
+  const testId = "workflow-instance-field-" + field.code;
+  if (field.type === "HEADING") {
+    return (
+      <div className="workflow-field-heading">
+        <h3>{field.name}</h3>
+        {field.placeholder && <p>{field.placeholder}</p>}
+      </div>
+    );
+  }
+
+  const commonProps = {
+    "data-testid": testId,
+    required: field.isRequired,
+    placeholder: field.placeholder ?? undefined
+  };
+
+  return (
+    <label>
+      {field.name}
+      {field.isRequired && <span className="required-mark"> *</span>}
+      {field.type === "LONG_TEXT" || field.type === "TABLE" ? (
+        <textarea {...commonProps} value={String(value ?? "")} rows={field.type === "TABLE" ? 5 : 3} onChange={(event) => onChange(event.target.value)} />
+      ) : field.type === "CHECKBOX" ? (
+        <span className="toggle-line dynamic-checkbox">
+          <input data-testid={testId} type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} />
+          <span>Đã chọn</span>
+        </span>
+      ) : (
+        <input
+          {...commonProps}
+          type={field.type === "NUMBER" || field.type === "CURRENCY" ? "number" : field.type === "DATE" ? "date" : field.type === "DATETIME" ? "datetime-local" : "text"}
+          value={String(value ?? "")}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )}
+      {(field.type === "ATTACHMENT" || field.type === "USER_SELECT" || field.type === "DEPARTMENT_SELECT" || field.type === "SELECT" || field.type === "RADIO") && (
+        <small className="field-hint">Phiên bản này lưu giá trị nhập; danh sách lựa chọn và upload chuyên dụng sẽ được nối ở bước tiếp theo.</small>
+      )}
+      {error && <span className="field-error">{error}</span>}
+    </label>
+  );
+}
+
 export function NewWorkflowInstance({ setPage, setInstanceId }: WorkflowPageProps) {
   const templates = useAsyncData(() => api.workflowTemplates(), []);
   const [templateId, setTemplateId] = useState("");
-  const [json, setJson] = useState('{"purpose":"Đề xuất mới","amount":10000000}');
+  const templateDetail = useAsyncData<WorkflowTemplateDetail | null>(
+    () => (templateId ? (api.workflowTemplate(templateId) as Promise<WorkflowTemplateDetail>) : Promise.resolve(null)),
+    [templateId]
+  );
+  const selectedVersion = activeWorkflowVersion(templateDetail.data);
+  const fields = selectedVersion?.fields ?? [];
+  const [values, setValues] = useState<Record<string, unknown>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    setValues(fields.length > 0 ? buildInitialWorkflowValues(fields) : {});
+    setFieldErrors({});
+  }, [selectedVersion?.id]);
+
+  function updateValue(code: string, value: unknown) {
+    setValues((current) => ({ ...current, [code]: value }));
+    setFieldErrors((current) => {
+      if (!current[code]) return current;
+      const next = { ...current };
+      delete next[code];
+      return next;
+    });
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (!templateId || !selectedVersion) {
+      setError("Vui lòng chọn mẫu quy trình.");
+      return;
+    }
+    const nextFieldErrors = validateWorkflowValues(fields, values);
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setError("Vui lòng kiểm tra lại các trường bắt buộc hoặc sai định dạng.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
       const instance = await api.submitWorkflowInstance({
         templateId,
-        formData: JSON.parse(json) as Record<string, unknown>,
+        formData: serializeWorkflowValues(fields, values),
         idempotencyKey: crypto.randomUUID()
       });
       setInstanceId(instance.id);
@@ -421,7 +619,7 @@ export function NewWorkflowInstance({ setPage, setInstanceId }: WorkflowPageProp
       </div>
       <label>
         Mẫu quy trình
-        <select value={templateId} onChange={(event) => setTemplateId(event.target.value)} required>
+        <select data-testid="workflow-instance-template" value={templateId} onChange={(event) => setTemplateId(event.target.value)} required>
           <option value="">Chọn mẫu</option>
           {(templates.data ?? []).map((template) => (
             <option key={template.id} value={template.id}>
@@ -430,16 +628,24 @@ export function NewWorkflowInstance({ setPage, setInstanceId }: WorkflowPageProp
           ))}
         </select>
       </label>
-      <label>
-        Dữ liệu biểu mẫu
-        <textarea value={json} onChange={(event) => setJson(event.target.value)} rows={8} />
-      </label>
+      {templateId && templateDetail.loading && <LoadingBlock />}
+      {templateDetail.error && <p className="form-error">{templateDetail.error}</p>}
+      {selectedVersion && (
+        <fieldset className="dynamic-form-fields">
+          <legend>
+            Biểu mẫu phiên bản {selectedVersion.versionNo}
+          </legend>
+          {fields.map((field) => (
+            <WorkflowDynamicField key={field.id ?? field.code} field={field} value={values[field.code]} error={fieldErrors[field.code]} onChange={(value) => updateValue(field.code, value)} />
+          ))}
+        </fieldset>
+      )}
       {error && <p className="form-error">{error}</p>}
       <div className="form-actions">
         <button className="ghost-button" type="button" onClick={() => setPage("workflowInstances")}>
           Hủy
         </button>
-        <button className="primary-button" type="submit" disabled={loading}>
+        <button className="primary-button" data-testid="workflow-instance-submit" type="submit" disabled={loading || templateDetail.loading || !selectedVersion}>
           {loading && <Loader2 className="spin" size={16} />}
           Gửi hồ sơ
         </button>
@@ -470,6 +676,9 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
   if (error) return <ErrorBlock message={error} />;
   if (!data) return <ErrorBlock message="Không tìm thấy hồ sơ." />;
 
+  const detailFields = ((data.workflowVersion?.fields ?? []) as WorkflowFormField[]).filter((field) => field.type !== "HEADING");
+  const formData = (data.formData ?? {}) as Record<string, unknown>;
+
   return (
     <section className="detail-grid">
       <article className="panel detail-main">
@@ -482,7 +691,18 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
             {statusLabels[data.status] ?? data.status}
           </span>
         </div>
-        <div className="json-view">{JSON.stringify(data.formData ?? {}, null, 2)}</div>
+        {detailFields.length > 0 ? (
+          <div className="workflow-value-grid" data-testid="workflow-instance-values">
+            {detailFields.map((field) => (
+              <div key={field.id ?? field.code}>
+                <span>{field.name}</span>
+                <strong>{displayWorkflowValue(field, formData[field.code]) || "Chưa nhập"}</strong>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="json-view">{JSON.stringify(data.formData ?? {}, null, 2)}</div>
+        )}
         <div className="approval-actions">
           <button
             className="primary-button"

@@ -72,6 +72,7 @@ interface WorkflowInstanceDetailRecord extends WorkflowInstanceRecord {
 }
 
 const sessionCache = new Map<AccountKey, ApiSession>();
+let paymentTemplateCache: WorkflowTemplateRecord | null = null;
 
 test.describe.configure({ mode: "serial" });
 
@@ -89,6 +90,20 @@ async function parseApi<T>(response: APIResponse): Promise<T> {
     throw new Error(`API ${response.status()} ${response.url()}: ${text}`);
   }
   return text ? (JSON.parse(text) as T) : ({} as T);
+}
+
+async function parseApiWithRetry<T>(requester: () => Promise<APIResponse>): Promise<T> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await requester();
+    if (response.status() === 429 && attempt < 2) {
+      const text = await response.text();
+      const retrySeconds = Number(text.match(/retry in (\d+) seconds/i)?.[1] ?? 5);
+      await wait(Math.min(retrySeconds * 1000 + 1000, 60_000));
+      continue;
+    }
+    return parseApi<T>(response);
+  }
+  throw new Error("API retry attempts exhausted");
 }
 
 function authHeaders(session: ApiSession) {
@@ -123,16 +138,16 @@ async function apiLogin(request: APIRequestContext, account: AccountKey): Promis
 }
 
 async function apiGet<T>(request: APIRequestContext, session: ApiSession, path: string): Promise<T> {
-  return parseApi<T>(
-    await request.get(`${apiUrl}${path}`, {
+  return parseApiWithRetry<T>(() =>
+    request.get(`${apiUrl}${path}`, {
       headers: authHeaders(session)
     })
   );
 }
 
 async function apiPost<T>(request: APIRequestContext, session: ApiSession, path: string, data: unknown): Promise<T> {
-  return parseApi<T>(
-    await request.post(`${apiUrl}${path}`, {
+  return parseApiWithRetry<T>(() =>
+    request.post(`${apiUrl}${path}`, {
       headers: authHeaders(session),
       data
     })
@@ -179,13 +194,11 @@ async function createSmokeTask(request: APIRequestContext, manager: ApiSession, 
 }
 
 async function createSmokeWorkflowInstance(request: APIRequestContext, employee: ApiSession, label = "approval") {
-  const templates = await apiGet<WorkflowTemplateRecord[]>(request, employee, "/workflow-templates");
-  const paymentTemplate = templates.find((template) => template.code === "PAYMENT") ?? templates[0];
+  const paymentTemplate = await getPaymentTemplate(request, employee);
   const slug = uniqueSlug(label);
-  expect(paymentTemplate, "Seed payment workflow template is required").toBeTruthy();
 
   return apiPost<WorkflowInstanceRecord>(request, employee, "/workflow-instances", {
-    templateId: paymentTemplate!.id,
+    templateId: paymentTemplate.id,
     formData: {
       purpose: `Smoke ${label} ${slug}`,
       amount: 12_000_000,
@@ -193,6 +206,17 @@ async function createSmokeWorkflowInstance(request: APIRequestContext, employee:
     },
     idempotencyKey: `smoke-instance-${slug}`
   });
+}
+
+async function getPaymentTemplate(request: APIRequestContext, session: ApiSession) {
+  if (paymentTemplateCache) {
+    return paymentTemplateCache;
+  }
+  const templates = await apiGet<WorkflowTemplateRecord[]>(request, session, "/workflow-templates");
+  const paymentTemplate = templates.find((template) => template.code === "PAYMENT") ?? templates[0];
+  expect(paymentTemplate, "Seed payment workflow template is required").toBeTruthy();
+  paymentTemplateCache = paymentTemplate!;
+  return paymentTemplateCache;
 }
 
 async function openWorkflowApproval(page: Page, manager: ApiSession, instance: WorkflowInstanceRecord) {
@@ -318,6 +342,27 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   await page.getByTestId("workflow-template-save").click();
   const created = (await (await createResponse).json()) as WorkflowTemplateRecord;
   await expect(page.locator(`tr[data-testid="workflow-template-row-${created.id}"]`)).toBeVisible();
+});
+
+test("employee creates workflow instance with dynamic form", async ({ page, request }) => {
+  const employee = await apiLogin(request, "employee");
+  const paymentTemplate = await getPaymentTemplate(request, employee);
+  const purpose = `Smoke dynamic form ${runId}`;
+
+  await openAppWithSession(page, employee);
+  await page.getByTestId("nav-workflowInstances").click();
+  await page.getByRole("button", { name: /Tạo hồ sơ/ }).click();
+  await page.getByTestId("workflow-instance-template").selectOption(paymentTemplate.id);
+  await expect(page.getByTestId("workflow-instance-field-purpose")).toBeVisible();
+  await page.getByTestId("workflow-instance-field-purpose").fill(purpose);
+  await page.getByTestId("workflow-instance-field-amount").fill("15000000");
+  await page.getByTestId("workflow-instance-field-vendor").fill("Playwright Dynamic Vendor");
+
+  const createResponse = page.waitForResponse((response) => response.url().endsWith("/workflow-instances") && response.request().method() === "POST");
+  await page.getByTestId("workflow-instance-submit").click();
+  const created = (await (await createResponse).json()) as WorkflowInstanceRecord;
+  await expect(page.getByText(created.code)).toBeVisible();
+  await expect(page.getByTestId("workflow-instance-values")).toContainText(purpose);
 });
 
 test("tạo task qua API rồi upload và download tệp trên UI", async ({ page, request }) => {

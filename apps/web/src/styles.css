@@ -561,6 +561,21 @@ tbody tr:hover {
   font-weight: 700;
 }
 
+.required-mark,
+.field-error {
+  color: var(--danger);
+}
+
+.field-error {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .toggle-line {
   display: flex;
   align-items: center;
@@ -797,6 +812,59 @@ tbody tr:hover {
 
 .compact-toggle {
   min-height: 40px;
+}
+
+.dynamic-form-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dynamic-form-fields legend,
+.workflow-field-heading {
+  grid-column: 1 / -1;
+}
+
+.workflow-field-heading {
+  padding: 10px 0 2px;
+}
+
+.workflow-field-heading h3,
+.workflow-field-heading p {
+  margin: 0;
+}
+
+.workflow-field-heading p {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dynamic-checkbox {
+  min-height: 40px;
+}
+
+.workflow-value-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.workflow-value-grid div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.workflow-value-grid span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.workflow-value-grid strong {
+  overflow-wrap: anywhere;
 }
 
 .kanban {
@@ -1184,6 +1252,11 @@ progress {
   }
 
   .builder-row {
+    grid-template-columns: 1fr;
+  }
+
+  .dynamic-form-fields,
+  .workflow-value-grid {
     grid-template-columns: 1fr;
   }
 

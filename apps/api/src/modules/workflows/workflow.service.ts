@@ -10,7 +10,7 @@ import type { AuthContext } from "../../types/fastify.js";
 import { badRequest, conflict, forbidden, notFound } from "../../http/errors.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { enqueueNotifications } from "../notifications/notification.service.js";
-import { assertWorkflowVersionEditable, evaluateConditions, isStepComplete } from "./workflow.domain.js";
+import { assertWorkflowVersionEditable, evaluateConditions, isStepComplete, validateWorkflowFormData } from "./workflow.domain.js";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 type StepWithAssignees = Prisma.WorkflowStepGetPayload<{ include: { assignees: true } }>;
@@ -520,11 +520,9 @@ export async function submitWorkflowInstance(
     throw badRequest("Mẫu quy trình chưa có phiên bản đang hoạt động.");
   }
 
-  for (const field of version.fields) {
-    const value = input.formData[field.code];
-    if (field.isRequired && (value === undefined || value === null || value === "")) {
-      throw badRequest(`Trường '${field.name}' là bắt buộc.`);
-    }
+  const formErrors = validateWorkflowFormData(version.fields, input.formData);
+  if (formErrors.length > 0) {
+    throw badRequest(formErrors[0]!);
   }
 
   const firstStep = version.steps.find((step) => step.type !== "START");
@@ -636,7 +634,7 @@ export async function getWorkflowInstance(db: PrismaClient, auth: AuthContext, i
     where: { id },
     include: {
       template: true,
-      workflowVersion: true,
+      workflowVersion: { include: { fields: { orderBy: { displayOrder: "asc" } } } },
       requester: { select: { id: true, fullName: true, email: true } },
       currentStep: true,
       values: true,

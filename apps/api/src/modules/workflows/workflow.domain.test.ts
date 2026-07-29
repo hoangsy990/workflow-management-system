@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   assertWorkflowVersionEditable,
   evaluateConditions,
-  isStepComplete
+  isStepComplete,
+  validateWorkflowFormData
 } from "./workflow.domain.js";
 
 describe("workflow domain", () => {
@@ -46,5 +47,22 @@ describe("workflow domain", () => {
       "không được sửa trực tiếp"
     );
   });
-});
 
+  it("validates workflow form data by configured fields", () => {
+    const errors = validateWorkflowFormData(
+      [
+        { code: "purpose", name: "Purpose", type: "SHORT_TEXT", isRequired: true },
+        { code: "amount", name: "Amount", type: "CURRENCY", isRequired: true },
+        { code: "fromDate", name: "From date", type: "DATE", isRequired: true },
+        { code: "confirmed", name: "Confirmed", type: "CHECKBOX", isRequired: false }
+      ],
+      { purpose: "", amount: "abc", fromDate: "not-a-date", confirmed: "yes" }
+    );
+
+    expect(errors).toHaveLength(4);
+    expect(errors[0]).toContain("Purpose");
+    expect(errors[1]).toContain("Amount");
+    expect(errors[2]).toContain("From date");
+    expect(errors[3]).toContain("Confirmed");
+  });
+});

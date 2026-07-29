@@ -14,6 +14,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 29/07/2026 | `WORKFLOW-INSTANCE-DYNAMIC-FORM` | Nâng tạo hồ sơ quy trình từ nhập JSON sang form động theo field của template active; backend validate type cơ bản, detail hồ sơ hiển thị dữ liệu theo nhãn field, thêm smoke test tạo hồ sơ bằng UI form động. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 12/12. |
 | 29/07/2026 | `WORKFLOW-BUILDER-DYNAMIC` | Nâng màn tạo mẫu quy trình từ form cứng sang builder động cơ bản: thêm/xóa field, chọn loại field, bắt buộc/placeholder/order, thêm/xóa bước duyệt, resolver, approval mode/rule/deadline và smoke test tạo template bằng UI builder. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 11/11. |
 | 29/07/2026 | `ROLE-PERMISSION-PREVIEW` | Bổ sung preview phạm vi quyền theo permission code và cảnh báo cấu hình quyền trong trang Vai trò; thêm smoke test kiểm tra role permission preview. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 10/10. |
 | 29/07/2026 | `DEPARTMENT-EDIT-UI` | Nâng quản lý phòng ban/cơ cấu tổ chức: thêm parent department, mô tả, quản lý, detail/edit panel, list phân cấp cha-con, backend guard chống vòng lặp phòng ban và smoke test cập nhật phòng ban. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 9/9. |
@@ -181,7 +182,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Thiết kế biểu mẫu | `PARTIAL` | Builder động cơ bản có thêm/xóa field và chọn loại field; chưa kéo thả/section/tab/permission theo step. |
 | Cấu hình bước phê duyệt | `PARTIAL` | Builder động cơ bản có thêm/xóa approval step, resolver, mode/rule/deadline; chưa có panel node/canvas đầy đủ. |
 | Danh sách hồ sơ quy trình | `DONE` | Có. |
-| Tạo hồ sơ | `PARTIAL` | Tạo từ JSON/form đơn giản, chưa render form động đầy đủ. |
+| Tạo hồ sơ | `PARTIAL` | UI đã render form động theo field của template active, validate inline và submit idempotency. Còn thiếu upload workflow chuyên dụng, field option động và draft/sửa bổ sung theo từng bước. |
 | Chi tiết và lịch sử phê duyệt | `PARTIAL` | Có detail/history/action cơ bản; thiếu sơ đồ theo dõi. |
 | Yêu cầu chờ tôi phê duyệt | `DONE` | Có filter pendingMine. |
 | Quản lý người dùng | `PARTIAL` | Có list/create/detail/edit profile/roles/status cơ bản. Chưa có profile đầy đủ, avatar, thiết bị đăng nhập, import/export. |
@@ -232,9 +233,9 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Nhóm test | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API bổ sung. Cần integration tests đầy đủ hơn. |
-| Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có 4 + smoke API nhiều luồng. Chưa có integration transaction failure tự động. |
+| Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có thêm validate form data + smoke API/UI nhiều luồng. Chưa có integration transaction failure tự động. |
 | Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
-| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, user edit, department edit, task upload/download, progress lên chờ đánh giá, approve/reject/request-info workflow và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
+| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, user edit, department edit, role preview, tạo workflow template bằng builder, tạo workflow instance bằng form động, task upload/download, progress, approve/reject/request-info và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
 | Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `PARTIAL` | Windows desktop build và Android arm64 APK build đã pass. Chưa QA cài/chạy trên thiết bị Android, chưa có Edge/iOS/macOS matrix. |
 
 ## 14. Triển khai
@@ -433,7 +434,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | --- | --- | --- |
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
 | Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, department edit, role permission preview, tạo task qua API, mở detail UI, upload/download attachment, cập nhật progress, approve/reject/request-info và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
-| Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; smoke có tạo template bằng builder động. Canvas designer, responsive/offline matrix và builder nâng cao chưa có. |
+| Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; smoke có tạo template bằng builder động và tạo hồ sơ bằng form động. Canvas designer, responsive/offline matrix và builder nâng cao chưa có. |
 | Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 
 ## 32. Dữ liệu demo UI
@@ -466,7 +467,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission chưa có cấu hình riêng. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk workflow builder đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 11/11. Responsive còn cần QA sâu. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk workflow instance dynamic form đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 12/12. Responsive còn cần QA sâu. |
 
 ## Việc ưu tiên tiếp theo
 

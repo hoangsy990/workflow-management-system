@@ -1,4 +1,4 @@
-import type { ApprovalMode, StepCompletionRule, WorkflowVersionStatus } from "@prisma/client";
+import type { ApprovalMode, StepCompletionRule, WorkflowFieldType, WorkflowVersionStatus } from "@prisma/client";
 
 export type ConditionOperator =
   | "eq"
@@ -17,6 +17,62 @@ export interface StructuredCondition {
   operator: ConditionOperator | string;
   compareValue: unknown;
   groupType?: "AND" | "OR";
+}
+
+export interface WorkflowFieldDefinition {
+  code: string;
+  name: string;
+  type: WorkflowFieldType;
+  isRequired: boolean;
+}
+
+function isEmptyValue(value: unknown) {
+  return value === undefined || value === null || value === "";
+}
+
+function isNumericValue(value: unknown) {
+  if (typeof value === "number") {
+    return Number.isFinite(value);
+  }
+  return typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value));
+}
+
+function isDateValue(value: unknown) {
+  if (value instanceof Date) {
+    return !Number.isNaN(value.getTime());
+  }
+  return typeof value === "string" && value.trim() !== "" && !Number.isNaN(new Date(value).getTime());
+}
+
+export function validateWorkflowFormData(fields: WorkflowFieldDefinition[], values: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+
+  for (const field of fields) {
+    if (field.type === "HEADING") {
+      continue;
+    }
+
+    const value = values[field.code];
+    if (field.isRequired && isEmptyValue(value)) {
+      errors.push(`Trường '${field.name}' là bắt buộc.`);
+      continue;
+    }
+    if (isEmptyValue(value)) {
+      continue;
+    }
+
+    if ((field.type === "NUMBER" || field.type === "CURRENCY") && !isNumericValue(value)) {
+      errors.push(`Trường '${field.name}' phải là số hợp lệ.`);
+    }
+    if ((field.type === "DATE" || field.type === "DATETIME") && !isDateValue(value)) {
+      errors.push(`Trường '${field.name}' phải là ngày hợp lệ.`);
+    }
+    if (field.type === "CHECKBOX" && typeof value !== "boolean") {
+      errors.push(`Trường '${field.name}' phải là giá trị đúng hoặc sai.`);
+    }
+  }
+
+  return errors;
 }
 
 function normalizeComparable(value: unknown) {
@@ -102,4 +158,3 @@ export function assertWorkflowVersionEditable(input: { status: WorkflowVersionSt
     throw new Error("Phiên bản quy trình đã phát sinh hồ sơ không được sửa trực tiếp.");
   }
 }
-
