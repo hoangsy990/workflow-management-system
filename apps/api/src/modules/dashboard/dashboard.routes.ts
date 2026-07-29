@@ -3,9 +3,20 @@ import type { TaskStatus } from "@prisma/client";
 import { prisma } from "../../prisma.js";
 import { requireAuth } from "../auth/auth.guard.js";
 import { visibleTaskWhere } from "../tasks/task.service.js";
+import { daysRemaining, isTaskOverdue } from "../tasks/task.domain.js";
 
 function inDays(days: number) {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+}
+
+function withComputedTaskFields<T extends { status: TaskStatus; dueDate: Date | null }>(task: T) {
+  const overdue = isTaskOverdue(task);
+  return {
+    ...task,
+    isOverdue: overdue,
+    displayStatus: overdue ? "OVERDUE" : task.status,
+    daysRemaining: daysRemaining(task.dueDate)
+  };
 }
 
 export async function dashboardRoutes(app: FastifyInstance) {
@@ -89,7 +100,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       },
       tasksByStatus,
       tasksByDepartment,
-      attentionTasks,
+      attentionTasks: attentionTasks.map(withComputedTaskFields),
       recentInstances
     };
   });

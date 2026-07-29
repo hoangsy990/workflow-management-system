@@ -35,6 +35,18 @@ export interface ApiErrorShape {
 }
 
 const sessionKey = "workflow.session";
+let refreshPromise: Promise<ApiSession | null> | null = null;
+
+class ApiRequestError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    public readonly details?: unknown
+  ) {
+    super(message);
+  }
+}
 
 export function getStoredSession(): ApiSession | null {
   const value = sessionStorage.getItem(sessionKey);
@@ -54,13 +66,17 @@ async function parseResponse<T>(response: Response): Promise<T> {
   const data = text ? JSON.parse(text) : null;
   if (!response.ok) {
     const apiError = data as ApiErrorShape;
-    throw new Error(apiError.error?.message ?? "Yêu cầu API thất bại.");
+    throw new ApiRequestError(
+      response.status,
+      apiError.error?.code ?? "REQUEST_ERROR",
+      apiError.error?.message ?? "Yêu cầu API thất bại.",
+      apiError.error?.details
+    );
   }
   return data as T;
 }
 
-export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const session = getStoredSession();
+function buildHeaders(options: RequestInit, session: ApiSession | null) {
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
   if (!(options.body instanceof FormData)) {
@@ -69,11 +85,56 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   if (session?.accessToken) {
     headers.set("Authorization", `Bearer ${session.accessToken}`);
   }
+  return headers;
+}
+
+async function refreshStoredSession(): Promise<ApiSession | null> {
+  const session = getStoredSession();
+  if (!session?.refreshToken) {
+    return null;
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_URL}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ refreshToken: session.refreshToken })
+    })
+      .then(async (response) => {
+        const data = await parseResponse<{ accessToken: string }>(response);
+        const nextSession = { ...session, accessToken: data.accessToken };
+        setStoredSession(nextSession);
+        return nextSession;
+      })
+      .catch((error) => {
+        setStoredSession(null);
+        throw error;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
+export async function apiRequest<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
+  const session = getStoredSession();
+  const headers = buildHeaders(options, session);
 
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers
   });
+
+  if (response.status === 401 && session?.refreshToken && !path.startsWith("/auth/") && !retried) {
+    await refreshStoredSession();
+    return apiRequest<T>(path, options, true);
+  }
+
   return parseResponse<T>(response);
 }
 
