@@ -297,6 +297,29 @@ test("admin reviews role permission preview on UI", async ({ page, request }) =>
   await expect(page.getByTestId("role-permission-preview").locator("div")).toHaveCount(4);
 });
 
+test("admin creates workflow template with dynamic builder", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  const code = `SMOKE_${runId.replace(/[^A-Za-z0-9]/g, "_").toUpperCase()}`;
+  const name = `Smoke workflow ${runId}`;
+
+  await openAppWithSession(page, admin);
+  await page.getByTestId("nav-workflowTemplates").click();
+  await page.getByTestId("workflow-template-create").click();
+  await page.getByTestId("workflow-template-code").fill(code);
+  await page.getByTestId("workflow-template-name").fill(name);
+  await page.getByTestId("workflow-field-add").click();
+  await page.getByTestId("workflow-field-name-2").fill("Ghi chú kiểm thử");
+  await page.getByTestId("workflow-field-code-2").fill("smoke_note");
+  await page.getByTestId("workflow-step-add").click();
+  await page.getByTestId("workflow-step-name-1").fill("Xác nhận sau cùng");
+  await page.getByTestId("workflow-step-code-1").fill("final_confirm");
+
+  const createResponse = page.waitForResponse((response) => response.url().endsWith("/workflow-templates") && response.request().method() === "POST");
+  await page.getByTestId("workflow-template-save").click();
+  const created = (await (await createResponse).json()) as WorkflowTemplateRecord;
+  await expect(page.locator(`tr[data-testid="workflow-template-row-${created.id}"]`)).toBeVisible();
+});
+
 test("tạo task qua API rồi upload và download tệp trên UI", async ({ page, request }) => {
   const manager = await apiLogin(request, "manager");
   const task = await createSmokeTask(request, manager);
