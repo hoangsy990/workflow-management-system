@@ -232,7 +232,7 @@ Yêu cầu cập nhật mở rộng phạm vi từ hệ thống nghiệp vụ ch
 
 ### 9.1. Design system và frontend structure
 
-Trạng thái hiện tại: nhóm trang công việc thường đã được tách sang `apps/web/src/pages/tasks.tsx`; `App.tsx` vẫn giữ app shell, dashboard, workflow và admin pages cho đến các lượt tách tiếp theo.
+Trạng thái hiện tại: các nhóm trang nghiệp vụ chính đã được tách khỏi app shell: task pages ở `apps/web/src/pages/tasks.tsx`, workflow/approval pages ở `apps/web/src/pages/workflows.tsx`, admin/log/settings pages ở `apps/web/src/pages/admin.tsx`. `App.tsx` hiện giữ login, app shell, dashboard và router nội bộ; các lượt sau sẽ tiếp tục chuẩn hóa layout components và shared UI utilities.
 
 Frontend hiện dùng React/Vite với CSS variables và các component nội bộ trong `App.tsx`. Giai đoạn tiếp theo cần tách thành cấu trúc:
 

@@ -14,6 +14,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 29/07/2026 | `PAGE-MODULE-SPLIT` | Tách workflow/approval pages sang `apps/web/src/pages/workflows.tsx` và admin/log/settings pages sang `apps/web/src/pages/admin.tsx`; `App.tsx` chỉ còn login, shell, dashboard và router nội bộ. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 7/7. |
 | 29/07/2026 | `TASK-PAGES-SPLIT` | Tách nhóm trang công việc thường (`TaskList`, `Kanban`, `CalendarPage`, `TaskForm`, `TaskDetail`, attachment list) khỏi `App.tsx` sang `apps/web/src/pages/tasks.tsx`; dọn helper task còn sót trong app shell. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 7/7. |
 | 29/07/2026 | `CI-SMOKE` | Mở rộng Playwright smoke lên 7 kịch bản: login, task upload/download, cập nhật progress lên chờ đánh giá, approve/reject/request-info workflow và idempotency chống duyệt trùng; nâng GitHub Actions chạy verify + Docker smoke web. | `pnpm smoke:web` 7/7, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, Docker API/web healthy. |
 | 29/07/2026 | `UI-SMOKE` | Thêm Playwright smoke test web cho login, task upload/download và duyệt hồ sơ PAYMENT tuần tự; thêm test id ổn định cho nav/table/action; sửa download filename qua CORS `Content-Disposition`. | `pnpm smoke:web`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, Docker API/web healthy. |
@@ -443,11 +444,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Design system/layout/component library | `PARTIAL` | Đã có common components, hook chung và nhóm task pages tách khỏi `App.tsx`. Workflow/admin pages và docs component library vẫn cần tách tiếp. |
+| Design system/layout/component library | `PARTIAL` | Đã có common components, hook chung và page modules `tasks`, `workflows`, `admin` tách khỏi `App.tsx`. Còn thiếu layout components, shared labels/formatters và docs component library. |
 | Wireframe màn chính | `PARTIAL` | Implemented screens đóng vai trò prototype; chưa có wireframe doc. |
 | Prototype workflow designer/form builder | `TODO` | Chưa có. |
 | Kiểm tra responsive trước khi hoàn thiện module | `PARTIAL` | Đã QA một số mobile, cần matrix. |
-| Không thiết kế màn riêng lẻ thiếu component chung | `PARTIAL` | UI primitives/hook chung và module task pages đã tách khỏi `App.tsx`; workflow/admin pages vẫn cần tách tiếp theo module. |
+| Không thiết kế màn riêng lẻ thiếu component chung | `PARTIAL` | UI primitives/hook chung và các page modules `tasks`, `workflows`, `admin` đã tách khỏi `App.tsx`; còn cần gom thêm layout/form/table patterns thành component dùng lại sâu hơn. |
 
 ## 34. Tiêu chí hoàn thành UI, cấu hình và trình thiết kế
 
@@ -471,6 +472,6 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 5. `DONE` Thêm Playwright/UI smoke tests cho login, task detail upload/download và workflow approval tuần tự; còn mở rộng thêm progress/reject/responsive/offline ở các lượt sau.
 6. `DONE` Mở rộng Playwright smoke cho progress, reject, request-info và idempotency key chống duyệt trùng.
 7. `DONE` Nâng GitHub Actions CI để chạy verify và Docker web smoke.
-8. `PARTIAL` Tách tiếp page-level components theo module `tasks`, `workflows`, `admin`: nhóm `tasks` đã tách sang `apps/web/src/pages/tasks.tsx`, còn `workflows` và `admin`.
+8. `DONE` Tách tiếp page-level components theo module `tasks`, `workflows`, `admin`: đã có `apps/web/src/pages/tasks.tsx`, `apps/web/src/pages/workflows.tsx`, `apps/web/src/pages/admin.tsx`.
 9. `TODO` Hoàn thiện user/department advanced UI và data scope/field permission.
-10. `TODO` Tách workflow/admin pages khỏi `App.tsx`, sau đó mới mở rộng UI builder và quản trị người dùng/phòng ban.
+10. `TODO` Tách tiếp layout/auth/dashboard/shared labels khỏi `App.tsx`, sau đó mở rộng UI builder và quản trị người dùng/phòng ban.
