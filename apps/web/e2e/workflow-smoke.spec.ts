@@ -40,6 +40,9 @@ interface DepartmentRecord {
   id: string;
   code: string;
   name: string;
+  description?: string | null;
+  parent?: { id: string; name: string } | null;
+  manager?: { id: string; fullName: string } | null;
 }
 
 interface TaskRecord {
@@ -251,6 +254,36 @@ test("admin updates employee profile on UI", async ({ page, request }) => {
   const updated = refreshed.data.find((user) => user.id === target!.id);
   expect(updated?.title).toBe(nextTitle);
   expect(updated?.phone).toBe(nextPhone);
+});
+
+test("admin updates department structure on UI", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  const departments = await apiGet<DepartmentRecord[]>(request, admin, "/departments");
+  const target = departments.find((department) => department.code === "FIN") ?? departments[0];
+  const nextDescription = `Smoke department ${runId}`;
+
+  expect(target, "Seed department is required").toBeTruthy();
+
+  await openAppWithSession(page, admin);
+  await page.getByTestId("nav-departments").click();
+  const row = page.locator(`tr[data-testid="department-row-${target!.id}"]`);
+  await expect(row).toBeVisible();
+  await row.click();
+  await expect(page.getByTestId("department-edit-description")).toBeVisible();
+  await page.getByTestId("department-edit-description").fill(nextDescription);
+
+  page.once("dialog", async (dialog) => {
+    await dialog.accept();
+  });
+  const updateResponse = page.waitForResponse(
+    (response) => response.url().includes(`/departments/${target!.id}`) && response.request().method() === "PATCH"
+  );
+  await page.getByTestId("department-edit-save").click();
+  await updateResponse;
+
+  const refreshed = await apiGet<DepartmentRecord[]>(request, admin, "/departments");
+  const updated = refreshed.find((department) => department.id === target!.id);
+  expect(updated?.description).toBe(nextDescription);
 });
 
 test("tạo task qua API rồi upload và download tệp trên UI", async ({ page, request }) => {

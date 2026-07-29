@@ -190,6 +190,8 @@ export const api = {
   departments: () => apiRequest<Record<string, any>[]>("/departments"),
   saveDepartment: (payload: Record<string, unknown>) =>
     apiRequest<Record<string, any>>("/departments", { method: "POST", body: JSON.stringify(payload) }),
+  updateDepartment: (id: string, payload: Record<string, unknown>) =>
+    apiRequest<Record<string, any>>(`/departments/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   roles: () => apiRequest<Record<string, any>[]>("/roles"),
   permissions: () => apiRequest<Record<string, any>[]>("/permissions"),
   updateRolePermissions: (id: string, permissionIds: string[]) =>

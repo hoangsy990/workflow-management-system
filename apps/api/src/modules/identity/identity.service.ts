@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { hashPassword } from "../../security/hash.js";
 import { writeAuditLog } from "../audit/audit.service.js";
-import { conflict, notFound } from "../../http/errors.js";
+import { badRequest, conflict, notFound } from "../../http/errors.js";
 
 export async function listUsers(db: PrismaClient, input: { page: number; pageSize: number; keyword?: string }) {
   const where: Prisma.UserWhereInput = {
@@ -177,9 +177,40 @@ export async function listDepartments(db: PrismaClient) {
     include: {
       manager: { select: { id: true, fullName: true } },
       branch: { select: { id: true, name: true } },
+      parent: { select: { id: true, code: true, name: true } },
       _count: { select: { users: true, tasks: true } }
     }
   });
+}
+
+async function assertValidDepartmentParent(db: PrismaClient, id: string | undefined, parentId: string | null | undefined) {
+  if (!parentId) return;
+  if (id && parentId === id) {
+    throw badRequest("Phòng ban cha không được trùng với phòng ban đang chỉnh sửa.");
+  }
+
+  let cursor = await db.department.findUnique({
+    where: { id: parentId },
+    select: { id: true, parentId: true, deletedAt: true }
+  });
+  if (!cursor || cursor.deletedAt) {
+    throw notFound("Không tìm thấy phòng ban cha.");
+  }
+
+  const visited = new Set<string>();
+  while (cursor?.parentId) {
+    if (id && cursor.parentId === id) {
+      throw badRequest("Không thể tạo quan hệ vòng lặp trong cơ cấu phòng ban.");
+    }
+    if (visited.has(cursor.parentId)) {
+      throw badRequest("Cơ cấu phòng ban hiện có quan hệ vòng lặp.");
+    }
+    visited.add(cursor.parentId);
+    cursor = await db.department.findUnique({
+      where: { id: cursor.parentId },
+      select: { id: true, parentId: true, deletedAt: true }
+    });
+  }
 }
 
 export async function upsertDepartment(
@@ -194,11 +225,19 @@ export async function upsertDepartment(
     managerId?: string | null;
   }
 ) {
+  await assertValidDepartmentParent(db, input.id, input.parentId);
+
   return db.$transaction(async (tx) => {
     const department = input.id
       ? await tx.department.update({
           where: { id: input.id },
-          data: input
+          data: {
+            code: input.code,
+            name: input.name,
+            description: input.description,
+            parentId: input.parentId,
+            managerId: input.managerId
+          }
         })
       : await tx.department.create({
           data: {
@@ -286,4 +325,3 @@ export async function updateRolePermissions(db: PrismaClient, actorId: string, r
     return { ok: true };
   });
 }
-

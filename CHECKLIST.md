@@ -14,6 +14,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 29/07/2026 | `DEPARTMENT-EDIT-UI` | Nâng quản lý phòng ban/cơ cấu tổ chức: thêm parent department, mô tả, quản lý, detail/edit panel, list phân cấp cha-con, backend guard chống vòng lặp phòng ban và smoke test cập nhật phòng ban. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 9/9. |
 | 29/07/2026 | `USER-EDIT-UI` | Nâng trang Quản lý người dùng: thêm detail/edit panel, cập nhật họ tên/số điện thoại/chức danh/phòng ban/quản lý/trạng thái/vai trò qua `PATCH /users/:id`, thêm label trạng thái `LOCKED`, mở CORS cho `PATCH`, thêm smoke test UI cập nhật nhân viên và sửa `.gitignore` để track module source upload routes. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 8/8. |
 | 29/07/2026 | `APP-SHELL-SPLIT` | Tách login, dashboard, app shell/navigation và shared status/date helpers khỏi `App.tsx`; `App.tsx` còn 134 dòng, chỉ giữ bootstrap session, theme/offline state và router nội bộ. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 7/7. |
 | 29/07/2026 | `PAGE-MODULE-SPLIT` | Tách workflow/approval pages sang `apps/web/src/pages/workflows.tsx` và admin/log/settings pages sang `apps/web/src/pages/admin.tsx`; `App.tsx` chỉ còn login, shell, dashboard và router nội bộ. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 7/7. |
@@ -56,7 +57,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Module | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Đăng nhập và quản lý tài khoản | `PARTIAL` | Login/refresh/logout/users create/edit profile/roles/status có. Chưa có trang hồ sơ cá nhân đầy đủ, thiết bị đăng nhập UI, import user. |
-| Phòng ban và cơ cấu tổ chức | `PARTIAL` | Departments CRUD cơ bản có. Company/branch/team schema có; UI sơ đồ tổ chức và kéo chuyển chưa có. |
+| Phòng ban và cơ cấu tổ chức | `PARTIAL` | Departments create/edit/detail, parent department và list phân cấp cha-con cơ bản có; backend chống vòng lặp parent. Company/branch/team schema có; UI sơ đồ tổ chức kéo thả chưa có. |
 | Vai trò và phân quyền | `PARTIAL` | RBAC tables/API và ma trận quyền cơ bản có. Chưa có scope/field permissions, preview quyền và cảnh báo xung đột nâng cao. |
 | Thông báo | `PARTIAL` | Notification center/inbox/device token table có. Chưa có push adapter FCM/APNs/Desktop thật và lịch nhắc hạn. |
 | Bình luận và tệp đính kèm | `PARTIAL` | Comment, mention list, upload/download attachment cho task có. Reply comment, lịch sử chỉnh sửa comment, attachment cho workflow approval còn thiếu. |
@@ -69,7 +70,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | User fields: mã NV, họ tên, email, phone, password, avatar, title, department, manager, status, created, last login | `PARTIAL` | Schema/API có phần lớn; UI tạo/chỉnh user đã hỗ trợ phone/title/department/manager/status/roles và hiển thị created/last login. Avatar/profile/devices chưa hoàn thiện. |
-| Company, branch, department, team, title, direct manager | `PARTIAL` | Schema có company/branch/team/departments; UI mới chủ yếu department/user. |
+| Company, branch, department, team, title, direct manager | `PARTIAL` | Schema có company/branch/team/departments; UI user/department đã có chỉnh trực tiếp, parent department và manager. Company/branch/team UI nâng cao chưa có. |
 | Một người thuộc một phòng ban chính và nhiều nhóm | `PARTIAL` | Schema team/team_members có; UI quản lý nhóm chưa có. |
 | Vai trò mặc định admin/manager/employee/watcher | `DONE` | Seed tạo các vai trò mặc định. |
 | RBAC linh hoạt, không hard-code theo tên vai trò | `DONE` | Backend kiểm permission code; role name không hard-code policy chính. |
@@ -182,7 +183,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Chi tiết và lịch sử phê duyệt | `PARTIAL` | Có detail/history/action cơ bản; thiếu sơ đồ theo dõi. |
 | Yêu cầu chờ tôi phê duyệt | `DONE` | Có filter pendingMine. |
 | Quản lý người dùng | `PARTIAL` | Có list/create/detail/edit profile/roles/status cơ bản. Chưa có profile đầy đủ, avatar, thiết bị đăng nhập, import/export. |
-| Quản lý phòng ban | `PARTIAL` | Có list/create cơ bản. |
+| Quản lý phòng ban | `PARTIAL` | Có list phân cấp, create/detail/edit parent/manager/description và chống vòng lặp backend. Chưa có org chart kéo thả, branch/team UI. |
 | Quản lý vai trò và quyền | `PARTIAL` | Có ma trận quyền cơ bản theo nhóm, chọn nhóm/toàn bộ, copy role, reset, unsaved changes. Chưa có scope/field permission/preview/conflict checker. |
 | Nhật ký hoạt động | `DONE` | Có list. |
 | Cấu hình hệ thống | `PARTIAL` | Key/value cơ bản. |
@@ -231,7 +232,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API bổ sung. Cần integration tests đầy đủ hơn. |
 | Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có 4 + smoke API nhiều luồng. Chưa có integration transaction failure tự động. |
 | Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
-| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, user edit, task upload/download, progress lên chờ đánh giá, approve/reject/request-info workflow và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
+| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, user edit, department edit, task upload/download, progress lên chờ đánh giá, approve/reject/request-info workflow và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
 | Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `PARTIAL` | Windows desktop build và Android arm64 APK build đã pass. Chưa QA cài/chạy trên thiết bị Android, chưa có Edge/iOS/macOS matrix. |
 
 ## 14. Triển khai
@@ -429,7 +430,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
-| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, tạo task qua API, mở detail UI, upload/download attachment, cập nhật progress, approve/reject/request-info và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
+| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, department edit, tạo task qua API, mở detail UI, upload/download attachment, cập nhật progress, approve/reject/request-info và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
 | Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; builder/designer tests chưa. |
 | Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 
@@ -463,7 +464,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission/preview quyền chưa. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm smoke:web` 8/8 pass hiện tại; responsive còn cần QA sâu. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 9/9 pass hiện tại. Responsive còn cần QA sâu. |
 
 ## Việc ưu tiên tiếp theo
 
@@ -475,6 +476,6 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 6. `DONE` Mở rộng Playwright smoke cho progress, reject, request-info và idempotency key chống duyệt trùng.
 7. `DONE` Nâng GitHub Actions CI để chạy verify và Docker web smoke.
 8. `DONE` Tách tiếp page-level components theo module `tasks`, `workflows`, `admin`: đã có `apps/web/src/pages/tasks.tsx`, `apps/web/src/pages/workflows.tsx`, `apps/web/src/pages/admin.tsx`.
-9. `PARTIAL` Hoàn thiện user/department advanced UI và data scope/field permission: user detail/edit đã có; department advanced, data scope và field permission còn thiếu.
+9. `PARTIAL` Hoàn thiện user/department advanced UI và data scope/field permission: user detail/edit và department detail/edit phân cấp đã có; data scope và field permission còn thiếu.
 10. `DONE` Tách tiếp layout/auth/dashboard/shared labels khỏi `App.tsx`: đã có `components/layout.tsx`, `pages/auth.tsx`, `pages/dashboard.tsx`, `navigation.ts`, `lib/format.ts`.
 11. `TODO` Mở rộng user/department advanced UI, data scope/field permission, rồi bắt đầu workflow designer/form builder trực quan.

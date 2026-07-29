@@ -324,50 +324,276 @@ export function UsersPage() {
   );
 }
 
+const emptyDepartmentForm = {
+  code: "",
+  name: "",
+  description: "",
+  parentId: "",
+  managerId: ""
+};
+
+function buildDepartmentEditForm(department: Record<string, any>) {
+  return {
+    code: department.code ?? "",
+    name: department.name ?? "",
+    description: department.description ?? "",
+    parentId: department.parent?.id ?? department.parentId ?? "",
+    managerId: department.manager?.id ?? department.managerId ?? ""
+  };
+}
+
+function flattenDepartments(departments: Record<string, any>[]) {
+  const childrenByParent = new Map<string, Record<string, any>[]>();
+  for (const department of departments) {
+    const key = department.parent?.id ?? department.parentId ?? "root";
+    childrenByParent.set(key, [...(childrenByParent.get(key) ?? []), department]);
+  }
+
+  const rows: Array<{ department: Record<string, any>; depth: number }> = [];
+  const seen = new Set<string>();
+  const visit = (department: Record<string, any>, depth: number) => {
+    if (seen.has(department.id)) return;
+    seen.add(department.id);
+    rows.push({ department, depth });
+    for (const child of (childrenByParent.get(department.id) ?? []).sort((left, right) => left.name.localeCompare(right.name, "vi"))) {
+      visit(child, depth + 1);
+    }
+  };
+
+  for (const root of (childrenByParent.get("root") ?? []).sort((left, right) => left.name.localeCompare(right.name, "vi"))) {
+    visit(root, 0);
+  }
+  for (const department of departments) {
+    if (!seen.has(department.id)) {
+      visit(department, 0);
+    }
+  }
+  return rows;
+}
+
+function collectDepartmentDescendantIds(departments: Record<string, any>[], parentId: string) {
+  const result = new Set<string>();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const department of departments) {
+      const currentParentId = department.parent?.id ?? department.parentId;
+      if (currentParentId && (currentParentId === parentId || result.has(currentParentId)) && !result.has(department.id)) {
+        result.add(department.id);
+        changed = true;
+      }
+    }
+  }
+  return result;
+}
+
 export function DepartmentsPage() {
   const { data, loading, error, reload } = useAsyncData(() => api.departments(), []);
   const users = useAsyncData(() => api.users(), []);
-  const [form, setForm] = useState({ code: "", name: "", managerId: "" });
+  const [form, setForm] = useState({ ...emptyDepartmentForm });
+  const [selectedId, setSelectedId] = useState("");
+  const [editForm, setEditForm] = useState<Record<string, any> | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [updateError, setUpdateError] = useState("");
+
+  const departments = useMemo(() => data ?? [], [data]);
+  const usersList = useMemo(() => users.data?.data ?? [], [users.data]);
+  const departmentRows = useMemo(() => flattenDepartments(departments), [departments]);
+  const selectedDepartment = useMemo(() => departments.find((department) => department.id === selectedId), [departments, selectedId]);
+  const descendantIds = useMemo(() => (selectedId ? collectDepartmentDescendantIds(departments, selectedId) : new Set<string>()), [departments, selectedId]);
+  const parentOptions = useMemo(
+    () => departments.filter((department) => department.id !== selectedId && !descendantIds.has(department.id)),
+    [departments, descendantIds, selectedId]
+  );
+
+  useEffect(() => {
+    const firstDepartment = departments[0];
+    if (!selectedId && firstDepartment) {
+      setSelectedId(firstDepartment.id);
+    }
+  }, [departments, selectedId]);
+
+  useEffect(() => {
+    if (selectedDepartment) {
+      setEditForm(buildDepartmentEditForm(selectedDepartment));
+      setUpdateError("");
+    }
+  }, [selectedDepartment]);
+
   async function submit(event: FormEvent) {
     event.preventDefault();
-    await api.saveDepartment({ ...form, managerId: form.managerId || undefined });
-    setForm({ code: "", name: "", managerId: "" });
-    await reload();
+    setSaving(true);
+    setCreateError("");
+    try {
+      const created = await api.saveDepartment({
+        ...form,
+        description: form.description || undefined,
+        parentId: form.parentId || undefined,
+        managerId: form.managerId || undefined
+      });
+      setSelectedId(created.id);
+      setForm({ ...emptyDepartmentForm });
+      await reload();
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Không tạo được phòng ban.");
+    } finally {
+      setSaving(false);
+    }
   }
+
+  async function saveSelectedDepartment(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedDepartment || !editForm || updating) return;
+    if (!window.confirm("Xác nhận cập nhật phòng ban này?")) return;
+    setUpdating(true);
+    setUpdateError("");
+    try {
+      await api.updateDepartment(selectedDepartment.id, {
+        code: editForm.code,
+        name: editForm.name,
+        description: editForm.description || undefined,
+        parentId: editForm.parentId || null,
+        managerId: editForm.managerId || null
+      });
+      await reload();
+    } catch (err) {
+      setUpdateError(err instanceof Error ? err.message : "Không cập nhật được phòng ban.");
+    } finally {
+      setUpdating(false);
+    }
+  }
+
   if (loading) return <LoadingBlock />;
   if (error) return <ErrorBlock message={error} />;
   return (
     <section className="page-grid">
       <form className="panel form-stack" onSubmit={submit}>
         <div className="panel-head">
-          <h2>Tạo phòng ban</h2>
+          <h2>{"Tạo phòng ban"}</h2>
         </div>
         <input placeholder="Mã phòng ban" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} required />
         <input placeholder="Tên phòng ban" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
+        <textarea placeholder="Mô tả" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+        <select value={form.parentId} onChange={(event) => setForm({ ...form, parentId: event.target.value })}>
+          <option value="">{"Không có phòng ban cha"}</option>
+          {departments.map((department) => (
+            <option key={department.id} value={department.id}>
+              {department.name}
+            </option>
+          ))}
+        </select>
         <select value={form.managerId} onChange={(event) => setForm({ ...form, managerId: event.target.value })}>
-          <option value="">Quản lý</option>
-          {(users.data?.data ?? []).map((user) => (
+          <option value="">{"Quản lý"}</option>
+          {usersList.map((user) => (
             <option key={user.id} value={user.id}>
               {user.fullName}
             </option>
           ))}
         </select>
-        <button className="primary-button" type="submit">
-          Lưu phòng ban
+        {createError && <p className="form-error">{createError}</p>}
+        <button className="primary-button" type="submit" disabled={saving}>
+          {saving && <Loader2 className="spin" size={16} />}
+          {"Lưu phòng ban"}
         </button>
       </form>
+
       <section className="panel wide">
-        <div className="panel-head">
-          <h2>Cơ cấu tổ chức</h2>
+        <div className="panel-head wrap">
+          <div>
+            <h2>{"Cơ cấu tổ chức"}</h2>
+            <p>{"Chọn một dòng để xem và cập nhật chi tiết."}</p>
+          </div>
+          <span className="status-chip">{departments.length} {"phòng ban"}</span>
         </div>
         <DataTable
-          columns={["Mã", "Tên", "Quản lý", "Nhân sự", "Công việc"]}
-          rows={(data ?? []).map((department) => ({
+          columns={["Mã", "Tên", "Phòng ban cha", "Quản lý", "Nhân sự", "Công việc"]}
+          rows={departmentRows.map(({ department, depth }) => ({
             key: department.id,
-            cells: [department.code, department.name, department.manager?.fullName, department._count?.users, department._count?.tasks]
+            testId: "department-row-" + department.id,
+            onClick: () => setSelectedId(department.id),
+            cells: [
+              department.code,
+              "-- ".repeat(depth) + department.name,
+              department.parent?.name ?? "",
+              department.manager?.fullName,
+              department._count?.users ?? 0,
+              department._count?.tasks ?? 0
+            ]
           }))}
         />
       </section>
+
+      <form className="panel form-stack" onSubmit={saveSelectedDepartment}>
+        <div className="panel-head wrap">
+          <div>
+            <h2>{"Chi tiết phòng ban"}</h2>
+            {selectedDepartment && <p>{selectedDepartment.code}</p>}
+          </div>
+          {selectedDepartment && <span className="status-chip">{selectedDepartment._count?.users ?? 0} {"nhân sự"}</span>}
+        </div>
+        {!selectedDepartment || !editForm ? (
+          <p className="empty-text">{"Chọn phòng ban trong danh sách để chỉnh sửa."}</p>
+        ) : (
+          <>
+            <label>
+              {"Mã phòng ban"}
+              <input data-testid="department-edit-code" value={editForm.code} onChange={(event) => setEditForm({ ...editForm, code: event.target.value })} required />
+            </label>
+            <label>
+              {"Tên phòng ban"}
+              <input data-testid="department-edit-name" value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} required />
+            </label>
+            <label>
+              {"Mô tả"}
+              <textarea data-testid="department-edit-description" value={editForm.description} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} />
+            </label>
+            <label>
+              {"Phòng ban cha"}
+              <select data-testid="department-edit-parent" value={editForm.parentId} onChange={(event) => setEditForm({ ...editForm, parentId: event.target.value })}>
+                <option value="">{"Không có"}</option>
+                {parentOptions.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {"Quản lý phòng ban"}
+              <select data-testid="department-edit-manager" value={editForm.managerId} onChange={(event) => setEditForm({ ...editForm, managerId: event.target.value })}>
+                <option value="">{"Chưa gán"}</option>
+                {usersList.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.fullName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="stack-list">
+              <span>
+                {"Phòng ban cha hiện tại "}
+                <strong>{selectedDepartment.parent?.name ?? "Không có"}</strong>
+              </span>
+              <span>
+                {"Số công việc "}
+                <strong>{selectedDepartment._count?.tasks ?? 0}</strong>
+              </span>
+            </div>
+            {updateError && <p className="form-error">{updateError}</p>}
+            <div className="form-actions">
+              <button className="ghost-button" type="button" onClick={() => setEditForm(buildDepartmentEditForm(selectedDepartment))}>
+                {"Khôi phục"}
+              </button>
+              <button className="primary-button" data-testid="department-edit-save" type="submit" disabled={updating}>
+                {updating && <Loader2 className="spin" size={16} />}
+                {"Lưu thay đổi"}
+              </button>
+            </div>
+          </>
+        )}
+      </form>
     </section>
   );
 }
