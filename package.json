@@ -1,0 +1,31 @@
+{
+  "name": "workflow-management-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WorkFlow Management System - internal task and approval management platform.",
+  "packageManager": "pnpm@11.9.0",
+  "workspaces": [
+    "apps/api",
+    "apps/web",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev": "pnpm --parallel --filter @workflow/api --filter @workflow/web dev",
+    "dev:api": "pnpm --filter @workflow/api dev",
+    "dev:web": "pnpm --filter @workflow/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:generate": "pnpm --filter @workflow/api prisma:generate",
+    "db:migrate": "pnpm --filter @workflow/api prisma:migrate",
+    "db:seed": "pnpm --filter @workflow/api prisma:seed",
+    "db:validate": "pnpm --filter @workflow/api prisma:validate",
+    "init:dev": "pnpm install && pnpm db:generate && pnpm db:migrate && pnpm db:seed",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}

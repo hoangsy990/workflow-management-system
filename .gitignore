@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+.env
+.env.*
+!.env.example
+coverage
+uploads
+*.log
+*.tsbuildinfo
+apps/web/src-tauri/target
+apps/web/src-tauri/gen

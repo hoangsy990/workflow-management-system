@@ -1,0 +1,130 @@
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { prisma } from "../../prisma.js";
+import { paginate, paginationSchema } from "../../http/pagination.js";
+import { parseBody, parseParams, parseQuery } from "../../http/validation.js";
+import { requireAuth, requirePermission } from "../auth/auth.guard.js";
+import {
+  createRole,
+  createUser,
+  listDepartments,
+  listPermissions,
+  listRoles,
+  listUsers,
+  updateRolePermissions,
+  updateUser,
+  upsertDepartment
+} from "./identity.service.js";
+
+const idParamSchema = z.object({ id: z.string().uuid() });
+
+const userQuerySchema = paginationSchema.extend({
+  keyword: z.string().optional()
+});
+
+const createUserSchema = z.object({
+  employeeCode: z.string().min(2),
+  fullName: z.string().min(2),
+  email: z.string().email(),
+  phone: z.string().optional(),
+  password: z.string().min(8),
+  avatarUrl: z.string().url().optional(),
+  title: z.string().optional(),
+  departmentId: z.string().uuid().optional(),
+  managerId: z.string().uuid().optional(),
+  roleIds: z.array(z.string().uuid()).default([])
+});
+
+const updateUserSchema = createUserSchema
+  .omit({ employeeCode: true, email: true, password: true })
+  .partial()
+  .extend({
+    status: z.enum(["ACTIVE", "INACTIVE", "LOCKED"]).optional(),
+    phone: z.string().nullable().optional(),
+    avatarUrl: z.string().url().nullable().optional(),
+    title: z.string().nullable().optional(),
+    departmentId: z.string().uuid().nullable().optional(),
+    managerId: z.string().uuid().nullable().optional()
+  });
+
+const departmentSchema = z.object({
+  id: z.string().uuid().optional(),
+  code: z.string().min(2),
+  name: z.string().min(2),
+  description: z.string().optional(),
+  parentId: z.string().uuid().nullable().optional(),
+  managerId: z.string().uuid().nullable().optional()
+});
+
+const roleSchema = z.object({
+  code: z.string().min(2),
+  name: z.string().min(2),
+  description: z.string().optional(),
+  permissionIds: z.array(z.string().uuid()).default([])
+});
+
+const rolePermissionsSchema = z.object({
+  permissionIds: z.array(z.string().uuid())
+});
+
+export async function identityRoutes(app: FastifyInstance) {
+  app.get("/users", { preHandler: requirePermission("user.read") }, async (request) => {
+    const query = parseQuery(request, userQuerySchema);
+    const result = await listUsers(prisma, query);
+    return paginate(result.data, query.page, query.pageSize, result.total);
+  });
+
+  app.post("/users", { preHandler: requirePermission("user.manage") }, async (request) => {
+    const body = parseBody(request, createUserSchema);
+    return createUser(prisma, request.auth!.userId, body);
+  });
+
+  app.patch("/users/:id", { preHandler: requirePermission("user.manage") }, async (request) => {
+    const params = parseParams(request, idParamSchema);
+    const body = parseBody(request, updateUserSchema);
+    return updateUser(prisma, request.auth!.userId, params.id, body);
+  });
+
+  app.get("/departments", { preHandler: requireAuth }, async () => {
+    return listDepartments(prisma);
+  });
+
+  app.post("/departments", { preHandler: requirePermission("department.manage") }, async (request) => {
+    const body = parseBody(request, departmentSchema);
+    return upsertDepartment(prisma, request.auth!.userId, body);
+  });
+
+  app.patch("/departments/:id", { preHandler: requirePermission("department.manage") }, async (request) => {
+    const params = parseParams(request, idParamSchema);
+    const body = parseBody(request, departmentSchema.omit({ id: true }).partial());
+    const current = await prisma.department.findUnique({ where: { id: params.id } });
+    return upsertDepartment(prisma, request.auth!.userId, {
+      id: params.id,
+      code: body.code ?? current?.code ?? "",
+      name: body.name ?? current?.name ?? "",
+      description: body.description ?? current?.description ?? undefined,
+      parentId: body.parentId,
+      managerId: body.managerId
+    });
+  });
+
+  app.get("/roles", { preHandler: requirePermission("role.read") }, async () => {
+    return listRoles(prisma);
+  });
+
+  app.get("/permissions", { preHandler: requirePermission("role.read") }, async () => {
+    return listPermissions(prisma);
+  });
+
+  app.post("/roles", { preHandler: requirePermission("role.manage") }, async (request) => {
+    const body = parseBody(request, roleSchema);
+    return createRole(prisma, request.auth!.userId, body);
+  });
+
+  app.put("/roles/:id/permissions", { preHandler: requirePermission("role.manage") }, async (request) => {
+    const params = parseParams(request, idParamSchema);
+    const body = parseBody(request, rolePermissionsSchema);
+    return updateRolePermissions(prisma, request.auth!.userId, params.id, body.permissionIds);
+  });
+}
+

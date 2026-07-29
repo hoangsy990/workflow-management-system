@@ -1,0 +1,845 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  LOCKED
+}
+
+enum TaskStatus {
+  DRAFT
+  TODO
+  IN_PROGRESS
+  PAUSED
+  PENDING_REVIEW
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum RepeatFrequency {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum TaskDependencyType {
+  BLOCKS
+  RELATES_TO
+}
+
+enum WorkflowTemplateStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum WorkflowVersionStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum WorkflowFieldType {
+  SHORT_TEXT
+  LONG_TEXT
+  NUMBER
+  CURRENCY
+  DATE
+  DATETIME
+  CHECKBOX
+  RADIO
+  SELECT
+  USER_SELECT
+  DEPARTMENT_SELECT
+  ATTACHMENT
+  TABLE
+  HEADING
+}
+
+enum WorkflowStepType {
+  START
+  HANDLER
+  APPROVAL
+  REVIEW
+  NOTIFICATION
+  END
+}
+
+enum AssigneeResolverType {
+  SPECIFIC_USER
+  ROLE
+  DEPARTMENT
+  REQUESTER_DEPARTMENT_HEAD
+  REQUESTER_MANAGER
+  FORM_FIELD_USER
+  PREVIOUS_STEP_ASSIGNEE
+}
+
+enum ApprovalMode {
+  SEQUENTIAL
+  PARALLEL
+}
+
+enum StepCompletionRule {
+  ALL
+  ANY
+  MIN_COUNT
+  MIN_PERCENT
+}
+
+enum WorkflowInstanceStatus {
+  DRAFT
+  SUBMITTED
+  IN_PROGRESS
+  NEEDS_INFO
+  APPROVED
+  REJECTED
+  CANCELLED
+  COMPLETED
+}
+
+enum WorkflowAction {
+  SUBMIT
+  APPROVE
+  REJECT
+  REQUEST_INFO
+  RETURN
+  TRANSFER
+  COMMENT
+  CANCEL
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REQUESTED_INFO
+  RETURNED
+  TRANSFERRED
+  SKIPPED
+}
+
+enum ConditionGroupType {
+  AND
+  OR
+}
+
+model Company {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  branches    Branch[]
+
+  @@map("companies")
+}
+
+model Branch {
+  id          String       @id @default(uuid())
+  companyId   String       @map("company_id")
+  code        String
+  name        String
+  company     Company      @relation(fields: [companyId], references: [id])
+  departments Department[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@unique([companyId, code])
+  @@map("branches")
+}
+
+model Department {
+  id          String       @id @default(uuid())
+  branchId    String?      @map("branch_id")
+  parentId    String?      @map("parent_id")
+  code        String       @unique
+  name        String
+  description String?
+  managerId   String?      @map("manager_id")
+  branch      Branch?      @relation(fields: [branchId], references: [id])
+  parent      Department?  @relation("DepartmentTree", fields: [parentId], references: [id])
+  children    Department[] @relation("DepartmentTree")
+  manager     User?        @relation("DepartmentManager", fields: [managerId], references: [id])
+  users       User[]       @relation("UserDepartment")
+  teams       Team[]
+  tasks       Task[]
+  workflowStepAssigneeRules WorkflowStepAssignee[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+
+  @@index([branchId])
+  @@index([managerId])
+  @@map("departments")
+}
+
+model Team {
+  id           String       @id @default(uuid())
+  departmentId String?      @map("department_id")
+  code         String       @unique
+  name         String
+  department   Department?  @relation(fields: [departmentId], references: [id])
+  members      TeamMember[]
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  deletedAt    DateTime?    @map("deleted_at")
+
+  @@index([departmentId])
+  @@map("teams")
+}
+
+model TeamMember {
+  teamId    String   @map("team_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, userId])
+  @@map("team_members")
+}
+
+model User {
+  id                    String                 @id @default(uuid())
+  employeeCode          String                 @unique @map("employee_code")
+  fullName              String                 @map("full_name")
+  email                 String                 @unique
+  phone                 String?
+  passwordHash          String                 @map("password_hash")
+  avatarUrl             String?                @map("avatar_url")
+  title                 String?
+  departmentId          String?                @map("department_id")
+  managerId             String?                @map("manager_id")
+  status                UserStatus             @default(ACTIVE)
+  failedLoginAttempts   Int                    @default(0) @map("failed_login_attempts")
+  lockedUntil           DateTime?              @map("locked_until")
+  lastLoginAt           DateTime?              @map("last_login_at")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+  deletedAt             DateTime?              @map("deleted_at")
+  department            Department?            @relation("UserDepartment", fields: [departmentId], references: [id])
+  manager               User?                  @relation("UserManager", fields: [managerId], references: [id])
+  directReports         User[]                 @relation("UserManager")
+  managedDepartments    Department[]           @relation("DepartmentManager")
+  teams                 TeamMember[]
+  roles                 UserRole[]
+  refreshTokens         RefreshToken[]
+  deviceTokens          DeviceToken[]
+  createdTasks          Task[]                 @relation("TaskCreator")
+  assignedByTasks       Task[]                 @relation("TaskAssigner")
+  managedTasks          Task[]                 @relation("TaskManager")
+  taskAssignees         TaskAssignee[]
+  taskFollowers         TaskFollower[]
+  taskComments          TaskComment[]
+  taskProgressLogs      TaskProgressLog[]
+  taskEvaluations       TaskEvaluation[]
+  taskAttachments       TaskAttachment[]       @relation("TaskAttachmentUploader")
+  workflowStepAssigneeRules WorkflowStepAssignee[]
+  workflowManaged       WorkflowTemplate[]     @relation("WorkflowManager")
+  workflowInstances     WorkflowInstance[]     @relation("WorkflowRequester")
+  workflowApprovals     WorkflowApproval[]     @relation("WorkflowApprover")
+  notifications         Notification[]
+  activityLogs          ActivityLog[]          @relation("ActivityActor")
+  idempotencyKeys        IdempotencyKey[]
+
+  @@index([departmentId])
+  @@index([managerId])
+  @@index([status])
+  @@map("users")
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  name        String
+  description String?
+  isSystem    Boolean          @default(false) @map("is_system")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  permissions RolePermission[]
+  users       UserRole[]
+  stepRules   WorkflowStepAssignee[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  name        String
+  group       String
+  description String?
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id")
+  permissionId String     @map("permission_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId    String   @map("user_id")
+  roleId    String   @map("role_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RefreshToken {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  tokenHash   String    @map("token_hash")
+  deviceName  String?   @map("device_name")
+  ipAddress   String?   @map("ip_address")
+  userAgent   String?   @map("user_agent")
+  expiresAt   DateTime  @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model DeviceToken {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  platform    String
+  token       String
+  deviceName  String?  @map("device_name")
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([platform, token])
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+model TaskCategory {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  tasks       Task[]
+
+  @@map("task_categories")
+}
+
+model Tag {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  color     String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  tasks     TaskTag[]
+
+  @@map("tags")
+}
+
+model Task {
+  id                          String            @id @default(uuid())
+  code                        String            @unique
+  title                       String
+  description                 String?
+  creatorId                   String            @map("creator_id")
+  assignerId                  String?           @map("assigner_id")
+  managerId                   String?           @map("manager_id")
+  departmentId                String?           @map("department_id")
+  categoryId                  String?           @map("category_id")
+  parentTaskId                String?           @map("parent_task_id")
+  startDate                   DateTime?         @map("start_date")
+  dueDate                     DateTime?         @map("due_date")
+  priority                    TaskPriority      @default(NORMAL)
+  status                      TaskStatus        @default(TODO)
+  progress                    Int               @default(0)
+  requiresReview              Boolean           @default(true) @map("requires_review")
+  autoCalculateParentProgress Boolean           @default(false) @map("auto_calculate_parent_progress")
+  repeatFrequency             RepeatFrequency   @default(NONE) @map("repeat_frequency")
+  customFields                Json?             @map("custom_fields")
+  version                     Int               @default(1)
+  createdAt                   DateTime          @default(now()) @map("created_at")
+  updatedAt                   DateTime          @updatedAt @map("updated_at")
+  deletedAt                   DateTime?         @map("deleted_at")
+  creator                     User              @relation("TaskCreator", fields: [creatorId], references: [id])
+  assigner                    User?             @relation("TaskAssigner", fields: [assignerId], references: [id])
+  manager                     User?             @relation("TaskManager", fields: [managerId], references: [id])
+  department                  Department?       @relation(fields: [departmentId], references: [id])
+  category                    TaskCategory?     @relation(fields: [categoryId], references: [id])
+  parentTask                  Task?             @relation("TaskHierarchy", fields: [parentTaskId], references: [id])
+  subTasks                    Task[]            @relation("TaskHierarchy")
+  assignees                   TaskAssignee[]
+  followers                   TaskFollower[]
+  dependenciesFrom            TaskDependency[]  @relation("TaskDependencySource")
+  dependenciesTo              TaskDependency[]  @relation("TaskDependencyTarget")
+  comments                    TaskComment[]
+  attachments                 TaskAttachment[]
+  progressLogs                TaskProgressLog[]
+  evaluations                 TaskEvaluation[]
+  tags                        TaskTag[]
+
+  @@index([status, dueDate])
+  @@index([departmentId])
+  @@index([creatorId])
+  @@index([managerId])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+model TaskAssignee {
+  taskId     String   @map("task_id")
+  userId     String   @map("user_id")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId])
+  @@map("task_assignees")
+}
+
+model TaskFollower {
+  taskId    String   @map("task_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId])
+  @@map("task_followers")
+}
+
+model TaskDependency {
+  id           String             @id @default(uuid())
+  sourceTaskId String             @map("source_task_id")
+  targetTaskId String             @map("target_task_id")
+  type         TaskDependencyType @default(RELATES_TO)
+  createdAt    DateTime           @default(now()) @map("created_at")
+  sourceTask   Task               @relation("TaskDependencySource", fields: [sourceTaskId], references: [id], onDelete: Cascade)
+  targetTask   Task               @relation("TaskDependencyTarget", fields: [targetTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceTaskId, targetTaskId, type])
+  @@index([targetTaskId])
+  @@map("task_dependencies")
+}
+
+model TaskComment {
+  id              String           @id @default(uuid())
+  taskId          String           @map("task_id")
+  authorId        String           @map("author_id")
+  parentCommentId String?          @map("parent_comment_id")
+  content         String
+  mentions        String[]         @default([])
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  deletedAt       DateTime?        @map("deleted_at")
+  task            Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author          User             @relation(fields: [authorId], references: [id])
+  parent          TaskComment?     @relation("CommentThread", fields: [parentCommentId], references: [id])
+  replies         TaskComment[]    @relation("CommentThread")
+  attachments     TaskAttachment[]
+
+  @@index([taskId])
+  @@index([authorId])
+  @@map("task_comments")
+}
+
+model TaskAttachment {
+  id             String       @id @default(uuid())
+  taskId         String       @map("task_id")
+  commentId      String?      @map("comment_id")
+  uploadedById   String       @map("uploaded_by_id")
+  originalName   String       @map("original_name")
+  storedName     String       @map("stored_name")
+  mimeType       String       @map("mime_type")
+  sizeBytes      Int          @map("size_bytes")
+  storageKey     String       @map("storage_key")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  deletedAt      DateTime?    @map("deleted_at")
+  task           Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  comment        TaskComment? @relation(fields: [commentId], references: [id])
+  uploadedBy     User         @relation("TaskAttachmentUploader", fields: [uploadedById], references: [id])
+
+  @@index([taskId])
+  @@index([commentId])
+  @@index([uploadedById])
+  @@map("task_attachments")
+}
+
+model TaskProgressLog {
+  id         String   @id @default(uuid())
+  taskId     String   @map("task_id")
+  userId     String   @map("user_id")
+  progress   Int
+  note       String?
+  oldStatus  TaskStatus? @map("old_status")
+  newStatus  TaskStatus? @map("new_status")
+  createdAt  DateTime @default(now()) @map("created_at")
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([taskId])
+  @@index([userId])
+  @@map("task_progress_logs")
+}
+
+model TaskEvaluation {
+  id            String   @id @default(uuid())
+  taskId        String   @map("task_id")
+  evaluatorId   String   @map("evaluator_id")
+  accepted      Boolean
+  rating        Int?
+  comment       String?
+  attachmentIds String[] @default([]) @map("attachment_ids")
+  createdAt     DateTime @default(now()) @map("created_at")
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  evaluator     User     @relation(fields: [evaluatorId], references: [id])
+
+  @@index([taskId])
+  @@map("task_evaluations")
+}
+
+model TaskTag {
+  taskId    String   @map("task_id")
+  tagId     String   @map("tag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+  @@map("task_tags")
+}
+
+model WorkflowTemplate {
+  id          String                 @id @default(uuid())
+  code        String                 @unique
+  name        String
+  description String?
+  category    String?
+  managerId   String?                @map("manager_id")
+  status      WorkflowTemplateStatus @default(ACTIVE)
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+  deletedAt   DateTime?              @map("deleted_at")
+  manager     User?                  @relation("WorkflowManager", fields: [managerId], references: [id])
+  versions    WorkflowVersion[]
+  instances   WorkflowInstance[]
+
+  @@map("workflow_templates")
+}
+
+model WorkflowVersion {
+  id              String                @id @default(uuid())
+  templateId      String                @map("template_id")
+  versionNo       Int                   @map("version_no")
+  status          WorkflowVersionStatus @default(DRAFT)
+  formSchema      Json?                 @map("form_schema")
+  allowedStarters Json?                 @map("allowed_starters")
+  version         Int                   @default(1)
+  activatedAt     DateTime?             @map("activated_at")
+  createdById     String?               @map("created_by")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  template        WorkflowTemplate      @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  fields          WorkflowFormField[]
+  steps           WorkflowStep[]
+  transitions     WorkflowTransition[]
+  instances       WorkflowInstance[]
+
+  @@unique([templateId, versionNo])
+  @@index([templateId, status])
+  @@map("workflow_versions")
+}
+
+model WorkflowFormField {
+  id              String            @id @default(uuid())
+  versionId       String            @map("version_id")
+  name            String
+  code            String
+  type            WorkflowFieldType
+  isRequired      Boolean           @default(false) @map("is_required")
+  defaultValue    Json?             @map("default_value")
+  placeholder     String?
+  validation      Json?
+  displayOrder    Int               @default(0) @map("display_order")
+  editableBySteps Json?             @map("editable_by_steps")
+  visibleToRoles  Json?             @map("visible_to_roles")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  version         WorkflowVersion   @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  values          WorkflowInstanceValue[]
+
+  @@unique([versionId, code])
+  @@index([versionId, displayOrder])
+  @@map("workflow_form_fields")
+}
+
+model WorkflowStep {
+  id                  String                 @id @default(uuid())
+  versionId           String                 @map("version_id")
+  code                String
+  name                String
+  type                WorkflowStepType
+  orderIndex          Int                    @map("order_index")
+  approvalMode        ApprovalMode           @default(SEQUENTIAL) @map("approval_mode")
+  completionRule      StepCompletionRule     @default(ALL) @map("completion_rule")
+  minCount            Int?                   @map("min_count")
+  minPercent          Int?                   @map("min_percent")
+  deadlineAmount      Int?                   @map("deadline_amount")
+  deadlineUnit        String?                @map("deadline_unit")
+  countWeekend        Boolean                @default(true) @map("count_weekend")
+  reminderBeforeHours Int?                   @map("reminder_before_hours")
+  overdueAction       String?                @map("overdue_action")
+  config              Json?
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+  version             WorkflowVersion        @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  assignees           WorkflowStepAssignee[]
+  outgoing            WorkflowTransition[]   @relation("TransitionFrom")
+  incoming            WorkflowTransition[]   @relation("TransitionTo")
+  instancesCurrent    WorkflowInstance[]     @relation("WorkflowCurrentStep")
+  instanceSteps       WorkflowInstanceStep[]
+  approvals           WorkflowApproval[]
+
+  @@unique([versionId, code])
+  @@index([versionId, orderIndex])
+  @@map("workflow_steps")
+}
+
+model WorkflowStepAssignee {
+  id            String               @id @default(uuid())
+  stepId        String               @map("step_id")
+  resolverType  AssigneeResolverType @map("resolver_type")
+  userId        String?              @map("user_id")
+  roleId        String?              @map("role_id")
+  departmentId  String?              @map("department_id")
+  formFieldCode String?              @map("form_field_code")
+  orderIndex    Int                  @default(0) @map("order_index")
+  createdAt     DateTime             @default(now()) @map("created_at")
+  step          WorkflowStep         @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  role          Role?                @relation(fields: [roleId], references: [id])
+  user          User?                @relation(fields: [userId], references: [id])
+  department    Department?          @relation(fields: [departmentId], references: [id])
+
+  @@index([stepId])
+  @@index([userId])
+  @@index([departmentId])
+  @@map("workflow_step_assignees")
+}
+
+model WorkflowTransition {
+  id           String              @id @default(uuid())
+  versionId    String              @map("version_id")
+  fromStepId   String              @map("from_step_id")
+  toStepId     String              @map("to_step_id")
+  name         String?
+  priority     Int                 @default(0)
+  createdAt    DateTime            @default(now()) @map("created_at")
+  version      WorkflowVersion     @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  fromStep     WorkflowStep        @relation("TransitionFrom", fields: [fromStepId], references: [id], onDelete: Cascade)
+  toStep       WorkflowStep        @relation("TransitionTo", fields: [toStepId], references: [id], onDelete: Cascade)
+  conditions   WorkflowCondition[]
+
+  @@index([versionId, fromStepId])
+  @@map("workflow_transitions")
+}
+
+model WorkflowCondition {
+  id            String             @id @default(uuid())
+  transitionId  String             @map("transition_id")
+  fieldCode     String             @map("field_code")
+  operator      String
+  compareValue  Json               @map("compare_value")
+  groupType     ConditionGroupType @default(AND) @map("group_type")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  transition    WorkflowTransition @relation(fields: [transitionId], references: [id], onDelete: Cascade)
+
+  @@index([transitionId])
+  @@map("workflow_conditions")
+}
+
+model WorkflowInstance {
+  id            String                 @id @default(uuid())
+  code          String                 @unique
+  templateId    String                 @map("template_id")
+  versionId     String                 @map("version_id")
+  requesterId   String                 @map("requester_id")
+  currentStepId String?                @map("current_step_id")
+  status        WorkflowInstanceStatus @default(DRAFT)
+  formData      Json?                  @map("form_data")
+  submittedAt   DateTime?              @map("submitted_at")
+  completedAt   DateTime?              @map("completed_at")
+  deadlineAt    DateTime?              @map("deadline_at")
+  version       Int                    @default(1)
+  createdAt     DateTime               @default(now()) @map("created_at")
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+  deletedAt     DateTime?              @map("deleted_at")
+  template      WorkflowTemplate       @relation(fields: [templateId], references: [id])
+  workflowVersion WorkflowVersion      @relation(fields: [versionId], references: [id])
+  requester     User                   @relation("WorkflowRequester", fields: [requesterId], references: [id])
+  currentStep   WorkflowStep?          @relation("WorkflowCurrentStep", fields: [currentStepId], references: [id])
+  values        WorkflowInstanceValue[]
+  steps         WorkflowInstanceStep[]
+  approvals     WorkflowApproval[]
+
+  @@index([status])
+  @@index([requesterId])
+  @@index([currentStepId])
+  @@map("workflow_instances")
+}
+
+model WorkflowInstanceValue {
+  id          String             @id @default(uuid())
+  instanceId  String             @map("instance_id")
+  fieldId     String?            @map("field_id")
+  fieldCode   String             @map("field_code")
+  value       Json
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  instance    WorkflowInstance   @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  field       WorkflowFormField? @relation(fields: [fieldId], references: [id])
+
+  @@unique([instanceId, fieldCode])
+  @@index([fieldCode])
+  @@map("workflow_instance_values")
+}
+
+model WorkflowInstanceStep {
+  id          String             @id @default(uuid())
+  instanceId  String             @map("instance_id")
+  stepId      String             @map("step_id")
+  status      String
+  startedAt   DateTime?          @map("started_at")
+  completedAt DateTime?          @map("completed_at")
+  deadlineAt  DateTime?          @map("deadline_at")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  instance    WorkflowInstance   @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  step        WorkflowStep       @relation(fields: [stepId], references: [id])
+  approvals   WorkflowApproval[]
+
+  @@index([instanceId])
+  @@index([stepId, status])
+  @@map("workflow_instance_steps")
+}
+
+model WorkflowApproval {
+  id                 String               @id @default(uuid())
+  instanceId          String               @map("instance_id")
+  instanceStepId      String               @map("instance_step_id")
+  stepId              String               @map("step_id")
+  approverId          String               @map("approver_id")
+  action              WorkflowAction?
+  status              ApprovalStatus       @default(PENDING)
+  comment             String?
+  previousStepId      String?              @map("previous_step_id")
+  nextStepId          String?              @map("next_step_id")
+  changedData         Json?                @map("changed_data")
+  ipAddress           String?              @map("ip_address")
+  idempotencyKey      String?              @unique @map("idempotency_key")
+  actedAt             DateTime?            @map("acted_at")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  instance            WorkflowInstance     @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  instanceStep        WorkflowInstanceStep @relation(fields: [instanceStepId], references: [id], onDelete: Cascade)
+  step                WorkflowStep         @relation(fields: [stepId], references: [id])
+  approver            User                 @relation("WorkflowApprover", fields: [approverId], references: [id])
+
+  @@unique([instanceStepId, approverId])
+  @@index([approverId, status])
+  @@index([instanceId])
+  @@map("workflow_approvals")
+}
+
+model Notification {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  title       String
+  content     String
+  type        String
+  objectType  String?   @map("object_type")
+  objectId    String?   @map("object_id")
+  link        String?
+  readAt      DateTime? @map("read_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([type])
+  @@map("notifications")
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  actorId     String?  @map("actor_id")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  ipAddress   String?  @map("ip_address")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  actor       User?    @relation("ActivityActor", fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       Json
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+model IdempotencyKey {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  key         String
+  scope       String
+  response    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key, scope])
+  @@index([createdAt])
+  @@map("idempotency_keys")
+}
