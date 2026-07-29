@@ -3,7 +3,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock, MultiCheck } from "../components/common";
 import { useAsyncData } from "../hooks/useAsyncData";
-import { cls, formatDate } from "../lib/format";
+import { cls, formatDate, statusLabels } from "../lib/format";
 
 const permissionGroupLabels: Record<string, string> = {
   user: "Người dùng",
@@ -54,27 +54,107 @@ function isSameStringSet(left: string[], right: string[]) {
   return left.every((item) => rightSet.has(item));
 }
 
+const emptyUserForm = {
+  employeeCode: "",
+  fullName: "",
+  email: "",
+  phone: "",
+  password: "Demo@123456",
+  title: "",
+  departmentId: "",
+  managerId: "",
+  roleIds: [] as string[]
+};
+
+function extractUserRoleIds(user?: Record<string, any>) {
+  return (user?.roles ?? []).map((item: Record<string, any>) => item.role.id);
+}
+
+function buildUserEditForm(user: Record<string, any>) {
+  return {
+    fullName: user.fullName ?? "",
+    phone: user.phone ?? "",
+    title: user.title ?? "",
+    departmentId: user.department?.id ?? "",
+    managerId: user.manager?.id ?? "",
+    status: user.status ?? "ACTIVE",
+    roleIds: extractUserRoleIds(user)
+  };
+}
+
 export function UsersPage() {
   const { data, loading, error, reload } = useAsyncData(() => api.users(), []);
   const departments = useAsyncData(() => api.departments(), []);
   const roles = useAsyncData(() => api.roles(), []);
-  const [form, setForm] = useState<Record<string, any>>({
-    employeeCode: "",
-    fullName: "",
-    email: "",
-    password: "Demo@123456",
-    departmentId: "",
-    roleIds: []
-  });
+  const [form, setForm] = useState<Record<string, any>>({ ...emptyUserForm });
+  const [selectedId, setSelectedId] = useState("");
+  const [editForm, setEditForm] = useState<Record<string, any> | null>(null);
   const [saving, setSaving] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [updateError, setUpdateError] = useState("");
+
+  const users = useMemo(() => data?.data ?? [], [data]);
+  const selectedUser = useMemo(() => users.find((user) => user.id === selectedId), [users, selectedId]);
+
+  useEffect(() => {
+    const firstUser = users[0];
+    if (!selectedId && firstUser) {
+      setSelectedId(firstUser.id);
+    }
+  }, [selectedId, users]);
+
+  useEffect(() => {
+    if (selectedUser) {
+      setEditForm(buildUserEditForm(selectedUser));
+      setUpdateError("");
+    }
+  }, [selectedUser]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
-    await api.createUser({ ...form, departmentId: form.departmentId || undefined });
-    setSaving(false);
-    setForm({ employeeCode: "", fullName: "", email: "", password: "Demo@123456", departmentId: "", roleIds: [] });
-    await reload();
+    setCreateError("");
+    try {
+      const created = await api.createUser({
+        ...form,
+        phone: form.phone || undefined,
+        title: form.title || undefined,
+        departmentId: form.departmentId || undefined,
+        managerId: form.managerId || undefined
+      });
+      setSelectedId(created.id);
+      setForm({ ...emptyUserForm });
+      await reload();
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Không tạo được người dùng.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveSelectedUser(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedUser || !editForm || updating) return;
+    if (!window.confirm("Xác nhận cập nhật tài khoản này?")) return;
+    setUpdating(true);
+    setUpdateError("");
+    try {
+      await api.updateUser(selectedUser.id, {
+        fullName: editForm.fullName,
+        phone: editForm.phone || null,
+        title: editForm.title || null,
+        departmentId: editForm.departmentId || null,
+        managerId: editForm.managerId || null,
+        status: editForm.status,
+        roleIds: editForm.roleIds
+      });
+      await reload();
+    } catch (err) {
+      setUpdateError(err instanceof Error ? err.message : "Không cập nhật được người dùng.");
+    } finally {
+      setUpdating(false);
+    }
   }
 
   if (loading) return <LoadingBlock />;
@@ -84,17 +164,27 @@ export function UsersPage() {
     <section className="page-grid">
       <form className="panel form-stack" onSubmit={submit}>
         <div className="panel-head">
-          <h2>Tạo người dùng</h2>
+          <h2>{"Tạo người dùng"}</h2>
         </div>
         <input placeholder="Mã nhân viên" value={form.employeeCode} onChange={(event) => setForm({ ...form, employeeCode: event.target.value })} required />
         <input placeholder="Họ tên" value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} required />
         <input placeholder="Email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required />
+        <input placeholder="Số điện thoại" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
+        <input placeholder="Chức danh" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
         <input placeholder="Mật khẩu" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required />
         <select value={form.departmentId} onChange={(event) => setForm({ ...form, departmentId: event.target.value })}>
-          <option value="">Phòng ban</option>
+          <option value="">{"Phòng ban"}</option>
           {(departments.data ?? []).map((department) => (
             <option key={department.id} value={department.id}>
               {department.name}
+            </option>
+          ))}
+        </select>
+        <select value={form.managerId} onChange={(event) => setForm({ ...form, managerId: event.target.value })}>
+          <option value="">{"Quản lý trực tiếp"}</option>
+          {users.map((user) => (
+            <option key={user.id} value={user.id}>
+              {user.fullName}
             </option>
           ))}
         </select>
@@ -104,29 +194,132 @@ export function UsersPage() {
           value={form.roleIds}
           onChange={(value) => setForm({ ...form, roleIds: value })}
         />
+        {createError && <p className="form-error">{createError}</p>}
         <button className="primary-button" type="submit" disabled={saving}>
-          Lưu người dùng
+          {saving && <Loader2 className="spin" size={16} />}
+          {"Lưu người dùng"}
         </button>
       </form>
+
       <section className="panel wide">
         <div className="panel-head">
-          <h2>Danh sách người dùng</h2>
+          <h2>{"Danh sách người dùng"}</h2>
         </div>
         <DataTable
-          columns={["Mã", "Họ tên", "Email", "Phòng ban", "Vai trò", "Trạng thái"]}
-          rows={(data?.data ?? []).map((user) => ({
+          columns={["Mã", "Họ tên", "Email", "Phòng ban", "Quản lý", "Vai trò", "Trạng thái"]}
+          rows={users.map((user) => ({
             key: user.id,
+            testId: `user-row-${user.id}`,
+            onClick: () => setSelectedId(user.id),
             cells: [
               user.employeeCode,
               user.fullName,
               user.email,
               user.department?.name,
+              user.manager?.fullName,
               user.roles?.map((item: Record<string, any>) => item.role.name).join(", "),
-              user.status
+              statusLabels[user.status] ?? user.status
             ]
           }))}
         />
       </section>
+
+      <form className="panel form-stack" onSubmit={saveSelectedUser}>
+        <div className="panel-head wrap">
+          <div>
+            <h2>{"Chi tiết tài khoản"}</h2>
+            {selectedUser && (
+              <p>
+                {selectedUser.employeeCode} - {selectedUser.email}
+              </p>
+            )}
+          </div>
+          {selectedUser && <span className="status-chip">{statusLabels[selectedUser.status] ?? selectedUser.status}</span>}
+        </div>
+        {!selectedUser || !editForm ? (
+          <p className="empty-text">{"Chọn một người dùng trong danh sách để chỉnh sửa."}</p>
+        ) : (
+          <>
+            <label>
+              {"Họ tên"}
+              <input
+                data-testid="user-edit-full-name"
+                value={editForm.fullName}
+                onChange={(event) => setEditForm({ ...editForm, fullName: event.target.value })}
+                required
+              />
+            </label>
+            <label>
+              {"Số điện thoại"}
+              <input data-testid="user-edit-phone" value={editForm.phone} onChange={(event) => setEditForm({ ...editForm, phone: event.target.value })} />
+            </label>
+            <label>
+              {"Chức danh"}
+              <input data-testid="user-edit-title" value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} />
+            </label>
+            <label>
+              {"Phòng ban chính"}
+              <select value={editForm.departmentId} onChange={(event) => setEditForm({ ...editForm, departmentId: event.target.value })}>
+                <option value="">{"Chưa gán"}</option>
+                {(departments.data ?? []).map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {"Quản lý trực tiếp"}
+              <select value={editForm.managerId} onChange={(event) => setEditForm({ ...editForm, managerId: event.target.value })}>
+                <option value="">{"Chưa gán"}</option>
+                {users
+                  .filter((user) => user.id !== selectedUser.id)
+                  .map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.fullName}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              {"Trạng thái"}
+              <select data-testid="user-edit-status" value={editForm.status} onChange={(event) => setEditForm({ ...editForm, status: event.target.value })}>
+                {["ACTIVE", "INACTIVE", "LOCKED"].map((status) => (
+                  <option key={status} value={status}>
+                    {statusLabels[status] ?? status}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <MultiCheck
+              label="Vai trò"
+              items={roles.data ?? []}
+              value={editForm.roleIds}
+              onChange={(value) => setEditForm({ ...editForm, roleIds: value })}
+            />
+            <div className="stack-list">
+              <span>
+                {"Tạo ngày "}
+                <strong>{formatDate(selectedUser.createdAt)}</strong>
+              </span>
+              <span>
+                {"Đăng nhập gần nhất "}
+                <strong>{formatDate(selectedUser.lastLoginAt) || "Chưa có"}</strong>
+              </span>
+            </div>
+            {updateError && <p className="form-error">{updateError}</p>}
+            <div className="form-actions">
+              <button className="ghost-button" type="button" onClick={() => setEditForm(buildUserEditForm(selectedUser))}>
+                {"Khôi phục"}
+              </button>
+              <button className="primary-button" data-testid="user-edit-save" type="submit" disabled={updating}>
+                {updating && <Loader2 className="spin" size={16} />}
+                {"Lưu thay đổi"}
+              </button>
+            </div>
+          </>
+        )}
+      </form>
     </section>
   );
 }

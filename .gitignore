@@ -5,7 +5,10 @@ build
 .env.*
 !.env.example
 coverage
-uploads
+/uploads/
+apps/api/uploads/
+!apps/api/src/modules/uploads/
+!apps/api/src/modules/uploads/**
 *.log
 *.tsbuildinfo
 test-results

@@ -34,6 +34,8 @@ export async function createApp() {
   await app.register(cors, {
     origin: [config.WEB_ORIGIN, "http://localhost:8080"],
     credentials: false,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Authorization", "Content-Type", "Accept", "Idempotency-Key"],
     exposedHeaders: ["Content-Disposition"]
   });
   await app.register(rateLimit, {

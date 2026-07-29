@@ -185,6 +185,8 @@ export const api = {
   users: () => apiRequest<Paginated<Record<string, any>>>("/users?pageSize=100"),
   createUser: (payload: Record<string, unknown>) =>
     apiRequest<Record<string, any>>("/users", { method: "POST", body: JSON.stringify(payload) }),
+  updateUser: (id: string, payload: Record<string, unknown>) =>
+    apiRequest<Record<string, any>>(`/users/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   departments: () => apiRequest<Record<string, any>[]>("/departments"),
   saveDepartment: (payload: Record<string, unknown>) =>
     apiRequest<Record<string, any>>("/departments", { method: "POST", body: JSON.stringify(payload) }),

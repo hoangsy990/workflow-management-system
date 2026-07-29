@@ -28,8 +28,11 @@ interface Paginated<T> {
 
 interface UserRecord {
   id: string;
+  employeeCode: string;
   email: string;
   fullName: string;
+  phone?: string | null;
+  title?: string | null;
   department?: { id: string; name: string } | null;
 }
 
@@ -217,6 +220,37 @@ test("đăng nhập web bằng tài khoản quản trị", async ({ page }) => {
 
   await expect(page.getByTestId("nav-dashboard")).toBeVisible();
   await expect(page.getByTestId("nav-tasks")).toBeVisible();
+});
+
+test("admin updates employee profile on UI", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  const users = await apiGet<Paginated<UserRecord>>(request, admin, "/users?pageSize=100");
+  const target = users.data.find((user) => user.email === accounts.employee.email) ?? users.data.find((user) => user.email !== accounts.admin.email);
+  const nextTitle = `Smoke title ${runId}`;
+  const nextPhone = `090${String(Date.now()).slice(-7)}`;
+
+  expect(target, "Seed employee is required").toBeTruthy();
+
+  await openAppWithSession(page, admin);
+  await page.getByTestId("nav-users").click();
+  const row = page.locator(`tr[data-testid="user-row-${target!.id}"]`);
+  await expect(row).toBeVisible();
+  await row.click();
+  await expect(page.getByTestId("user-edit-title")).toBeVisible();
+  await page.getByTestId("user-edit-title").fill(nextTitle);
+  await page.getByTestId("user-edit-phone").fill(nextPhone);
+
+  page.once("dialog", async (dialog) => {
+    await dialog.accept();
+  });
+  const updateResponse = page.waitForResponse((response) => response.url().includes(`/users/${target!.id}`) && response.request().method() === "PATCH");
+  await page.getByTestId("user-edit-save").click();
+  await updateResponse;
+
+  const refreshed = await apiGet<Paginated<UserRecord>>(request, admin, "/users?pageSize=100");
+  const updated = refreshed.data.find((user) => user.id === target!.id);
+  expect(updated?.title).toBe(nextTitle);
+  expect(updated?.phone).toBe(nextPhone);
 });
 
 test("tạo task qua API rồi upload và download tệp trên UI", async ({ page, request }) => {

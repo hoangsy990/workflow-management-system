@@ -13,7 +13,8 @@ export const statusLabels: Record<string, string> = {
   REJECTED: "Bị từ chối",
   COMPLETED: "Hoàn thành",
   ACTIVE: "Đang hoạt động",
-  INACTIVE: "Ngừng hoạt động"
+  INACTIVE: "Ngừng hoạt động",
+  LOCKED: "Bị khóa"
 };
 
 export function formatDate(value?: string | null) {
