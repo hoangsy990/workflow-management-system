@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock, MultiCheck } from "../components/common";
 import { useAsyncData } from "../hooks/useAsyncData";
+import { cls, formatDate } from "../lib/format";
 
 const permissionGroupLabels: Record<string, string> = {
   user: "Người dùng",
@@ -51,20 +52,6 @@ function isSameStringSet(left: string[], right: string[]) {
   if (left.length !== right.length) return false;
   const rightSet = new Set(right);
   return left.every((item) => rightSet.has(item));
-}
-
-function formatDate(value?: string | null) {
-  if (!value) return "";
-  return new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "Asia/Ho_Chi_Minh"
-  }).format(new Date(value));
-}
-
-function cls(...values: Array<string | false | undefined>) {
-  return values.filter(Boolean).join(" ");
 }
 
 export function UsersPage() {

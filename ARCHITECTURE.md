@@ -232,9 +232,9 @@ Yêu cầu cập nhật mở rộng phạm vi từ hệ thống nghiệp vụ ch
 
 ### 9.1. Design system và frontend structure
 
-Trạng thái hiện tại: các nhóm trang nghiệp vụ chính đã được tách khỏi app shell: task pages ở `apps/web/src/pages/tasks.tsx`, workflow/approval pages ở `apps/web/src/pages/workflows.tsx`, admin/log/settings pages ở `apps/web/src/pages/admin.tsx`. `App.tsx` hiện giữ login, app shell, dashboard và router nội bộ; các lượt sau sẽ tiếp tục chuẩn hóa layout components và shared UI utilities.
+Trạng thái hiện tại: các nhóm trang nghiệp vụ chính đã được tách khỏi app shell: task pages ở `apps/web/src/pages/tasks.tsx`, workflow/approval pages ở `apps/web/src/pages/workflows.tsx`, admin/log/settings pages ở `apps/web/src/pages/admin.tsx`. Login nằm ở `apps/web/src/pages/auth.tsx`, dashboard ở `apps/web/src/pages/dashboard.tsx`, app shell/sidebar/topbar/bottom nav ở `apps/web/src/components/layout.tsx`, navigation config ở `apps/web/src/navigation.ts`, shared status/date/class helpers ở `apps/web/src/lib/format.ts`. `App.tsx` hiện chỉ giữ bootstrap session, theme/offline state và router nội bộ.
 
-Frontend hiện dùng React/Vite với CSS variables và các component nội bộ trong `App.tsx`. Giai đoạn tiếp theo cần tách thành cấu trúc:
+Frontend hiện dùng React/Vite với CSS variables, common UI primitives, layout component, page modules và shared helpers. Giai đoạn tiếp theo cần nâng cấp dần thành cấu trúc feature-complete hơn:
 
 - `src/components/layout`: sidebar, topbar, breadcrumb, bottom navigation.
 - `src/components/ui`: button, input, select, textarea, table, mobile card, modal, sheet, status chip, file picker, empty/error/loading/skeleton.

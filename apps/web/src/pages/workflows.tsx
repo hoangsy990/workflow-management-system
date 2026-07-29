@@ -3,6 +3,7 @@ import { FormEvent, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock } from "../components/common";
 import { useAsyncData } from "../hooks/useAsyncData";
+import { formatDate, statusLabels } from "../lib/format";
 
 type WorkflowPage = "workflowTemplates" | "workflowBuilder" | "workflowInstances" | "newInstance" | "instanceDetail";
 
@@ -11,33 +12,6 @@ interface WorkflowPageProps {
   setInstanceId: (id: string) => void;
 }
 
-const statusLabels: Record<string, string> = {
-  DRAFT: "Bản nháp",
-  TODO: "Chưa thực hiện",
-  IN_PROGRESS: "Đang thực hiện",
-  PAUSED: "Tạm dừng",
-  PENDING_REVIEW: "Chờ đánh giá",
-  DONE: "Hoàn thành",
-  CANCELLED: "Đã hủy",
-  OVERDUE: "Quá hạn",
-  SUBMITTED: "Đã gửi",
-  NEEDS_INFO: "Chờ bổ sung",
-  APPROVED: "Đã duyệt",
-  REJECTED: "Bị từ chối",
-  COMPLETED: "Hoàn thành",
-  ACTIVE: "Đang hoạt động",
-  INACTIVE: "Ngừng hoạt động"
-};
-
-function formatDate(value?: string | null) {
-  if (!value) return "";
-  return new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "Asia/Ho_Chi_Minh"
-  }).format(new Date(value));
-}
 
 export function WorkflowTemplates({ setPage }: WorkflowPageProps) {
   const { data, loading, error } = useAsyncData(() => api.workflowTemplates(), []);

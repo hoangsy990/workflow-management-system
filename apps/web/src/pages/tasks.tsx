@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock, MultiCheck } from "../components/common";
 import { useAsyncData } from "../hooks/useAsyncData";
+import { cls, formatDate, statusLabels } from "../lib/format";
 
 type TaskPage = "tasks" | "newTask" | "taskDetail";
 
@@ -11,23 +12,6 @@ interface TaskPageProps {
   setTaskId: (id: string) => void;
 }
 
-const statusLabels: Record<string, string> = {
-  DRAFT: "Bản nháp",
-  TODO: "Chưa thực hiện",
-  IN_PROGRESS: "Đang thực hiện",
-  PAUSED: "Tạm dừng",
-  PENDING_REVIEW: "Chờ đánh giá",
-  DONE: "Hoàn thành",
-  CANCELLED: "Đã hủy",
-  OVERDUE: "Quá hạn",
-  SUBMITTED: "Đã gửi",
-  NEEDS_INFO: "Chờ bổ sung",
-  APPROVED: "Đã duyệt",
-  REJECTED: "Bị từ chối",
-  COMPLETED: "Hoàn thành",
-  ACTIVE: "Đang hoạt động",
-  INACTIVE: "Ngừng hoạt động"
-};
 
 const priorityLabels: Record<string, string> = {
   LOW: "Thấp",
@@ -49,16 +33,6 @@ const allowedAttachmentTypes = new Set([
 ]);
 const attachmentAccept = [...allowedAttachmentTypes].join(",");
 
-function formatDate(value?: string | null) {
-  if (!value) return "";
-  return new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "Asia/Ho_Chi_Minh"
-  }).format(new Date(value));
-}
-
 function formatFileSize(bytes?: number) {
   if (!bytes) return "0 B";
   if (bytes < 1024) return `${bytes} B`;
@@ -66,9 +40,6 @@ function formatFileSize(bytes?: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function cls(...values: Array<string | false | undefined>) {
-  return values.filter(Boolean).join(" ");
-}
 export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "all" | "mine" }) {
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState("");
