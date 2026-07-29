@@ -14,6 +14,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 29/07/2026 | `WORKFLOW-ACTION-PANEL` | Thay browser prompt/confirm khi duyệt/từ chối/yêu cầu bổ sung/trả bước bằng panel xác nhận trong app có textarea, validation ý kiến, loading chống bấm lặp, lỗi/thành công rõ ràng và cập nhật smoke test. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 12/12. |
 | 29/07/2026 | `WORKFLOW-INSTANCE-DYNAMIC-FORM` | Nâng tạo hồ sơ quy trình từ nhập JSON sang form động theo field của template active; backend validate type cơ bản, detail hồ sơ hiển thị dữ liệu theo nhãn field, thêm smoke test tạo hồ sơ bằng UI form động. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 12/12. |
 | 29/07/2026 | `WORKFLOW-BUILDER-DYNAMIC` | Nâng màn tạo mẫu quy trình từ form cứng sang builder động cơ bản: thêm/xóa field, chọn loại field, bắt buộc/placeholder/order, thêm/xóa bước duyệt, resolver, approval mode/rule/deadline và smoke test tạo template bằng UI builder. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 11/11. |
 | 29/07/2026 | `ROLE-PERMISSION-PREVIEW` | Bổ sung preview phạm vi quyền theo permission code và cảnh báo cấu hình quyền trong trang Vai trò; thêm smoke test kiểm tra role permission preview. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 10/10. |
@@ -119,7 +120,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Assignee resolver theo user/role/department/manager/head/form field/previous | `DONE` | Service resolver có. |
 | Sequential approval | `DONE` | API/service/test/smoke pass. |
 | Parallel approval all/any/min count/min percent | `PARTIAL` | Domain logic có; UI builder chọn sequential/parallel và ALL/ANY cơ bản. Min count/min percent UI còn thiếu. |
-| Approve/reject/request info/return | `DONE` | API/UI/smoke pass. |
+| Approve/reject/request info/return | `DONE` | API/UI/smoke pass; UI có panel xác nhận trong app thay cho browser prompt. |
 | Forward/chuyển xử lý | `TODO` | Chưa triển khai. |
 | Approval action lưu người, thời gian, action, comment, IP | `DONE` | WorkflowApproval có fields và service ghi. |
 | Lưu step trước/sau và dữ liệu thay đổi | `PARTIAL` | History approvals/steps có; metadata before/after chưa đầy đủ. |
@@ -337,7 +338,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Danh sách hồ sơ | `DONE` | Có. |
 | Khởi tạo hồ sơ bằng form động | `PARTIAL` | JSON/form đơn giản; cần render dynamic fields. |
 | Chi tiết hồ sơ nội dung/panel quy trình/action bar | `PARTIAL` | Có detail/history/action cơ bản. |
-| Hộp thoại duyệt/từ chối/yêu cầu bổ sung | `PARTIAL` | Prompt tạm thời; cần modal/form chuẩn. |
+| Hộp thoại duyệt/từ chối/yêu cầu bổ sung | `DONE` | Có panel xác nhận trong app với textarea ý kiến, validation, loading và thông báo kết quả. |
 | Lịch sử phê duyệt | `DONE` | Có. |
 | Sơ đồ theo dõi quy trình | `TODO` | Chưa có. |
 

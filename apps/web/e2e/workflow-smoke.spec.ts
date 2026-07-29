@@ -228,15 +228,11 @@ async function openWorkflowApproval(page: Page, manager: ApiSession, instance: W
   await expect(page.getByText(instance.code)).toBeVisible();
 }
 
-async function runPromptedAction(page: Page, testId: string, comment: string) {
-  page.on("dialog", async (dialog) => {
-    if (dialog.type() === "prompt") {
-      await dialog.accept(comment);
-      return;
-    }
-    await dialog.accept();
-  });
+async function runWorkflowAction(page: Page, testId: string, comment: string) {
   await page.getByTestId(testId).click();
+  await expect(page.getByTestId("workflow-action-panel")).toBeVisible();
+  await page.getByTestId("workflow-action-comment").fill(comment);
+  await page.getByTestId("workflow-action-confirm").click();
 }
 
 test("đăng nhập web bằng tài khoản quản trị", async ({ page }) => {
@@ -427,7 +423,7 @@ test("duyệt hồ sơ PAYMENT tuần tự trên UI", async ({ page, request }) 
   const instance = await createSmokeWorkflowInstance(request, employee, "approve");
 
   await openWorkflowApproval(page, manager, instance);
-  await runPromptedAction(page, "workflow-action-approve", `Duyệt smoke ${runId}`);
+  await runWorkflowAction(page, "workflow-action-approve", `Duyệt smoke ${runId}`);
   await expect(page.getByTestId("workflow-instance-status")).toContainText(/Đã duyệt|Hoàn thành/);
 });
 
@@ -437,7 +433,7 @@ test("từ chối hồ sơ PAYMENT trên UI", async ({ page, request }) => {
   const instance = await createSmokeWorkflowInstance(request, employee, "reject");
 
   await openWorkflowApproval(page, manager, instance);
-  await runPromptedAction(page, "workflow-action-reject", `Từ chối smoke ${runId}`);
+  await runWorkflowAction(page, "workflow-action-reject", `Từ chối smoke ${runId}`);
   await expect(page.getByTestId("workflow-instance-status")).toContainText("Bị từ chối");
 });
 
@@ -447,7 +443,7 @@ test("yêu cầu bổ sung hồ sơ PAYMENT trên UI", async ({ page, request })
   const instance = await createSmokeWorkflowInstance(request, employee, "request-info");
 
   await openWorkflowApproval(page, manager, instance);
-  await runPromptedAction(page, "workflow-action-request-info", `Bổ sung smoke ${runId}`);
+  await runWorkflowAction(page, "workflow-action-request-info", `Bổ sung smoke ${runId}`);
   await expect(page.getByTestId("workflow-instance-status")).toContainText("Chờ bổ sung");
 });
 

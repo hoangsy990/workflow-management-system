@@ -561,6 +561,12 @@ tbody tr:hover {
   font-weight: 700;
 }
 
+.success-text {
+  margin: 0;
+  color: var(--green);
+  font-weight: 700;
+}
+
 .required-mark,
 .field-error {
   color: var(--danger);
@@ -812,6 +818,25 @@ tbody tr:hover {
 
 .compact-toggle {
   min-height: 40px;
+}
+
+.approval-confirm-panel {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--primary);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.approval-confirm-panel h3,
+.approval-confirm-panel p {
+  margin: 0;
+}
+
+.approval-confirm-panel p {
+  color: var(--muted);
 }
 
 .dynamic-form-fields {

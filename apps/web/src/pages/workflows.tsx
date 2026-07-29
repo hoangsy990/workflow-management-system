@@ -89,6 +89,15 @@ type WorkflowTemplateDetail = {
   versions?: WorkflowVersionDetail[];
 };
 
+type WorkflowActionType = "APPROVE" | "REJECT" | "REQUEST_INFO" | "RETURN";
+
+const workflowActionLabels: Record<WorkflowActionType, string> = {
+  APPROVE: "Duyệt hồ sơ",
+  REJECT: "Từ chối hồ sơ",
+  REQUEST_INFO: "Yêu cầu bổ sung",
+  RETURN: "Trả về bước trước"
+};
+
 const fieldTypeOptions = [
   ["SHORT_TEXT", "Văn bản ngắn"],
   ["LONG_TEXT", "Văn bản nhiều dòng"],
@@ -660,15 +669,38 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
     [instanceId]
   );
   const [busy, setBusy] = useState(false);
+  const [pendingAction, setPendingAction] = useState<WorkflowActionType | null>(null);
+  const [actionComment, setActionComment] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
 
-  async function act(action: "APPROVE" | "REJECT" | "REQUEST_INFO" | "RETURN") {
-    if (!instanceId) return;
-    const comment = window.prompt("Ý kiến xử lý") ?? "";
-    if (!window.confirm("Xác nhận thao tác?")) return;
+  function openAction(action: WorkflowActionType) {
+    setPendingAction(action);
+    setActionComment("");
+    setActionError("");
+    setActionMessage("");
+  }
+
+  async function confirmAction(event: FormEvent) {
+    event.preventDefault();
+    if (!instanceId || !pendingAction) return;
+    if (pendingAction !== "APPROVE" && !actionComment.trim()) {
+      setActionError("Vui lòng nhập ý kiến xử lý.");
+      return;
+    }
     setBusy(true);
-    await api.actWorkflow(instanceId, { action, comment, idempotencyKey: crypto.randomUUID() });
-    setBusy(false);
-    await reload();
+    setActionError("");
+    try {
+      await api.actWorkflow(instanceId, { action: pendingAction, comment: actionComment.trim(), idempotencyKey: crypto.randomUUID() });
+      setActionMessage("Đã xử lý hồ sơ thành công.");
+      setPendingAction(null);
+      setActionComment("");
+      await reload();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Không xử lý được hồ sơ.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!instanceId) return <ErrorBlock message="Chưa chọn hồ sơ." />;
@@ -709,7 +741,7 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
             data-testid="workflow-action-approve"
             type="button"
             disabled={busy}
-            onClick={() => void act("APPROVE")}
+            onClick={() => openAction("APPROVE")}
           >
             Duyệt
           </button>
@@ -718,7 +750,7 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
             data-testid="workflow-action-reject"
             type="button"
             disabled={busy}
-            onClick={() => void act("REJECT")}
+            onClick={() => openAction("REJECT")}
           >
             Từ chối
           </button>
@@ -727,7 +759,7 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
             data-testid="workflow-action-request-info"
             type="button"
             disabled={busy}
-            onClick={() => void act("REQUEST_INFO")}
+            onClick={() => openAction("REQUEST_INFO")}
           >
             Yêu cầu bổ sung
           </button>
@@ -736,11 +768,43 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
             data-testid="workflow-action-return"
             type="button"
             disabled={busy}
-            onClick={() => void act("RETURN")}
+            onClick={() => openAction("RETURN")}
           >
             Trả bước
           </button>
         </div>
+        {pendingAction && (
+          <form className="approval-confirm-panel" data-testid="workflow-action-panel" onSubmit={confirmAction}>
+            <div>
+              <h3>{workflowActionLabels[pendingAction]}</h3>
+              <p>Kiểm tra nội dung trước khi xác nhận thao tác.</p>
+            </div>
+            <label>
+              Ý kiến xử lý
+              <textarea
+                data-testid="workflow-action-comment"
+                value={actionComment}
+                rows={3}
+                placeholder={pendingAction === "APPROVE" ? "Có thể để trống khi duyệt" : "Nhập lý do hoặc yêu cầu cụ thể"}
+                onChange={(event) => {
+                  setActionComment(event.target.value);
+                  setActionError("");
+                }}
+              />
+            </label>
+            {actionError && <p className="form-error">{actionError}</p>}
+            <div className="form-actions">
+              <button className="ghost-button" data-testid="workflow-action-cancel" type="button" disabled={busy} onClick={() => setPendingAction(null)}>
+                Hủy
+              </button>
+              <button className={pendingAction === "REJECT" ? "danger-button" : "primary-button"} data-testid="workflow-action-confirm" type="submit" disabled={busy}>
+                {busy && <Loader2 className="spin" size={16} />}
+                Xác nhận
+              </button>
+            </div>
+          </form>
+        )}
+        {actionMessage && <p className="success-text" data-testid="workflow-action-message">{actionMessage}</p>}
       </article>
       <section className="panel">
         <div className="panel-head">
