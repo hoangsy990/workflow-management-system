@@ -5,6 +5,7 @@ interface DataTableRow {
   key: string;
   cells: ReactNode[];
   onClick?: () => void;
+  testId?: string;
 }
 
 export function LoadingBlock() {
@@ -42,7 +43,7 @@ export function DataTable({ columns, rows }: { columns: string[]; rows: DataTabl
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.key} onClick={row.onClick}>
+            <tr key={row.key} data-testid={row.testId} onClick={row.onClick}>
               {row.cells.map((cell, index) => (
                 <td key={`${row.key}-${columns[index]}`}>{cell}</td>
               ))}
@@ -52,7 +53,13 @@ export function DataTable({ columns, rows }: { columns: string[]; rows: DataTabl
       </table>
       <div className="mobile-cards">
         {rows.map((row) => (
-          <button key={row.key} className="mobile-card" type="button" onClick={row.onClick}>
+          <button
+            key={row.key}
+            className="mobile-card"
+            data-testid={row.testId ? `${row.testId}-mobile` : undefined}
+            type="button"
+            onClick={row.onClick}
+          >
             {row.cells.map((cell, index) => (
               <span key={`${row.key}-mobile-${columns[index]}`}>
                 <small>{columns[index]}</small>

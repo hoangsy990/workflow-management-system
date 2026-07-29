@@ -17,6 +17,7 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "smoke:web": "pnpm --filter @workflow/web smoke",
     "db:generate": "pnpm --filter @workflow/api prisma:generate",
     "db:migrate": "pnpm --filter @workflow/api prisma:migrate",
     "db:seed": "pnpm --filter @workflow/api prisma:seed",

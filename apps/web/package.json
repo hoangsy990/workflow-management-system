@@ -9,6 +9,7 @@
     "lint": "tsc -b --noEmit",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run --environment node --dir src",
+    "smoke": "playwright test -c playwright.config.ts",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
     "android:dev": "tauri android dev",
@@ -26,6 +27,7 @@
     "vite": "^6.0.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@tauri-apps/cli": "^2.0.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",

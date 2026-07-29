@@ -8,5 +8,7 @@ coverage
 uploads
 *.log
 *.tsbuildinfo
+test-results
+playwright-report
 apps/web/src-tauri/target
 apps/web/src-tauri/gen

@@ -212,14 +212,26 @@ function Login({ onLogin }: { onLogin: (user: ApiUser) => void }) {
         <form onSubmit={submit} className="form-stack">
           <label>
             Email
-            <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required />
+            <input
+              data-testid="login-email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              type="email"
+              required
+            />
           </label>
           <label>
             Mật khẩu
-            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" required />
+            <input
+              data-testid="login-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              type="password"
+              required
+            />
           </label>
           {error && <p className="form-error">{error}</p>}
-          <button className="primary-button" type="submit" disabled={loading}>
+          <button className="primary-button" data-testid="login-submit" type="submit" disabled={loading}>
             {loading && <Loader2 className="spin" size={16} />}
             Đăng nhập
           </button>
@@ -279,6 +291,7 @@ function AppShell({
               <button
                 key={item.page}
                 className={cls("nav-item", page === item.page && "active")}
+                data-testid={`nav-${item.page}`}
                 onClick={() => goToPage(item.page)}
                 type="button"
                 title={item.label}
@@ -333,6 +346,7 @@ function AppShell({
                 <button
                   key={item.page}
                   className={cls(page === item.page && "active")}
+                  data-testid={`mobile-menu-${item.page}`}
                   type="button"
                   onClick={() => goToPage(item.page)}
                 >
@@ -354,6 +368,7 @@ function AppShell({
             <button
               key={item.page}
               className={page === item.page ? "active" : ""}
+              data-testid={`bottom-nav-${item.page}`}
               onClick={() => goToPage(item.page)}
               type="button"
             >
@@ -524,6 +539,7 @@ function TaskList({ mode, setPage, setTaskId }: PageProps & { mode: "all" | "min
         columns={["Mã", "Tên công việc", "Trạng thái", "Tiến độ", "Người thực hiện", "Ưu tiên", "Hạn"]}
         rows={(data?.data ?? []).map((task) => ({
           key: task.id,
+          testId: `task-row-${task.id}`,
           onClick: () => {
             setTaskId(task.id);
             setPage("taskDetail");
@@ -1006,7 +1022,12 @@ function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage: (page
           ))}
         </div>
         <form className="comment-form" onSubmit={sendComment}>
-          <textarea value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Nhập bình luận" />
+          <textarea
+            data-testid="task-comment-input"
+            value={comment}
+            onChange={(event) => setComment(event.target.value)}
+            placeholder="Nhập bình luận"
+          />
           <div className="comment-tools">
             <div className="mention-picker">
               <span>Nhắc tên</span>
@@ -1031,6 +1052,7 @@ function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage: (page
               <Upload size={16} />
               Chọn tệp
               <input
+                data-testid="task-attachment-input"
                 type="file"
                 multiple
                 accept={attachmentAccept}
@@ -1058,7 +1080,7 @@ function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage: (page
               ))}
             </div>
           )}
-          <button className="primary-button compact" type="submit" disabled={busy}>
+          <button className="primary-button compact" data-testid="task-comment-submit" type="submit" disabled={busy}>
             {busy && <Loader2 className="spin" size={16} />}
             Gửi
           </button>
@@ -1100,7 +1122,13 @@ function AttachmentList({
   return (
     <div className="attachment-list">
       {attachments.map((attachment) => (
-        <button key={attachment.id} type="button" onClick={() => onDownload(attachment)} disabled={downloadingId === attachment.id}>
+        <button
+          key={attachment.id}
+          data-testid={`attachment-download-${attachment.id}`}
+          type="button"
+          onClick={() => onDownload(attachment)}
+          disabled={downloadingId === attachment.id}
+        >
           {downloadingId === attachment.id ? <Loader2 className="spin" size={16} /> : <Download size={16} />}
           <span>
             <b>{attachment.originalName}</b>
@@ -1268,6 +1296,7 @@ function WorkflowInstances({ setPage, setInstanceId, pendingMine = false }: Page
         columns={["Mã hồ sơ", "Quy trình", "Bước hiện tại", "Người chờ xử lý", "Trạng thái", "Ngày tạo"]}
         rows={(data?.data ?? []).map((instance) => ({
           key: instance.id,
+          testId: `workflow-instance-row-${instance.id}`,
           onClick: () => {
             setInstanceId(instance.id);
             setPage("instanceDetail");
@@ -1380,16 +1409,40 @@ function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: string | 
         </div>
         <div className="json-view">{JSON.stringify(data.formData ?? {}, null, 2)}</div>
         <div className="approval-actions">
-          <button className="primary-button" type="button" disabled={busy} onClick={() => void act("APPROVE")}>
+          <button
+            className="primary-button"
+            data-testid="workflow-action-approve"
+            type="button"
+            disabled={busy}
+            onClick={() => void act("APPROVE")}
+          >
             Duyệt
           </button>
-          <button className="danger-button" type="button" disabled={busy} onClick={() => void act("REJECT")}>
+          <button
+            className="danger-button"
+            data-testid="workflow-action-reject"
+            type="button"
+            disabled={busy}
+            onClick={() => void act("REJECT")}
+          >
             Từ chối
           </button>
-          <button className="ghost-button" type="button" disabled={busy} onClick={() => void act("REQUEST_INFO")}>
+          <button
+            className="ghost-button"
+            data-testid="workflow-action-request-info"
+            type="button"
+            disabled={busy}
+            onClick={() => void act("REQUEST_INFO")}
+          >
             Yêu cầu bổ sung
           </button>
-          <button className="ghost-button" type="button" disabled={busy} onClick={() => void act("RETURN")}>
+          <button
+            className="ghost-button"
+            data-testid="workflow-action-return"
+            type="button"
+            disabled={busy}
+            onClick={() => void act("RETURN")}
+          >
             Trả bước
           </button>
         </div>

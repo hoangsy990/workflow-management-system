@@ -14,6 +14,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 29/07/2026 | `UI-SMOKE` | Thêm Playwright smoke test web cho login, task upload/download và duyệt hồ sơ PAYMENT tuần tự; thêm test id ổn định cho nav/table/action; sửa download filename qua CORS `Content-Disposition`. | `pnpm smoke:web`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, Docker API/web healthy. |
 | 29/07/2026 | `MOBILE-BUILD` | Thiết lập môi trường Tauri mobile trên Windows, cài/nhận Android cmdline-tools + NDK, thêm Rust lib target cho Tauri mobile, sinh icon app, build Windows desktop installer và Android arm64 APK kiểm thử. | `pnpm lint`, `pnpm test`, `pnpm build`, `tauri android init --ci`, `pnpm android:build:arm64`, `pnpm --filter @workflow/web desktop:build`; iOS `WAITING` do Windows không hỗ trợ Tauri iOS build. |
 | 29/07/2026 | `FRONTEND-SPLIT` | Tách UI primitives dùng chung (`LoadingBlock`, `ErrorBlock`, `DataTable`, `MultiCheck`) và hook `useAsyncData` khỏi `App.tsx` để bắt đầu hình thành component system frontend. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose build web`, restart Docker web, QA browser dashboard pass. |
 | 29/07/2026 | `ROLE-MATRIX` | Nâng trang quản lý vai trò thành ma trận quyền cơ bản theo nhóm, có chọn nhóm/toàn bộ, sao chép quyền từ vai trò khác, khôi phục, cảnh báo thay đổi chưa lưu và xác nhận trước khi lưu. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose build web`, restart Docker web, QA browser trang Vai trò pass. |
@@ -225,7 +226,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API bổ sung. Cần integration tests đầy đủ hơn. |
 | Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có 4 + smoke API nhiều luồng. Chưa có integration transaction failure tự động. |
 | Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
-| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Web client tests refresh/download có. Chưa có Playwright suite đầy đủ. |
+| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Đã có Playwright smoke cho login, task upload/download và workflow approval tuần tự. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
 | Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `PARTIAL` | Windows desktop build và Android arm64 APK build đã pass. Chưa QA cài/chạy trên thiết bị Android, chưa có Edge/iOS/macOS matrix. |
 
 ## 14. Triển khai
@@ -423,7 +424,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
-| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Smoke API/browser có; cần Playwright tests. |
+| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, tạo task qua API, mở detail UI, upload/download attachment và approve PAYMENT. Còn thiếu progress/reject/request-info/double-click duplicate action UI tests. |
 | Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; builder/designer tests chưa. |
 | Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 
@@ -457,7 +458,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission/preview quyền chưa. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Lint/test/build pass hiện tại; responsive còn cần QA sâu. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm smoke:web` pass hiện tại; responsive còn cần QA sâu. |
 
 ## Việc ưu tiên tiếp theo
 
@@ -465,4 +466,4 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 2. `DONE` Cập nhật README link checklist và note trạng thái Docker hiện đã chạy được.
 3. `DONE` Tách frontend component system cơ bản khỏi `App.tsx`: common UI primitives và `useAsyncData` đã tách; page-level components sẽ tách theo từng module sau.
 4. `PARTIAL` Hoàn thiện quản trị user/department/role permission theo hướng ma trận cơ bản: role permission matrix đã có, user/department advanced và scope quyền còn thiếu.
-5. `TODO` Thêm Playwright/UI smoke tests cho login, task detail upload, workflow approval.
+5. `DONE` Thêm Playwright/UI smoke tests cho login, task detail upload/download và workflow approval tuần tự; còn mở rộng thêm progress/reject/responsive/offline ở các lượt sau.

@@ -164,7 +164,9 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm --filter @workflow/web exec playwright install chromium
+pnpm smoke:web
 DATABASE_URL=postgresql://workflow:workflow@localhost:5432/workflow_management?schema=public pnpm db:validate
 ```
 
-Docker Compose đã được kiểm tra với API, web và PostgreSQL. Trạng thái hiện tại được ghi lại trong [`CHECKLIST.md`](CHECKLIST.md).
+`pnpm smoke:web` chạy Playwright trên web `http://localhost:8080` và API `http://localhost:4000/api/v1`, vì vậy hãy chạy `docker compose up -d --build` trước. Docker Compose đã được kiểm tra với API, web và PostgreSQL. Trạng thái hiện tại được ghi lại trong [`CHECKLIST.md`](CHECKLIST.md).

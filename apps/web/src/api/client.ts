@@ -147,7 +147,7 @@ async function parseBlobResponse(response: Response): Promise<{ blob: Blob; file
   const encodedName = disposition.match(/filename="([^"]+)"/)?.[1];
   return {
     blob: await response.blob(),
-    filename: encodedName ? decodeURIComponent(encodedName) : "download"
+    filename: encodedName ? decodeURIComponent(encodedName) : ""
   };
 }
 

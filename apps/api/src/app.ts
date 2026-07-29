@@ -33,7 +33,8 @@ export async function createApp() {
   });
   await app.register(cors, {
     origin: [config.WEB_ORIGIN, "http://localhost:8080"],
-    credentials: false
+    credentials: false,
+    exposedHeaders: ["Content-Disposition"]
   });
   await app.register(rateLimit, {
     max: 120,
@@ -96,4 +97,3 @@ export async function createApp() {
 
   return app;
 }
-
