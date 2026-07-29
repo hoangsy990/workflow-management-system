@@ -6,6 +6,10 @@ authors = ["WorkFlow"]
 license = "UNLICENSED"
 edition = "2021"
 
+[lib]
+name = "workflow_management_system_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -13,4 +17,3 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-

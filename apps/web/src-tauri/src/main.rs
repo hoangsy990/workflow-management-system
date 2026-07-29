@@ -1,6 +1,3 @@
 fn main() {
-    tauri::Builder::default()
-        .run(tauri::generate_context!())
-        .expect("error while running WorkFlow application");
+    workflow_management_system_lib::run();
 }
-

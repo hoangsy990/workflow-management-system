@@ -14,6 +14,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 29/07/2026 | `MOBILE-BUILD` | Thiết lập môi trường Tauri mobile trên Windows, cài/nhận Android cmdline-tools + NDK, thêm Rust lib target cho Tauri mobile, sinh icon app, build Windows desktop installer và Android arm64 APK kiểm thử. | `pnpm lint`, `pnpm test`, `pnpm build`, `tauri android init --ci`, `pnpm android:build:arm64`, `pnpm --filter @workflow/web desktop:build`; iOS `WAITING` do Windows không hỗ trợ Tauri iOS build. |
 | 29/07/2026 | `FRONTEND-SPLIT` | Tách UI primitives dùng chung (`LoadingBlock`, `ErrorBlock`, `DataTable`, `MultiCheck`) và hook `useAsyncData` khỏi `App.tsx` để bắt đầu hình thành component system frontend. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose build web`, restart Docker web, QA browser dashboard pass. |
 | 29/07/2026 | `ROLE-MATRIX` | Nâng trang quản lý vai trò thành ma trận quyền cơ bản theo nhóm, có chọn nhóm/toàn bộ, sao chép quyền từ vai trò khác, khôi phục, cảnh báo thay đổi chưa lưu và xác nhận trước khi lưu. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose build web`, restart Docker web, QA browser trang Vai trò pass. |
 | 29/07/2026 | `DOC-UPDATE` | Tạo checklist triển khai đầy đủ theo yêu cầu cập nhật, thêm quy tắc bắt buộc cập nhật checklist sau mỗi lần sửa, cập nhật README và ARCHITECTURE cho phạm vi UI/config/report/mobile mới. | Tài liệu only; kiểm tra `git diff --stat` và heading checklist. |
@@ -225,7 +226,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có 4 + smoke API nhiều luồng. Chưa có integration transaction failure tự động. |
 | Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
 | UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Web client tests refresh/download có. Chưa có Playwright suite đầy đủ. |
-| Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `WAITING` | Chưa có thiết bị/môi trường CI đa nền tảng. |
+| Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `PARTIAL` | Windows desktop build và Android arm64 APK build đã pass. Chưa QA cài/chạy trên thiết bị Android, chưa có Edge/iOS/macOS matrix. |
 
 ## 14. Triển khai
 
@@ -255,13 +256,13 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | --- | --- | --- |
 | Một backend API/database dùng chung | `DONE` | Có. |
 | Web responsive | `PARTIAL` | Có; cần polish sâu mobile. |
-| Windows app chạy bằng Tauri | `PARTIAL` | Config/script có; chưa build/QA installer trên Windows trong checklist này. |
-| Android/iOS app build | `WAITING` | Script có; cần SDK/Xcode/signing/push config. |
+| Windows app chạy bằng Tauri | `PARTIAL` | Đã build `.exe`, MSI và NSIS setup. Chưa QA mở app desktop, auto-update, notification/deep link. |
+| Android/iOS app build | `PARTIAL` | Android Tauri project đã init, Android arm64 unsigned APK đã build. iOS vẫn `WAITING` vì cần macOS/Xcode và signing assets. |
 | Secure token storage native | `TODO` | Web dùng sessionStorage; native secure storage adapter chưa triển khai. |
 | Push notification Android/iOS/PC | `PARTIAL` | Backend device token table/API có; adapter thật chưa. |
 | Offline draft/retry network weak | `PARTIAL` | Task draft + online/offline state có; queue retry an toàn chưa đủ. |
 | Camera/mobile file picker/compression/progress/cancel/retry | `PARTIAL` | Web file picker task có. Native camera/compression/progress/cancel chưa. |
-| Build docs web/Windows/Android/iOS | `PARTIAL` | README có lệnh cơ bản, thiếu signing/cert/push chi tiết thật. |
+| Build docs web/Windows/Android/iOS | `PARTIAL` | README có lệnh web/Windows/Android arm64 workaround/iOS macOS note. Vẫn thiếu signing Android, Apple cert, push config phát hành thật. |
 
 ## 17. UI/UX tổng thể
 
@@ -424,7 +425,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
 | Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Smoke API/browser có; cần Playwright tests. |
 | Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; builder/designer tests chưa. |
-| Chrome/Edge/Android/iOS/Windows desktop matrix | `WAITING` | Cần môi trường/CI/thiết bị. |
+| Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 
 ## 32. Dữ liệu demo UI
 

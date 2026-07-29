@@ -212,6 +212,13 @@ Mọi policy chạy ở backend; frontend chỉ dùng quyền để điều ch�
 - Camera/file picker integration.
 - Offline draft queue cho thao tác an toàn.
 
+Trạng thái build hiện tại:
+
+- Windows desktop build đã tạo được `.exe`, `.msi` và NSIS setup bằng `pnpm --filter @workflow/web desktop:build`.
+- Android Tauri project đã khởi tạo được bằng `tauri android init --ci`; môi trường Windows đã kiểm chứng với Rust, Android SDK Command-line Tools, Android NDK side-by-side và Rust Android targets.
+- Android arm64 APK kiểm thử đã build được bằng `pnpm android:build:arm64`. Script này dùng workaround copy native library khi Windows chưa bật Developer Mode nên Tauri không tạo được symbolic link.
+- iOS chưa build trên máy Windows. Lệnh iOS cần chạy trên macOS có Xcode, Apple signing assets và Tauri iOS subcommand.
+
 ### Giai đoạn 5 - Vận hành
 
 - CI lint/type-check/test/build.

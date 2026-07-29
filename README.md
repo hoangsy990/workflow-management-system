@@ -119,11 +119,27 @@ Android APK/AAB kiểm thử hoặc phát hành:
 pnpm --filter @workflow/web android:build
 ```
 
+Trên Windows, nếu Tauri Android build bị chặn ở bước tạo symbolic link, dùng script đã kiểm chứng để build APK arm64 kiểm thử:
+
+```bash
+pnpm android:build:arm64
+```
+
+Artifact sinh ra tại:
+
+```text
+apps/web/src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-release-unsigned.apk
+```
+
+Script này tự set `JAVA_HOME`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, `NDK_HOME` theo cài đặt Android Studio mặc định trên Windows. Nếu muốn dùng Tauri build chuẩn cho mọi ABI/AAB, hãy bật Windows Developer Mode để cho phép tạo symbolic link, rồi chạy lại `pnpm --filter @workflow/web android:build`.
+
 iOS development/TestFlight/App Store cần macOS, Xcode và chứng chỉ Apple:
 
 ```bash
 pnpm --filter @workflow/web ios:build
 ```
+
+Trên Windows, Tauri CLI không chạy subcommand iOS; hãy chạy lệnh iOS trên máy macOS có Xcode.
 
 Không commit khóa ký Android, chứng chỉ iOS, FCM/APNs secret hoặc update signing key. Đổi địa chỉ API bằng `apps/web/.env.*`.
 
