@@ -286,6 +286,17 @@ test("admin updates department structure on UI", async ({ page, request }) => {
   expect(updated?.description).toBe(nextDescription);
 });
 
+test("admin reviews role permission preview on UI", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+
+  await openAppWithSession(page, admin);
+  await page.getByTestId("nav-roles").click();
+  await expect(page.getByTestId("role-card-manager")).toBeVisible();
+  await page.getByTestId("role-card-manager").click();
+  await expect(page.getByTestId("role-permission-preview")).toBeVisible();
+  await expect(page.getByTestId("role-permission-preview").locator("div")).toHaveCount(4);
+});
+
 test("tạo task qua API rồi upload và download tệp trên UI", async ({ page, request }) => {
   const manager = await apiLogin(request, "manager");
   const task = await createSmokeTask(request, manager);

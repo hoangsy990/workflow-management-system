@@ -14,6 +14,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 29/07/2026 | `ROLE-PERMISSION-PREVIEW` | Bổ sung preview phạm vi quyền theo permission code và cảnh báo cấu hình quyền trong trang Vai trò; thêm smoke test kiểm tra role permission preview. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 10/10. |
 | 29/07/2026 | `DEPARTMENT-EDIT-UI` | Nâng quản lý phòng ban/cơ cấu tổ chức: thêm parent department, mô tả, quản lý, detail/edit panel, list phân cấp cha-con, backend guard chống vòng lặp phòng ban và smoke test cập nhật phòng ban. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 9/9. |
 | 29/07/2026 | `USER-EDIT-UI` | Nâng trang Quản lý người dùng: thêm detail/edit panel, cập nhật họ tên/số điện thoại/chức danh/phòng ban/quản lý/trạng thái/vai trò qua `PATCH /users/:id`, thêm label trạng thái `LOCKED`, mở CORS cho `PATCH`, thêm smoke test UI cập nhật nhân viên và sửa `.gitignore` để track module source upload routes. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 8/8. |
 | 29/07/2026 | `APP-SHELL-SPLIT` | Tách login, dashboard, app shell/navigation và shared status/date helpers khỏi `App.tsx`; `App.tsx` còn 134 dòng, chỉ giữ bootstrap session, theme/offline state và router nội bộ. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 7/7. |
@@ -58,7 +59,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | --- | --- | --- |
 | Đăng nhập và quản lý tài khoản | `PARTIAL` | Login/refresh/logout/users create/edit profile/roles/status có. Chưa có trang hồ sơ cá nhân đầy đủ, thiết bị đăng nhập UI, import user. |
 | Phòng ban và cơ cấu tổ chức | `PARTIAL` | Departments create/edit/detail, parent department và list phân cấp cha-con cơ bản có; backend chống vòng lặp parent. Company/branch/team schema có; UI sơ đồ tổ chức kéo thả chưa có. |
-| Vai trò và phân quyền | `PARTIAL` | RBAC tables/API và ma trận quyền cơ bản có. Chưa có scope/field permissions, preview quyền và cảnh báo xung đột nâng cao. |
+| Vai trò và phân quyền | `PARTIAL` | RBAC tables/API, ma trận quyền, preview phạm vi dữ liệu và cảnh báo cấu hình quyền cơ bản có. Chưa có data scope/field permissions có cấu hình riêng. |
 | Thông báo | `PARTIAL` | Notification center/inbox/device token table có. Chưa có push adapter FCM/APNs/Desktop thật và lịch nhắc hạn. |
 | Bình luận và tệp đính kèm | `PARTIAL` | Comment, mention list, upload/download attachment cho task có. Reply comment, lịch sử chỉnh sửa comment, attachment cho workflow approval còn thiếu. |
 | Nhật ký hoạt động | `PARTIAL` | Audit log cho nhiều hành động chính có. Cần phủ thêm import/export/config/download/xóa tệp. |
@@ -184,7 +185,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Yêu cầu chờ tôi phê duyệt | `DONE` | Có filter pendingMine. |
 | Quản lý người dùng | `PARTIAL` | Có list/create/detail/edit profile/roles/status cơ bản. Chưa có profile đầy đủ, avatar, thiết bị đăng nhập, import/export. |
 | Quản lý phòng ban | `PARTIAL` | Có list phân cấp, create/detail/edit parent/manager/description và chống vòng lặp backend. Chưa có org chart kéo thả, branch/team UI. |
-| Quản lý vai trò và quyền | `PARTIAL` | Có ma trận quyền cơ bản theo nhóm, chọn nhóm/toàn bộ, copy role, reset, unsaved changes. Chưa có scope/field permission/preview/conflict checker. |
+| Quản lý vai trò và quyền | `PARTIAL` | Có ma trận quyền theo nhóm, chọn nhóm/toàn bộ, copy role, reset, unsaved changes, preview phạm vi và cảnh báo cấu hình quyền cơ bản. Chưa có data scope/field permission có cấu hình riêng. |
 | Nhật ký hoạt động | `DONE` | Có list. |
 | Cấu hình hệ thống | `PARTIAL` | Key/value cơ bản. |
 
@@ -372,12 +373,12 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Quyền chức năng dạng ma trận | `PARTIAL` | Đã có ma trận cơ bản theo nhóm quyền và từng permission code. Chưa có ma trận module x action đầy đủ và rule kế thừa/phụ thuộc quyền. |
+| Quyền chức năng dạng ma trận | `PARTIAL` | Đã có ma trận theo nhóm quyền/từng permission code, preview scope và warning rule cơ bản. Chưa có ma trận module x action nâng cao và rule kế thừa/phụ thuộc quyền bắt buộc. |
 | Chọn toàn hàng/cột, copy role, reset, unsaved changes | `DONE` | Có chọn toàn bộ, chọn theo nhóm, sao chép quyền từ vai trò khác, khôi phục và cảnh báo thay đổi chưa lưu; QA browser pass. |
 | Phạm vi dữ liệu theo quyền | `PARTIAL` | Một số scope hard-coded theo permissions; chưa model cấu hình scope. |
 | Quyền theo trường | `TODO` | Chưa có. |
-| Preview quyền | `TODO` | Chưa có. |
-| Cảnh báo xung đột quyền | `TODO` | Chưa có. |
+| Preview quyền | `PARTIAL` | Có preview phạm vi task/workflow/system/audit theo permission code trong trang Vai trò. Chưa có giả lập theo từng user/dữ liệu cụ thể. |
+| Cảnh báo xung đột quyền | `PARTIAL` | Có cảnh báo cơ bản khi manage thiếu read hoặc quyền liên quan chưa đủ. Chưa có rule engine đầy đủ/phụ thuộc quyền bắt buộc. |
 
 ## 27. Báo cáo và phân tích
 
@@ -430,7 +431,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
-| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, department edit, tạo task qua API, mở detail UI, upload/download attachment, cập nhật progress, approve/reject/request-info và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
+| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, department edit, role permission preview, tạo task qua API, mở detail UI, upload/download attachment, cập nhật progress, approve/reject/request-info và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
 | Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; builder/designer tests chưa. |
 | Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 
@@ -461,10 +462,10 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Workflow designer kéo thả, node, mũi tên, panel, condition, validate, draft, publish version | `TODO` | Chưa có canvas designer. |
 | Form builder kéo thả, section/tab/condition/field permission/preview PC-mobile | `TODO` | Chưa có. |
 | Configuration center, auto code, working days/SLA | `PARTIAL` | Settings cơ bản; center nâng cao chưa. |
-| Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission/preview quyền chưa. |
+| Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission chưa có cấu hình riêng. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 9/9 pass hiện tại. Responsive còn cần QA sâu. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 10/10 pass hiện tại. Responsive còn cần QA sâu. |
 
 ## Việc ưu tiên tiếp theo
 

@@ -693,6 +693,38 @@ tbody tr:hover {
   font-size: 24px;
 }
 
+.permission-insights {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.permission-insights div,
+.permission-warnings {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  padding: 12px;
+}
+
+.permission-insights div {
+  display: grid;
+  gap: 4px;
+}
+
+.permission-insights small,
+.permission-warnings span {
+  color: var(--muted);
+}
+
+.permission-warnings {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--line));
+}
+
 .permission-actions {
   flex-wrap: wrap;
   margin-bottom: 14px;
@@ -1125,6 +1157,10 @@ progress {
   .detail-grid,
   .form-grid,
   .permission-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .permission-insights {
     grid-template-columns: 1fr;
   }
 

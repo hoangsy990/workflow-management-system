@@ -54,6 +54,56 @@ function isSameStringSet(left: string[], right: string[]) {
   return left.every((item) => rightSet.has(item));
 }
 
+function resolvePermissionCodes(permissions: Record<string, any>[] | null | undefined, selectedIds: Set<string>) {
+  return new Set((permissions ?? []).filter((permission) => selectedIds.has(permission.id)).map((permission) => permission.code));
+}
+
+function describePermissionScope(codes: Set<string>) {
+  const taskScope = codes.has("task.read_all")
+    ? "Toàn bộ công việc"
+    : codes.has("task.read_team")
+      ? "Công việc trong phạm vi quản lý"
+      : codes.has("task.create") || codes.has("task.comment")
+        ? "Công việc được giao/liên quan"
+        : "Chưa có quyền xem công việc";
+  const workflowScope = codes.has("workflow.instance.read_all")
+    ? "Toàn bộ hồ sơ quy trình"
+    : codes.has("workflow.instance.approve")
+      ? "Hồ sơ đang chờ xử lý"
+      : codes.has("workflow.instance.create")
+        ? "Hồ sơ do người dùng tạo"
+        : "Chưa có quyền hồ sơ";
+  return [
+    { label: "Phạm vi công việc", value: taskScope },
+    { label: "Phạm vi quy trình", value: workflowScope },
+    { label: "Quản trị hệ thống", value: codes.has("setting.manage") || codes.has("role.manage") ? "Có quyền cấu hình/quyền hạn" : "Không" },
+    { label: "Thông báo và audit", value: [codes.has("notification.read") && "Thông báo", codes.has("audit.read") && "Nhật ký"].filter(Boolean).join(", ") || "Không" }
+  ];
+}
+
+function buildPermissionWarnings(codes: Set<string>) {
+  const warnings: string[] = [];
+  const needsReadPairs = [
+    ["user.manage", "user.read", "Quản lý người dùng nên đi kèm quyền xem người dùng."],
+    ["department.manage", "department.read", "Quản lý phòng ban nên đi kèm quyền xem phòng ban."],
+    ["role.manage", "role.read", "Quản lý vai trò nên đi kèm quyền xem vai trò."],
+    ["task.update_any", "task.read_all", "Sửa toàn bộ công việc nên đi kèm quyền xem toàn bộ công việc."],
+    ["workflow.template.manage", "workflow.instance.read_all", "Quản lý mẫu quy trình nên có quyền xem hồ sơ để kiểm tra tác động."]
+  ] as const;
+  for (const [manageCode, readCode, message] of needsReadPairs) {
+    if (codes.has(manageCode) && !codes.has(readCode)) {
+      warnings.push(message);
+    }
+  }
+  if (codes.has("task.assign") && !codes.has("task.create") && !codes.has("task.update_any")) {
+    warnings.push("Giao việc nên có quyền tạo hoặc sửa công việc tương ứng.");
+  }
+  if (codes.has("workflow.instance.approve") && !codes.has("workflow.instance.create") && !codes.has("workflow.instance.read_all")) {
+    warnings.push("Người phê duyệt chỉ thấy hồ sơ đang chờ xử lý; đây là phạm vi hẹp có chủ đích.");
+  }
+  return warnings;
+}
+
 const emptyUserForm = {
   employeeCode: "",
   fullName: "",
@@ -610,6 +660,9 @@ export function RolesPage() {
   const selectedRole = useMemo(() => (data ?? []).find((item) => item.id === selected), [data, selected]);
   const savedPermissionIds = useMemo(() => extractRolePermissionIds(selectedRole), [selectedRole]);
   const selectedPermissionSet = useMemo(() => new Set(permissionIds), [permissionIds]);
+  const selectedPermissionCodes = useMemo(() => resolvePermissionCodes(permissions.data, selectedPermissionSet), [permissions.data, selectedPermissionSet]);
+  const permissionScope = useMemo(() => describePermissionScope(selectedPermissionCodes), [selectedPermissionCodes]);
+  const permissionWarnings = useMemo(() => buildPermissionWarnings(selectedPermissionCodes), [selectedPermissionCodes]);
   const hasChanges = !isSameStringSet(permissionIds, savedPermissionIds);
   const groupedPermissions = useMemo(() => {
     const groups = new Map<string, Record<string, any>[]>();
@@ -701,6 +754,7 @@ export function RolesPage() {
             <button
               key={role.id}
               className={cls("role-card", selected === role.id && "active")}
+              data-testid={`role-card-${role.code}`}
               type="button"
               aria-pressed={selected === role.id}
               onClick={() => setSelected(role.id)}
@@ -739,6 +793,22 @@ export function RolesPage() {
               </div>
               {hasChanges ? <span className="dirty-note">Có thay đổi chưa lưu</span> : <span className="status-chip">Đã đồng bộ</span>}
             </div>
+            <div className="permission-insights" data-testid="role-permission-preview">
+              {permissionScope.map((item) => (
+                <div key={item.label}>
+                  <small>{item.label}</small>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+            {permissionWarnings.length > 0 && (
+              <div className="permission-warnings" data-testid="role-permission-warnings">
+                <strong>Cảnh báo cấu hình quyền</strong>
+                {permissionWarnings.map((warning) => (
+                  <span key={warning}>{warning}</span>
+                ))}
+              </div>
+            )}
             <div className="permission-actions">
               <button
                 className="ghost-button compact"
