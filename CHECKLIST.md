@@ -14,6 +14,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 29/07/2026 | `TASK-PAGES-SPLIT` | Tách nhóm trang công việc thường (`TaskList`, `Kanban`, `CalendarPage`, `TaskForm`, `TaskDetail`, attachment list) khỏi `App.tsx` sang `apps/web/src/pages/tasks.tsx`; dọn helper task còn sót trong app shell. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 7/7. |
 | 29/07/2026 | `CI-SMOKE` | Mở rộng Playwright smoke lên 7 kịch bản: login, task upload/download, cập nhật progress lên chờ đánh giá, approve/reject/request-info workflow và idempotency chống duyệt trùng; nâng GitHub Actions chạy verify + Docker smoke web. | `pnpm smoke:web` 7/7, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, Docker API/web healthy. |
 | 29/07/2026 | `UI-SMOKE` | Thêm Playwright smoke test web cho login, task upload/download và duyệt hồ sơ PAYMENT tuần tự; thêm test id ổn định cho nav/table/action; sửa download filename qua CORS `Content-Disposition`. | `pnpm smoke:web`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, Docker API/web healthy. |
 | 29/07/2026 | `MOBILE-BUILD` | Thiết lập môi trường Tauri mobile trên Windows, cài/nhận Android cmdline-tools + NDK, thêm Rust lib target cho Tauri mobile, sinh icon app, build Windows desktop installer và Android arm64 APK kiểm thử. | `pnpm lint`, `pnpm test`, `pnpm build`, `tauri android init --ci`, `pnpm android:build:arm64`, `pnpm --filter @workflow/web desktop:build`; iOS `WAITING` do Windows không hỗ trợ Tauri iOS build. |
@@ -442,11 +443,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Design system/layout/component library | `PARTIAL` | Đã có common components và hook chung; docs/component library và tách page-level components chưa đủ. |
+| Design system/layout/component library | `PARTIAL` | Đã có common components, hook chung và nhóm task pages tách khỏi `App.tsx`. Workflow/admin pages và docs component library vẫn cần tách tiếp. |
 | Wireframe màn chính | `PARTIAL` | Implemented screens đóng vai trò prototype; chưa có wireframe doc. |
 | Prototype workflow designer/form builder | `TODO` | Chưa có. |
 | Kiểm tra responsive trước khi hoàn thiện module | `PARTIAL` | Đã QA một số mobile, cần matrix. |
-| Không thiết kế màn riêng lẻ thiếu component chung | `PARTIAL` | UI primitives/hook chung đã tách khỏi `App.tsx`; các page nghiệp vụ lớn vẫn cần tách tiếp theo module. |
+| Không thiết kế màn riêng lẻ thiếu component chung | `PARTIAL` | UI primitives/hook chung và module task pages đã tách khỏi `App.tsx`; workflow/admin pages vẫn cần tách tiếp theo module. |
 
 ## 34. Tiêu chí hoàn thành UI, cấu hình và trình thiết kế
 
@@ -470,5 +471,6 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 5. `DONE` Thêm Playwright/UI smoke tests cho login, task detail upload/download và workflow approval tuần tự; còn mở rộng thêm progress/reject/responsive/offline ở các lượt sau.
 6. `DONE` Mở rộng Playwright smoke cho progress, reject, request-info và idempotency key chống duyệt trùng.
 7. `DONE` Nâng GitHub Actions CI để chạy verify và Docker web smoke.
-8. `TODO` Tách tiếp page-level components theo module `tasks`, `workflows`, `admin` để giảm kích thước `App.tsx`.
+8. `PARTIAL` Tách tiếp page-level components theo module `tasks`, `workflows`, `admin`: nhóm `tasks` đã tách sang `apps/web/src/pages/tasks.tsx`, còn `workflows` và `admin`.
 9. `TODO` Hoàn thiện user/department advanced UI và data scope/field permission.
+10. `TODO` Tách workflow/admin pages khỏi `App.tsx`, sau đó mới mở rộng UI builder và quản trị người dùng/phòng ban.
