@@ -77,7 +77,8 @@ const evaluationSchema = z.object({
 const commentSchema = z.object({
   content: z.string().min(1),
   parentCommentId: z.string().uuid().optional(),
-  mentions: z.array(z.string().uuid()).default([])
+  mentions: z.array(z.string().uuid()).default([]),
+  attachmentIds: z.array(z.string().uuid()).default([])
 });
 
 export async function taskRoutes(app: FastifyInstance) {
@@ -124,4 +125,3 @@ export async function taskRoutes(app: FastifyInstance) {
     return addTaskComment(prisma, request.auth!, params.id, body, request.ip);
   });
 }
-

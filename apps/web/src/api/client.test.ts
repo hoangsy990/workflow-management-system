@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { apiRequest, getStoredSession, setStoredSession } from "./client";
+import { api, apiRequest, getStoredSession, setStoredSession } from "./client";
 
 const storage = new Map<string, string>();
 
@@ -53,5 +53,28 @@ describe("apiRequest", () => {
 
     await expect(apiRequest("/dashboard")).rejects.toThrow("Phiên đăng nhập đã hết hạn");
     expect(getStoredSession()).toBeNull();
+  });
+
+  it("refreshes before retrying a protected attachment download", async () => {
+    setStoredSession({ accessToken: "expired-access-token", refreshToken: "valid-refresh-token" });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: "REQUEST_ERROR", message: "Authorization token expired" } }, 401)
+      )
+      .mockResolvedValueOnce(jsonResponse({ accessToken: "fresh-access-token" }))
+      .mockResolvedValueOnce(
+        new Response("file-content", {
+          status: 200,
+          headers: { "Content-Disposition": 'attachment; filename="bao-cao.pdf"' }
+        })
+      );
+
+    const result = await api.downloadAttachment("attachment-id");
+
+    expect(await result.blob.text()).toBe("file-content");
+    expect(result.filename).toBe("bao-cao.pdf");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get("Authorization")).toBe("Bearer fresh-access-token");
   });
 });

@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Columns3,
+  Download,
   FileClock,
   Home,
   Loader2,
@@ -17,6 +18,7 @@ import {
   ShieldCheck,
   Smartphone,
   Sun,
+  Upload,
   Users,
   Workflow,
   XCircle
@@ -93,6 +95,20 @@ const priorityLabels: Record<string, string> = {
   URGENT: "Khẩn cấp"
 };
 
+const maxAttachmentMb = 20;
+const allowedAttachmentTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "video/mp4"
+]);
+const attachmentAccept = [...allowedAttachmentTypes].join(",");
+
 function formatDate(value?: string | null) {
   if (!value) return "";
   return new Intl.DateTimeFormat("vi-VN", {
@@ -101,6 +117,13 @@ function formatDate(value?: string | null) {
     year: "numeric",
     timeZone: "Asia/Ho_Chi_Minh"
   }).format(new Date(value));
+}
+
+function formatFileSize(bytes?: number) {
+  if (!bytes) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function cls(...values: Array<string | false | undefined>) {
@@ -853,20 +876,79 @@ function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage: (page
   const [progress, setProgress] = useState(0);
   const [note, setNote] = useState("");
   const [comment, setComment] = useState("");
+  const [commentMentions, setCommentMentions] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [localError, setLocalError] = useState("");
   const { data, loading, error, reload } = useAsyncData(() => (taskId ? api.task(taskId) : Promise.resolve(null)), [taskId]);
 
   useEffect(() => {
     if (data?.progress !== undefined) setProgress(data.progress);
   }, [data?.progress]);
 
+  const mentionableUsers = useMemo(() => {
+    const users = [
+      data?.creator,
+      data?.assigner,
+      data?.manager,
+      ...(data?.assignees ?? []).map((item: Record<string, any>) => item.user),
+      ...(data?.followers ?? []).map((item: Record<string, any>) => item.user)
+    ].filter(Boolean) as Array<{ id: string; fullName: string }>;
+    return [...new Map(users.map((user) => [user.id, user])).values()];
+  }, [data]);
+
+  function addFiles(files: FileList | null) {
+    if (!files) return;
+    setLocalError("");
+    const nextFiles: File[] = [];
+    for (const file of Array.from(files)) {
+      if (!allowedAttachmentTypes.has(file.type)) {
+        setLocalError(`Tệp ${file.name} không đúng định dạng cho phép.`);
+        continue;
+      }
+      if (file.size > maxAttachmentMb * 1024 * 1024) {
+        setLocalError(`Tệp ${file.name} vượt quá ${maxAttachmentMb} MB.`);
+        continue;
+      }
+      nextFiles.push(file);
+    }
+    setSelectedFiles((current) => [...current, ...nextFiles]);
+  }
+
+  async function downloadAttachment(attachment: Record<string, any>) {
+    setDownloadingId(attachment.id);
+    setLocalError("");
+    try {
+      const { blob, filename } = await api.downloadAttachment(attachment.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename || attachment.originalName || "download";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : "Không tải được tệp.");
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
   async function saveProgress() {
     if (!taskId) return;
     setBusy(true);
-    await api.updateTaskProgress(taskId, progress, note);
-    setNote("");
-    setBusy(false);
-    await reload();
+    setLocalError("");
+    try {
+      await api.updateTaskProgress(taskId, progress, note);
+      setNote("");
+      await reload();
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : "Không cập nhật được tiến độ.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function evaluate(accepted: boolean) {
@@ -874,19 +956,41 @@ function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage: (page
     const commentText = window.prompt(accepted ? "Nhận xét hoàn thành" : "Lý do yêu cầu làm lại") ?? "";
     if (!window.confirm(accepted ? "Xác nhận hoàn thành công việc?" : "Yêu cầu thực hiện lại công việc?")) return;
     setBusy(true);
-    await api.evaluateTask(taskId, { accepted, rating: accepted ? 5 : undefined, comment: commentText });
-    setBusy(false);
-    await reload();
+    setLocalError("");
+    try {
+      await api.evaluateTask(taskId, { accepted, rating: accepted ? 5 : undefined, comment: commentText });
+      await reload();
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : "Không đánh giá được công việc.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function sendComment(event: FormEvent) {
     event.preventDefault();
-    if (!taskId || !comment.trim()) return;
+    if (!taskId || (!comment.trim() && selectedFiles.length === 0)) return;
     setBusy(true);
-    await api.commentTask(taskId, { content: comment, mentions: [] });
-    setComment("");
-    setBusy(false);
-    await reload();
+    setLocalError("");
+    try {
+      const uploaded: Record<string, any>[] = [];
+      for (const file of selectedFiles) {
+        uploaded.push(await api.uploadTaskAttachment(taskId, file));
+      }
+      await api.commentTask(taskId, {
+        content: comment.trim() || "Đã đính kèm tệp.",
+        mentions: commentMentions,
+        attachmentIds: uploaded.map((attachment) => attachment.id)
+      });
+      setComment("");
+      setSelectedFiles([]);
+      setCommentMentions([]);
+      await reload();
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : "Không gửi được bình luận.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!taskId) return <ErrorBlock message="Chưa chọn công việc." />;
@@ -905,6 +1009,7 @@ function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage: (page
           <span className={cls("status-chip", data.displayStatus)}>{statusLabels[data.displayStatus ?? data.status]}</span>
         </div>
         <p className="description">{data.description}</p>
+        {localError && <p className="form-error">{localError}</p>}
         <div className="info-grid">
           <span>
             <small>Ưu tiên</small>
@@ -923,6 +1028,17 @@ function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage: (page
             <b>{data.progress}%</b>
           </span>
         </div>
+        <section className="attachment-section">
+          <div className="subhead">
+            <h3>Tệp đính kèm</h3>
+            <span>{data.attachments?.length ?? 0}</span>
+          </div>
+          <AttachmentList
+            attachments={data.attachments ?? []}
+            downloadingId={downloadingId}
+            onDownload={(attachment) => void downloadAttachment(attachment)}
+          />
+        </section>
         <div className="progress-box">
           <input type="range" min={0} max={100} value={progress} onChange={(event) => setProgress(Number(event.target.value))} />
           <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ghi chú tiến độ" />
@@ -949,13 +1065,70 @@ function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage: (page
             <div key={item.id}>
               <strong>{item.author?.fullName}</strong>
               <p>{item.content}</p>
+              <AttachmentList
+                attachments={item.attachments ?? []}
+                downloadingId={downloadingId}
+                onDownload={(attachment) => void downloadAttachment(attachment)}
+              />
               <small>{formatDate(item.createdAt)}</small>
             </div>
           ))}
         </div>
         <form className="comment-form" onSubmit={sendComment}>
           <textarea value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Nhập bình luận" />
+          <div className="comment-tools">
+            <div className="mention-picker">
+              <span>Nhắc tên</span>
+              <div>
+                {mentionableUsers.map((user) => (
+                  <label key={user.id}>
+                    <input
+                      type="checkbox"
+                      checked={commentMentions.includes(user.id)}
+                      onChange={(event) => {
+                        setCommentMentions((current) =>
+                          event.target.checked ? [...current, user.id] : current.filter((id) => id !== user.id)
+                        );
+                      }}
+                    />
+                    {user.fullName}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label className="file-picker">
+              <Upload size={16} />
+              Chọn tệp
+              <input
+                type="file"
+                multiple
+                accept={attachmentAccept}
+                onChange={(event) => {
+                  addFiles(event.target.files);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+          </div>
+          {selectedFiles.length > 0 && (
+            <div className="selected-files">
+              {selectedFiles.map((file, index) => (
+                <span key={`${file.name}-${file.lastModified}-${index}`}>
+                  <b>{file.name}</b>
+                  <small>{formatFileSize(file.size)}</small>
+                  <button
+                    type="button"
+                    title="Bỏ tệp"
+                    onClick={() => setSelectedFiles((current) => current.filter((_, currentIndex) => currentIndex !== index))}
+                  >
+                    <XCircle size={16} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
           <button className="primary-button compact" type="submit" disabled={busy}>
+            {busy && <Loader2 className="spin" size={16} />}
             Gửi
           </button>
         </form>
@@ -977,6 +1150,34 @@ function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage: (page
         />
       </section>
     </section>
+  );
+}
+
+function AttachmentList({
+  attachments,
+  downloadingId,
+  onDownload
+}: {
+  attachments: Record<string, any>[];
+  downloadingId: string | null;
+  onDownload: (attachment: Record<string, any>) => void;
+}) {
+  if (attachments.length === 0) {
+    return <p className="empty-text tight">Chưa có tệp.</p>;
+  }
+
+  return (
+    <div className="attachment-list">
+      {attachments.map((attachment) => (
+        <button key={attachment.id} type="button" onClick={() => onDownload(attachment)} disabled={downloadingId === attachment.id}>
+          {downloadingId === attachment.id ? <Loader2 className="spin" size={16} /> : <Download size={16} />}
+          <span>
+            <b>{attachment.originalName}</b>
+            <small>{formatFileSize(attachment.sizeBytes)}</small>
+          </span>
+        </button>
+      ))}
+    </div>
   );
 }
 

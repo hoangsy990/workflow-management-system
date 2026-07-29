@@ -232,7 +232,13 @@ export async function getTask(db: PrismaClient, auth: AuthContext, id: string) {
       comments: {
         where: { deletedAt: null },
         orderBy: { createdAt: "asc" },
-        include: { author: { select: { id: true, fullName: true, avatarUrl: true } } }
+        include: {
+          author: { select: { id: true, fullName: true, avatarUrl: true } },
+          attachments: {
+            where: { deletedAt: null },
+            select: { id: true, originalName: true, mimeType: true, sizeBytes: true, createdAt: true }
+          }
+        }
       },
       progressLogs: {
         orderBy: { createdAt: "desc" },
@@ -574,7 +580,7 @@ export async function addTaskComment(
   db: PrismaClient,
   auth: AuthContext,
   id: string,
-  input: { content: string; parentCommentId?: string; mentions?: string[] },
+  input: { content: string; parentCommentId?: string; mentions?: string[]; attachmentIds?: string[] },
   ipAddress?: string
 ) {
   await ensureCanReadTask(db, auth, id);
@@ -583,6 +589,21 @@ export async function addTaskComment(
   }
 
   return db.$transaction(async (tx) => {
+    if (input.attachmentIds?.length) {
+      const attachmentCount = await tx.taskAttachment.count({
+        where: {
+          id: { in: input.attachmentIds },
+          taskId: id,
+          uploadedById: auth.userId,
+          commentId: null,
+          deletedAt: null
+        }
+      });
+      if (attachmentCount !== input.attachmentIds.length) {
+        throw badRequest("Tệp đính kèm không hợp lệ hoặc đã được gắn với bình luận khác.");
+      }
+    }
+
     const comment = await tx.taskComment.create({
       data: {
         taskId: id,
@@ -592,6 +613,13 @@ export async function addTaskComment(
         mentions: input.mentions ?? []
       }
     });
+
+    if (input.attachmentIds?.length) {
+      await tx.taskAttachment.updateMany({
+        where: { id: { in: input.attachmentIds }, taskId: id, uploadedById: auth.userId },
+        data: { commentId: comment.id }
+      });
+    }
 
     await writeAuditLog(tx, {
       actorId: auth.userId,

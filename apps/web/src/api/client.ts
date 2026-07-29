@@ -138,6 +138,35 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}, ret
   return parseResponse<T>(response);
 }
 
+async function parseBlobResponse(response: Response): Promise<{ blob: Blob; filename: string }> {
+  if (!response.ok) {
+    await parseResponse<never>(response);
+  }
+
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const encodedName = disposition.match(/filename="([^"]+)"/)?.[1];
+  return {
+    blob: await response.blob(),
+    filename: encodedName ? decodeURIComponent(encodedName) : "download"
+  };
+}
+
+export async function apiBlobRequest(path: string, options: RequestInit = {}, retried = false): Promise<{ blob: Blob; filename: string }> {
+  const session = getStoredSession();
+  const headers = buildHeaders(options, session);
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers
+  });
+
+  if (response.status === 401 && session?.refreshToken && !path.startsWith("/auth/") && !retried) {
+    await refreshStoredSession();
+    return apiBlobRequest(path, options, true);
+  }
+
+  return parseBlobResponse(response);
+}
+
 export const api = {
   login: (email: string, password: string, deviceName = "Web") =>
     apiRequest<{ user: ApiUser; accessToken: string; refreshToken: string }>("/auth/login", {
@@ -180,6 +209,12 @@ export const api = {
     apiRequest<Record<string, any>>(`/tasks/${id}/evaluations`, { method: "POST", body: JSON.stringify(payload) }),
   commentTask: (id: string, payload: Record<string, unknown>) =>
     apiRequest<Record<string, any>>(`/tasks/${id}/comments`, { method: "POST", body: JSON.stringify(payload) }),
+  uploadTaskAttachment: (id: string, file: File) => {
+    const form = new FormData();
+    form.set("file", file);
+    return apiRequest<Record<string, any>>(`/tasks/${id}/attachments`, { method: "POST", body: form });
+  },
+  downloadAttachment: (id: string) => apiBlobRequest(`/attachments/${id}/download`),
   workflowTemplates: () => apiRequest<Record<string, any>[]>("/workflow-templates"),
   workflowTemplate: (id: string) => apiRequest<Record<string, any>>(`/workflow-templates/${id}`),
   createWorkflowTemplate: (payload: Record<string, unknown>) =>
