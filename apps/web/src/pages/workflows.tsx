@@ -1,4 +1,4 @@
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Download, Loader2, Plus, Trash2, Upload } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock } from "../components/common";
@@ -104,6 +104,19 @@ const workflowActionLabels: Record<WorkflowActionType, string> = {
   RETURN: "Trả về bước trước",
   TRANSFER: "Chuyển xử lý"
 };
+const maxWorkflowAttachmentMb = 20;
+const allowedWorkflowAttachmentTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "video/mp4"
+]);
+const workflowAttachmentAccept = [...allowedWorkflowAttachmentTypes].join(",");
 
 const fieldTypeOptions = [
   ["SHORT_TEXT", "Văn bản ngắn"],
@@ -291,6 +304,33 @@ function displayWorkflowValue(field: WorkflowFormField, value: unknown) {
     return JSON.stringify(value);
   }
   return String(value ?? "");
+}
+
+function formatWorkflowFileSize(bytes?: number) {
+  if (!bytes) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function collectAllowedWorkflowAttachmentFiles(files: FileList | null) {
+  const accepted: File[] = [];
+  let error = "";
+  if (!files) return { accepted, error };
+
+  for (const file of Array.from(files)) {
+    if (!allowedWorkflowAttachmentTypes.has(file.type)) {
+      error = `Tệp ${file.name} không đúng định dạng cho phép.`;
+      continue;
+    }
+    if (file.size > maxWorkflowAttachmentMb * 1024 * 1024) {
+      error = `Tệp ${file.name} vượt quá ${maxWorkflowAttachmentMb} MB.`;
+      continue;
+    }
+    accepted.push(file);
+  }
+
+  return { accepted, error };
 }
 
 export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
@@ -792,16 +832,45 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
   const [busy, setBusy] = useState(false);
   const [pendingAction, setPendingAction] = useState<WorkflowActionType | null>(null);
   const [actionComment, setActionComment] = useState("");
+  const [actionFiles, setActionFiles] = useState<File[]>([]);
   const [transferToUserId, setTransferToUserId] = useState("");
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null);
 
   function openAction(action: WorkflowActionType) {
     setPendingAction(action);
     setActionComment("");
+    setActionFiles([]);
     setTransferToUserId("");
     setActionError("");
     setActionMessage("");
+  }
+
+  function addActionFiles(files: FileList | null) {
+    const result = collectAllowedWorkflowAttachmentFiles(files);
+    setActionError(result.error);
+    setActionFiles((current) => [...current, ...result.accepted]);
+  }
+
+  async function downloadWorkflowAttachment(attachment: Record<string, any>) {
+    setDownloadingAttachmentId(attachment.id);
+    setActionError("");
+    try {
+      const { blob, filename } = await api.downloadWorkflowAttachment(attachment.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename || attachment.originalName || "download";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Không tải được tệp.");
+    } finally {
+      setDownloadingAttachmentId(null);
+    }
   }
 
   async function confirmAction(event: FormEvent) {
@@ -818,15 +887,21 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
     setBusy(true);
     setActionError("");
     try {
+      const uploaded: Record<string, any>[] = [];
+      for (const file of actionFiles) {
+        uploaded.push(await api.uploadWorkflowAttachment(instanceId, file));
+      }
       await api.actWorkflow(instanceId, {
         action: pendingAction,
         comment: actionComment.trim(),
         transferToUserId: pendingAction === "TRANSFER" ? transferToUserId : undefined,
+        attachmentIds: uploaded.map((attachment) => attachment.id),
         idempotencyKey: crypto.randomUUID()
       });
       setActionMessage("Đã xử lý hồ sơ thành công.");
       setPendingAction(null);
       setActionComment("");
+      setActionFiles([]);
       setTransferToUserId("");
       await reload();
     } catch (err) {
@@ -954,6 +1029,43 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
                 }}
               />
             </label>
+            <fieldset>
+              <legend>Tệp đính kèm xử lý</legend>
+              <label>
+                <span className="inline-label">
+                  <Upload size={16} />
+                  Chọn tệp
+                </span>
+                <input
+                  data-testid="workflow-action-attachment-input"
+                  type="file"
+                  multiple
+                  accept={workflowAttachmentAccept}
+                  onChange={(event) => {
+                    addActionFiles(event.target.files);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+              <div className="selected-files" data-testid="workflow-action-attachment-list">
+                {actionFiles.length === 0 ? (
+                  <span>Chưa chọn tệp.</span>
+                ) : (
+                  actionFiles.map((file, index) => (
+                    <button
+                      key={`${file.name}-${file.lastModified}-${index}`}
+                      className="file-chip"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setActionFiles((current) => current.filter((_, currentIndex) => currentIndex !== index))}
+                    >
+                      <span>{file.name}</span>
+                      <small>{formatWorkflowFileSize(file.size)}</small>
+                    </button>
+                  ))
+                )}
+              </div>
+            </fieldset>
             {actionError && <p className="form-error">{actionError}</p>}
             <div className="form-actions">
               <button className="ghost-button" data-testid="workflow-action-cancel" type="button" disabled={busy} onClick={() => setPendingAction(null)}>
@@ -975,13 +1087,24 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
             Quay lại
           </button>
         </div>
-        <div className="timeline">
+        <div className="timeline" data-testid="workflow-approval-history">
           {(data.approvals ?? []).map((approval: Record<string, any>) => (
             <div key={approval.id}>
               <strong>{approval.approver?.fullName}</strong>
               <span>{approval.step?.name}</span>
               <small>{approval.action ?? approval.status}</small>
               {approval.comment && <p>{approval.comment}</p>}
+              {approval.attachments?.length > 0 && (
+                <div className="attachment-list" data-testid={`workflow-approval-attachments-${approval.id}`}>
+                  {approval.attachments.map((attachment: Record<string, any>) => (
+                    <button key={attachment.id} className="attachment-pill" type="button" disabled={downloadingAttachmentId === attachment.id} onClick={() => downloadWorkflowAttachment(attachment)}>
+                      <Download size={14} />
+                      <span>{attachment.originalName}</span>
+                      <small>{formatWorkflowFileSize(attachment.sizeBytes)}</small>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>

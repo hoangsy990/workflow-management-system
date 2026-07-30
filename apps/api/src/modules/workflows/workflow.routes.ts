@@ -127,6 +127,7 @@ const actionSchema = z
     action: z.enum(["APPROVE", "REJECT", "REQUEST_INFO", "RETURN", "TRANSFER"]),
     comment: z.string().optional(),
     transferToUserId: z.string().uuid().optional(),
+    attachmentIds: z.array(z.string().uuid()).default([]),
     idempotencyKey: z.string().min(8).optional()
   })
   .superRefine((value, ctx) => {

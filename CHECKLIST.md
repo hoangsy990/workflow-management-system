@@ -16,6 +16,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `WORKFLOW-ACTION-ATTACHMENTS` | Bổ sung tệp đính kèm khi xử lý hồ sơ phê duyệt: thêm bảng/migration `workflow_attachments`, route upload/download riêng, validate quyền pending approver, action nhận `attachmentIds`, gắn file vào `workflow_approvals`, UI chọn/tải file trong panel/lịch sử xử lý và smoke test duyệt PAYMENT kèm PDF. | `pnpm db:generate`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted workflow attachment smoke 1/1, `pnpm smoke:web` 23/23. |
 | 30/07/2026 | `TASK-LIST-SORT-UI` | Bổ sung sort server-side cho danh sách công việc: backend allow-list `sortBy/sortOrder`, UI chọn field/chiều sort, reset trang khi đổi sort và smoke test tạo 2 task để assert thứ tự hạn tăng/giảm. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted sort smoke 1/1, `pnpm smoke:web` 23/23. |
 | 30/07/2026 | `TASK-LIST-PAGINATION-UI` | Bổ sung phân trang UI cho danh sách công việc: query gửi `page/pageSize`, reset về trang 1 khi đổi search/filter/tab, thanh Trước/Sau + summary lấy từ API thật và smoke test tạo 11 task để kiểm trang 1/2. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted pagination smoke 1/1, targeted my-task smoke 1/1, `pnpm smoke:web` 22/22. |
 | 30/07/2026 | `TASK-KANBAN-CONFIRM` | Thay browser confirm bằng panel xác nhận trong app cho Kanban khi chuyển sang Chờ đánh giá/Hoàn thành/Đã hủy, có loading/error/success, test id ổn định cho column/card và smoke test drop task sang Hoàn thành rồi xác nhận. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted kanban smoke 1/1, `pnpm smoke:web` 21/21. |
@@ -84,7 +85,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Phòng ban và cơ cấu tổ chức | `PARTIAL` | Departments create/edit/detail, parent department, list phân cấp cha-con và quản lý nhóm làm việc có; backend chống vòng lặp parent và validate team member. Company/branch UI, sơ đồ tổ chức kéo thả chưa có. |
 | Vai trò và phân quyền | `PARTIAL` | RBAC tables/API, ma trận quyền, preview phạm vi dữ liệu và cảnh báo cấu hình quyền cơ bản có. Chưa có data scope/field permissions có cấu hình riêng. |
 | Thông báo | `PARTIAL` | Notification center/inbox/device token table có. Chưa có push adapter FCM/APNs/Desktop thật và lịch nhắc hạn. |
-| Bình luận và tệp đính kèm | `PARTIAL` | Comment, reply comment, mention list, upload/download attachment cho task có. Lịch sử chỉnh sửa comment và attachment cho workflow approval còn thiếu. |
+| Bình luận và tệp đính kèm | `PARTIAL` | Comment, reply comment, mention list, upload/download attachment cho task và tệp xử lý workflow approval có. Lịch sử chỉnh sửa comment, xóa/khôi phục file và edit history còn thiếu. |
 | Nhật ký hoạt động | `PARTIAL` | Audit log cho nhiều hành động chính có. Cần phủ thêm import/export/config/download/xóa tệp. |
 | Dashboard và báo cáo cơ bản | `PARTIAL` | Dashboard thật từ DB có. Module báo cáo riêng, drill-down/export chưa có. |
 | Cấu hình hệ thống | `PARTIAL` | Key/value settings có. Chưa có trung tâm cấu hình đầy đủ theo nhóm. |
@@ -134,7 +135,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Workflow template fields: code/name/description/category/version/manager/allowed initiators/status | `PARTIAL` | Code/name/category/manager/version/status có; allowed initiators chưa có UI/policy đầy đủ. |
-| Form field types đầy đủ | `PARTIAL` | Schema enum có nhiều type; UI builder tạo template đã chọn được các loại field chính. New instance vẫn nhập JSON, chưa render form động đầy đủ. |
+| Form field types đầy đủ | `PARTIAL` | Schema enum có nhiều type; UI builder tạo template đã chọn được các loại field chính và new instance render form động cơ bản. ATTACHMENT/TABLE field còn cần UI/upload riêng theo form field. |
 | Field config required/default/placeholder/validation/order/editable/visible roles | `PARTIAL` | UI builder đã có required/placeholder/order cơ bản. Default/validation/editable/visible roles còn thiếu UI đầy đủ. |
 | Step types start/handler/approval/review/notification/end | `DONE` | Enum/schema/API có. |
 | Assignee resolver theo user/role/department/manager/head/form field/previous | `DONE` | Service resolver có. |
@@ -142,7 +143,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Parallel approval all/any/min count/min percent | `DONE` | Service tạo pending approval song song, domain test phủ `MIN_COUNT/MIN_PERCENT`, UI builder chọn `PARALLEL` và đủ `ALL/ANY/MIN_COUNT/MIN_PERCENT`, smoke test assert cấu hình min count được lưu. |
 | Approve/reject/request info/return | `DONE` | API/UI/smoke pass; UI có panel xác nhận trong app thay cho browser prompt. |
 | Forward/chuyển xử lý | `DONE` | Có action `TRANSFER`, chọn người nhận xử lý trên UI, chuyển pending approval trong transaction, gửi notification, lưu changedData/audit/idempotency và smoke test admin duyệt sau chuyển. |
-| Approval action lưu người, thời gian, action, comment, IP | `DONE` | WorkflowApproval có fields và service ghi. |
+| Approval action lưu người, thời gian, action, comment, IP | `DONE` | WorkflowApproval có fields và service ghi; action attachment lưu qua `workflow_attachments`, liên kết approval và hiển thị trong lịch sử xử lý. |
 | Lưu step trước/sau và dữ liệu thay đổi | `PARTIAL` | History approvals/steps có; metadata before/after chưa đầy đủ. |
 | Điều kiện rẽ nhánh structured, không eval | `DONE` | Domain condition builder/test/smoke lớn tiền pass; workflow builder có UI điều kiện chuyển bước cơ bản. |
 | Trạng thái hồ sơ đầy đủ | `PARTIAL` | Enum/status có; draft/submitted workflow chưa đủ UI/luồng. |
@@ -256,7 +257,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API/UI bổ sung progress, review, redo reset theo setting và overdue. Cần integration tests đầy đủ hơn. |
 | Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có thêm validate form data + smoke API/UI nhiều luồng. Chưa có integration transaction failure tự động. |
 | Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
-| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, user edit, department edit, role preview, tạo workflow template bằng builder, tạo workflow instance bằng form động, task upload/download/reply, calendar start/due, kanban confirm, pagination/sort, progress, evaluation attachment, redo reset, approve/reject/request-info/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
+| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, user edit, department edit, role preview, tạo workflow template bằng builder, tạo workflow instance bằng form động, task upload/download/reply, calendar start/due, kanban confirm, pagination/sort, progress, evaluation attachment, redo reset, workflow action attachment, approve/reject/request-info/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
 | Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `PARTIAL` | Windows desktop build và Android arm64 APK build đã pass. Chưa QA cài/chạy trên thiết bị Android, chưa có Edge/iOS/macOS matrix. |
 
 ## 14. Triển khai
@@ -264,7 +265,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | `.env.example` | `DONE` | Có. |
-| Migration | `DONE` | Có `0001_init`. |
+| Migration | `DONE` | Có `0001_init` và `0002_workflow_attachments`; Docker deploy đã tạo bảng `workflow_attachments`. |
 | Seeder | `DONE` | Có. |
 | Script khởi tạo | `DONE` | `init:dev`, Docker scripts. |
 | Dockerfile + Docker Compose app/database | `DONE` | Build/run đã fix và QA. |
@@ -454,7 +455,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
-| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, auto progress parent từ child, tạo task qua API, mở detail UI, upload/download attachment, reply comment, calendar start/due, kanban confirm, pagination/sort, cập nhật progress, đánh giá hoàn thành task kèm tệp xác nhận, yêu cầu làm lại reset progress theo setting, approve/reject/request-info/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
+| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, auto progress parent từ child, tạo task qua API, mở detail UI, upload/download attachment, reply comment, calendar start/due, kanban confirm, pagination/sort, cập nhật progress, đánh giá hoàn thành task kèm tệp xác nhận, yêu cầu làm lại reset progress theo setting, workflow action attachment, approve/reject/request-info/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
 | Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; smoke có tạo template bằng builder động và tạo hồ sơ bằng form động. Canvas designer, responsive/offline matrix và builder nâng cao chưa có. |
 | Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 

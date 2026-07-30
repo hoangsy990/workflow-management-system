@@ -113,6 +113,7 @@ interface WorkflowInstanceDetailRecord extends WorkflowInstanceRecord {
     action?: string | null;
     status: string;
     approver?: { id: string; fullName: string };
+    attachments?: Array<{ id: string; originalName: string }>;
   }>;
 }
 
@@ -294,7 +295,13 @@ async function openWorkflowApproval(page: Page, manager: ApiSession, instance: W
   await expect(page.getByText(instance.code)).toBeVisible();
 }
 
-async function runWorkflowAction(page: Page, testId: string, comment: string, transferToUserId?: string) {
+async function runWorkflowAction(
+  page: Page,
+  testId: string,
+  comment: string,
+  transferToUserId?: string,
+  attachment?: { name: string; mimeType: string; buffer: Buffer }
+) {
   await page.getByTestId(testId).click();
   await expect(page.getByTestId("workflow-action-panel")).toBeVisible();
   if (transferToUserId) {
@@ -302,11 +309,27 @@ async function runWorkflowAction(page: Page, testId: string, comment: string, tr
     await expect(transferSelect.locator(`option[value="${transferToUserId}"]`)).toHaveCount(1);
     await transferSelect.selectOption(transferToUserId);
   }
+  if (attachment) {
+    await page.getByTestId("workflow-action-attachment-input").setInputFiles(attachment);
+    await expect(page.getByTestId("workflow-action-attachment-list")).toContainText(attachment.name);
+  }
   await page.getByTestId("workflow-action-comment").fill(comment);
+  const uploadResponse = attachment
+    ? page.waitForResponse(
+        (response) =>
+          response.url().includes("/workflow-instances/") &&
+          response.url().endsWith("/attachments") &&
+          response.request().method() === "POST"
+      )
+    : null;
   const actionResponse = page.waitForResponse(
     (response) => response.url().includes("/workflow-instances/") && response.url().endsWith("/actions") && response.request().method() === "POST"
   );
   await page.getByTestId("workflow-action-confirm").click();
+  if (uploadResponse) {
+    const uploadResult = await uploadResponse;
+    expect(uploadResult.ok(), await uploadResult.text()).toBeTruthy();
+  }
   const actionResult = await actionResponse;
   expect(actionResult.ok(), await actionResult.text()).toBeTruthy();
 }
@@ -952,10 +975,18 @@ test("duyệt hồ sơ PAYMENT tuần tự trên UI", async ({ page, request }) 
   const employee = await apiLogin(request, "employee");
   const manager = await apiLogin(request, "manager");
   const instance = await createSmokeWorkflowInstance(request, employee, "approve");
+  const fileName = `workflow-approve-${runId}.pdf`;
 
   await openWorkflowApproval(page, manager, instance);
-  await runWorkflowAction(page, "workflow-action-approve", `Duyệt smoke ${runId}`);
+  await runWorkflowAction(page, "workflow-action-approve", `Duyệt smoke ${runId}`, undefined, {
+    name: fileName,
+    mimeType: "application/pdf",
+    buffer: Buffer.from(`workflow approval attachment ${runId}`)
+  });
   await expect(page.getByTestId("workflow-instance-status")).toContainText(/Đã duyệt|Hoàn thành/);
+  await expect(page.getByTestId("workflow-approval-history")).toContainText(fileName);
+  const detail = await apiGet<WorkflowInstanceDetailRecord>(request, manager, `/workflow-instances/${instance.id}`);
+  expect(detail.approvals?.some((approval) => approval.attachments?.some((attachment) => attachment.originalName === fileName))).toBe(true);
 });
 
 test("từ chối hồ sơ PAYMENT trên UI", async ({ page, request }) => {

@@ -83,6 +83,59 @@ function hasPermission(auth: AuthContext, permission: string): boolean {
   return auth.permissions.includes(permission);
 }
 
+export function visibleWorkflowInstanceWhere(auth: AuthContext): Prisma.WorkflowInstanceWhereInput {
+  const base: Prisma.WorkflowInstanceWhereInput = { deletedAt: null };
+
+  if (hasPermission(auth, "workflow.instance.read_all")) {
+    return base;
+  }
+
+  return {
+    ...base,
+    OR: [
+      { requesterId: auth.userId },
+      {
+        approvals: {
+          some: { approverId: auth.userId }
+        }
+      }
+    ]
+  };
+}
+
+export async function ensureCanReadWorkflowInstance(db: Db, auth: AuthContext, instanceId: string) {
+  const count = await db.workflowInstance.count({
+    where: {
+      id: instanceId,
+      ...visibleWorkflowInstanceWhere(auth)
+    }
+  });
+  if (count === 0) {
+    throw forbidden("Bạn không có quyền xem hồ sơ này.");
+  }
+}
+
+export async function ensureCanUploadWorkflowAttachment(db: Db, auth: AuthContext, instanceId: string) {
+  if (!hasPermission(auth, "workflow.instance.approve")) {
+    throw forbidden("Bạn không có quyền tải tệp lên hồ sơ này.");
+  }
+
+  await ensureCanReadWorkflowInstance(db, auth, instanceId);
+
+  const pendingApproval = await db.workflowApproval.findFirst({
+    where: {
+      instanceId,
+      approverId: auth.userId,
+      status: "PENDING"
+    },
+    select: { id: true }
+  });
+
+  if (!pendingApproval) {
+    throw forbidden("Bạn không phải người đang chờ xử lý hồ sơ này.");
+  }
+}
+
 function dateCodePrefix(prefix: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Ho_Chi_Minh",
@@ -614,18 +667,7 @@ export async function listWorkflowInstances(
   auth: AuthContext,
   input: { page: number; pageSize: number; status?: string; pendingMine?: boolean }
 ) {
-  const where: Prisma.WorkflowInstanceWhereInput = hasPermission(auth, "workflow.instance.read_all")
-    ? {}
-    : {
-        OR: [
-          { requesterId: auth.userId },
-          {
-            approvals: {
-              some: { approverId: auth.userId }
-            }
-          }
-        ]
-      };
+  const where: Prisma.WorkflowInstanceWhereInput = visibleWorkflowInstanceWhere(auth);
 
   if (input.status) {
     where.status = input.status as never;
@@ -671,7 +713,15 @@ export async function getWorkflowInstance(db: PrismaClient, auth: AuthContext, i
       },
       approvals: {
         orderBy: { createdAt: "asc" },
-        include: { approver: { select: { id: true, fullName: true } }, step: true }
+        include: {
+          approver: { select: { id: true, fullName: true } },
+          step: true,
+          attachments: {
+            where: { deletedAt: null },
+            select: { id: true, originalName: true, mimeType: true, sizeBytes: true, createdAt: true },
+            orderBy: { createdAt: "asc" }
+          }
+        }
       }
     }
   });
@@ -746,6 +796,7 @@ export async function actOnWorkflowInstance(
     action: Extract<WorkflowAction, "APPROVE" | "REJECT" | "REQUEST_INFO" | "RETURN" | "TRANSFER">;
     comment?: string;
     transferToUserId?: string;
+    attachmentIds?: string[];
     idempotencyKey?: string;
   },
   ipAddress?: string
@@ -810,6 +861,7 @@ export async function actOnWorkflowInstance(
       RETURN: "RETURNED",
       TRANSFER: "TRANSFERRED"
     };
+    const attachmentIds = [...new Set(input.attachmentIds ?? [])];
 
     if (input.action === "TRANSFER") {
       if (!input.transferToUserId) {
@@ -838,24 +890,53 @@ export async function actOnWorkflowInstance(
       }
     }
 
+    if (attachmentIds.length > 0) {
+      const attachmentCount = await tx.workflowAttachment.count({
+        where: {
+          id: { in: attachmentIds },
+          instanceId,
+          uploadedById: auth.userId,
+          approvalId: null,
+          deletedAt: null
+        }
+      });
+      if (attachmentCount !== attachmentIds.length) {
+        throw badRequest("Tệp đính kèm xử lý không hợp lệ hoặc đã được sử dụng.");
+      }
+    }
+
+    const changedData =
+      input.action === "TRANSFER" || attachmentIds.length > 0
+        ? {
+            ...(input.action === "TRANSFER"
+              ? {
+                  fromApproverId: auth.userId,
+                  toApproverId: input.transferToUserId
+                }
+              : {}),
+            ...(attachmentIds.length > 0 ? { attachmentIds } : {})
+          }
+        : undefined;
+
     await tx.workflowApproval.update({
       where: { id: pendingApproval.id },
       data: {
         action: input.action,
         status: nextStatusByAction[input.action],
         comment: input.comment,
-        changedData:
-          input.action === "TRANSFER"
-            ? {
-                fromApproverId: auth.userId,
-                toApproverId: input.transferToUserId
-              }
-            : undefined,
+        changedData,
         ipAddress,
         idempotencyKey: input.idempotencyKey,
         actedAt: new Date()
       }
     });
+
+    if (attachmentIds.length > 0) {
+      await tx.workflowAttachment.updateMany({
+        where: { id: { in: attachmentIds }, instanceId, uploadedById: auth.userId, approvalId: null, deletedAt: null },
+        data: { approvalId: pendingApproval.id }
+      });
+    }
 
     let response: unknown;
 
@@ -1012,7 +1093,7 @@ export async function actOnWorkflowInstance(
       entityType: "workflow_instances",
       entityId: instanceId,
       ipAddress,
-      metadata: { comment: input.comment, transferToUserId: input.transferToUserId }
+      metadata: { comment: input.comment, transferToUserId: input.transferToUserId, attachmentIds }
     });
 
     if (input.idempotencyKey) {

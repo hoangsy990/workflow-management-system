@@ -12,6 +12,7 @@ import { prisma } from "../../prisma.js";
 import { requireAuth } from "../auth/auth.guard.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { visibleTaskWhere } from "../tasks/task.service.js";
+import { ensureCanReadWorkflowInstance, ensureCanUploadWorkflowAttachment } from "../workflows/workflow.service.js";
 
 const taskParamSchema = z.object({ id: z.string().uuid() });
 const attachmentParamSchema = z.object({ id: z.string().uuid() });
@@ -106,6 +107,62 @@ export async function uploadRoutes(app: FastifyInstance) {
     return attachment;
   });
 
+  app.post("/workflow-instances/:id/attachments", { preHandler: requireAuth }, async (request) => {
+    const params = parseParams(request, taskParamSchema);
+    await ensureCanUploadWorkflowAttachment(prisma, request.auth!, params.id);
+
+    const file = await request.file({
+      limits: { fileSize: config.MAX_UPLOAD_MB * 1024 * 1024 }
+    });
+    if (!file) {
+      throw badRequest("Vui lòng chọn tệp cần tải lên.");
+    }
+    if (!allowedMimeTypes.has(file.mimetype)) {
+      throw badRequest("Định dạng tệp không được hỗ trợ.");
+    }
+
+    const originalName = safeOriginalName(file.filename);
+    const extension = path.extname(originalName).toLowerCase();
+    const storedName = `${nanoid(24)}${extension}`;
+    const relativeKey = path.posix.join("workflows", params.id, storedName);
+    const absoluteDir = path.resolve(config.UPLOAD_DIR, "workflows", params.id);
+    const absolutePath = path.join(absoluteDir, storedName);
+
+    await mkdir(absoluteDir, { recursive: true });
+    await pipeline(file.file, createWriteStream(absolutePath));
+    const fileStat = await stat(absolutePath);
+
+    const attachment = await prisma.workflowAttachment.create({
+      data: {
+        instanceId: params.id,
+        uploadedById: request.auth!.userId,
+        originalName,
+        storedName,
+        mimeType: file.mimetype,
+        sizeBytes: fileStat.size,
+        storageKey: relativeKey
+      },
+      select: {
+        id: true,
+        originalName: true,
+        mimeType: true,
+        sizeBytes: true,
+        createdAt: true
+      }
+    });
+
+    await writeAuditLog(prisma, {
+      actorId: request.auth!.userId,
+      action: "workflow.attachment.upload",
+      entityType: "workflow_attachments",
+      entityId: attachment.id,
+      ipAddress: request.ip,
+      metadata: { instanceId: params.id, originalName, sizeBytes: fileStat.size }
+    });
+
+    return attachment;
+  });
+
   app.get("/attachments/:id/download", { preHandler: requireAuth }, async (request, reply) => {
     const params = parseParams(request, attachmentParamSchema);
     const attachment = await prisma.taskAttachment.findUnique({
@@ -120,6 +177,25 @@ export async function uploadRoutes(app: FastifyInstance) {
     if (visible === 0) {
       throw forbidden("Bạn không có quyền tải tệp này.");
     }
+
+    const absolutePath = path.resolve(config.UPLOAD_DIR, attachment.storageKey);
+    reply
+      .type(attachment.mimeType)
+      .header("Content-Disposition", `attachment; filename="${encodeURIComponent(attachment.originalName)}"`);
+    return reply.send(createReadStream(absolutePath));
+  });
+
+  app.get("/workflow-attachments/:id/download", { preHandler: requireAuth }, async (request, reply) => {
+    const params = parseParams(request, attachmentParamSchema);
+    const attachment = await prisma.workflowAttachment.findUnique({
+      where: { id: params.id },
+      include: { instance: true }
+    });
+    if (!attachment || attachment.deletedAt || attachment.instance.deletedAt) {
+      throw notFound("Không tìm thấy tệp đính kèm.");
+    }
+
+    await ensureCanReadWorkflowInstance(prisma, request.auth!, attachment.instanceId);
 
     const absolutePath = path.resolve(config.UPLOAD_DIR, attachment.storageKey);
     reply

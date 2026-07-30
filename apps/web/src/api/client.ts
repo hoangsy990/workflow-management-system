@@ -224,6 +224,12 @@ export const api = {
     return apiRequest<Record<string, any>>(`/tasks/${id}/attachments`, { method: "POST", body: form });
   },
   downloadAttachment: (id: string) => apiBlobRequest(`/attachments/${id}/download`),
+  uploadWorkflowAttachment: (id: string, file: File) => {
+    const form = new FormData();
+    form.set("file", file);
+    return apiRequest<Record<string, any>>(`/workflow-instances/${id}/attachments`, { method: "POST", body: form });
+  },
+  downloadWorkflowAttachment: (id: string) => apiBlobRequest(`/workflow-attachments/${id}/download`),
   workflowTemplates: () => apiRequest<Record<string, any>[]>("/workflow-templates"),
   workflowTemplate: (id: string) => apiRequest<Record<string, any>>(`/workflow-templates/${id}`),
   createWorkflowTemplate: (payload: Record<string, unknown>) =>

@@ -253,6 +253,7 @@ model User {
   workflowManaged       WorkflowTemplate[]     @relation("WorkflowManager")
   workflowInstances     WorkflowInstance[]     @relation("WorkflowRequester")
   workflowApprovals     WorkflowApproval[]     @relation("WorkflowApprover")
+  workflowAttachments   WorkflowAttachment[]   @relation("WorkflowAttachmentUploader")
   notifications         Notification[]
   activityLogs          ActivityLog[]          @relation("ActivityActor")
   idempotencyKeys        IdempotencyKey[]
@@ -714,6 +715,7 @@ model WorkflowInstance {
   values        WorkflowInstanceValue[]
   steps         WorkflowInstanceStep[]
   approvals     WorkflowApproval[]
+  attachments   WorkflowAttachment[]
 
   @@index([status])
   @@index([requesterId])
@@ -777,11 +779,34 @@ model WorkflowApproval {
   instanceStep        WorkflowInstanceStep @relation(fields: [instanceStepId], references: [id], onDelete: Cascade)
   step                WorkflowStep         @relation(fields: [stepId], references: [id])
   approver            User                 @relation("WorkflowApprover", fields: [approverId], references: [id])
+  attachments         WorkflowAttachment[]
 
   @@unique([instanceStepId, approverId])
   @@index([approverId, status])
   @@index([instanceId])
   @@map("workflow_approvals")
+}
+
+model WorkflowAttachment {
+  id           String             @id @default(uuid())
+  instanceId   String             @map("instance_id")
+  approvalId   String?            @map("approval_id")
+  uploadedById String             @map("uploaded_by_id")
+  originalName String             @map("original_name")
+  storedName   String             @map("stored_name")
+  mimeType     String             @map("mime_type")
+  sizeBytes    Int                @map("size_bytes")
+  storageKey   String             @map("storage_key")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  deletedAt    DateTime?          @map("deleted_at")
+  instance     WorkflowInstance   @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  approval     WorkflowApproval?  @relation(fields: [approvalId], references: [id], onDelete: SetNull)
+  uploadedBy   User               @relation("WorkflowAttachmentUploader", fields: [uploadedById], references: [id])
+
+  @@index([instanceId])
+  @@index([approvalId])
+  @@index([uploadedById])
+  @@map("workflow_attachments")
 }
 
 model Notification {
