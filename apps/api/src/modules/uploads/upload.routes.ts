@@ -179,6 +179,15 @@ export async function uploadRoutes(app: FastifyInstance) {
     }
 
     const absolutePath = path.resolve(config.UPLOAD_DIR, attachment.storageKey);
+    await writeAuditLog(prisma, {
+      actorId: request.auth!.userId,
+      action: "task.attachment.download",
+      entityType: "task_attachments",
+      entityId: attachment.id,
+      ipAddress: request.ip,
+      metadata: { taskId: attachment.taskId, originalName: attachment.originalName, sizeBytes: attachment.sizeBytes }
+    });
+
     reply
       .type(attachment.mimeType)
       .header("Content-Disposition", `attachment; filename="${encodeURIComponent(attachment.originalName)}"`);
@@ -198,6 +207,15 @@ export async function uploadRoutes(app: FastifyInstance) {
     await ensureCanReadWorkflowInstance(prisma, request.auth!, attachment.instanceId);
 
     const absolutePath = path.resolve(config.UPLOAD_DIR, attachment.storageKey);
+    await writeAuditLog(prisma, {
+      actorId: request.auth!.userId,
+      action: "workflow.attachment.download",
+      entityType: "workflow_attachments",
+      entityId: attachment.id,
+      ipAddress: request.ip,
+      metadata: { instanceId: attachment.instanceId, originalName: attachment.originalName, sizeBytes: attachment.sizeBytes }
+    });
+
     reply
       .type(attachment.mimeType)
       .header("Content-Disposition", `attachment; filename="${encodeURIComponent(attachment.originalName)}"`);

@@ -543,6 +543,7 @@ test("employee creates workflow instance with dynamic form", async ({ page, requ
 });
 
 test("tạo task qua API rồi upload và download tệp trên UI", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
   const manager = await apiLogin(request, "manager");
   const employee = await apiLogin(request, "employee");
   const task = await createSmokeTask(request, manager);
@@ -569,6 +570,8 @@ test("tạo task qua API rồi upload và download tệp trên UI", async ({ pag
   const detailWithComment = await apiGet<TaskDetailRecord>(request, manager, `/tasks/${task.id}`);
   const parentComment = detailWithComment.comments?.find((item) => item.content === commentText);
   if (!parentComment) throw new Error("Parent smoke comment was not saved");
+  const attachment = detailWithComment.attachments?.find((item) => item.originalName === fileName);
+  if (!attachment) throw new Error("Smoke attachment was not saved");
   const employeeNotifications = await apiGet<Paginated<Record<string, any>>>(request, employee, "/notifications?pageSize=20");
   expect(employeeNotifications.data.some((notification) => notification.type === "TASK_COMMENT_NEW" && notification.objectId === task.id)).toBe(true);
   const replyText = `Trả lời kiểm thử ${runId}`;
@@ -590,6 +593,12 @@ test("tạo task qua API rồi upload và download tệp trên UI", async ({ pag
   await attachmentButton.click();
   const downloadedFile = await download;
   expect(downloadedFile.suggestedFilename()).toContain(fileName);
+  const auditLogs = await apiGet<Paginated<Record<string, any>>>(
+    request,
+    admin,
+    "/activity-logs?pageSize=20&action=task.attachment.download&entityType=task_attachments"
+  );
+  expect(auditLogs.data.some((log) => log.entityId === attachment.id && log.actor?.id === manager.user.id)).toBe(true);
 });
 
 test("tạo task kèm tệp đính kèm ngay trên form UI", async ({ page, request }) => {

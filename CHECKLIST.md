@@ -16,6 +16,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `ATTACHMENT-DOWNLOAD-AUDIT` | Bổ sung audit log khi tải tệp task/workflow: endpoint download ghi `task.attachment.download` và `workflow.attachment.download` với actor/entity/metadata an toàn trước khi stream file; smoke test download task assert activity log thật. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted download audit smoke 1/1, `pnpm smoke:web` 25/25. |
 | 30/07/2026 | `TASK-COMMENT-NOTIFICATIONS` | Bổ sung notification `TASK_COMMENT_NEW` khi có bình luận mới: service gom creator/assigner/manager/assignees/followers/tác giả comment cha, loại người comment và người đã được mention để tránh trùng; smoke test comment/upload assert assignee nhận notification thật. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted comment notification smoke 1/1, `pnpm smoke:web` 25/25. |
 | 30/07/2026 | `TASK-LIST-ROW-ACTIONS` | Bổ sung action nhanh trên danh sách công việc: DataTable mobile card hỗ trợ role button để tránh nested button, row task có nút Mở/Bắt đầu-Tiếp tục, loading/error/success, PATCH trạng thái thật và smoke test assert row/API chuyển `IN_PROGRESS`. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted row action smoke 1/1, `pnpm smoke:web` 25/25. |
 | 30/07/2026 | `WORKFLOW-APPROVED-NOTIFICATION` | Bổ sung notification `WORKFLOW_APPROVED` khi hồ sơ hoàn tất duyệt: service enqueue cho người tạo hồ sơ với link/object thật và smoke test luồng duyệt PAYMENT assert notification của requester. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted approve notification smoke 1/1, `pnpm smoke:web` 24/24. |
@@ -90,7 +91,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Vai trò và phân quyền | `PARTIAL` | RBAC tables/API, ma trận quyền, preview phạm vi dữ liệu và cảnh báo cấu hình quyền cơ bản có. Chưa có data scope/field permissions có cấu hình riêng. |
 | Thông báo | `PARTIAL` | Notification center/inbox/device token table có. Chưa có push adapter FCM/APNs/Desktop thật và lịch nhắc hạn. |
 | Bình luận và tệp đính kèm | `PARTIAL` | Comment, reply comment, mention list, upload/download attachment cho task và tệp xử lý workflow approval có. Lịch sử chỉnh sửa comment, xóa/khôi phục file và edit history còn thiếu. |
-| Nhật ký hoạt động | `PARTIAL` | Audit log cho nhiều hành động chính có. Cần phủ thêm import/export/config/download/xóa tệp. |
+| Nhật ký hoạt động | `PARTIAL` | Audit log cho nhiều hành động chính và download tệp task/workflow có. Cần phủ thêm import/export/config/xóa hoặc khôi phục tệp. |
 | Dashboard và báo cáo cơ bản | `PARTIAL` | Dashboard thật từ DB có, gồm card theo quyền, task cần chú ý, trạng thái, phòng ban, hồ sơ gần nhất và notification. Module báo cáo riêng, drill-down/export chưa có. |
 | Cấu hình hệ thống | `PARTIAL` | Key/value settings có. Chưa có trung tâm cấu hình đầy đủ theo nhóm. |
 
@@ -189,7 +190,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Rate limit login/API nhạy cảm | `DONE` | Fastify rate limit có `API_RATE_LIMIT_MAX` cấu hình theo môi trường; login route vẫn giới hạn riêng 5 lần/phút. |
 | Lock/delay sau nhiều lần login sai | `DONE` | `failedLoginAttempts`, `lockedUntil`. |
 | Không log secret | `PARTIAL` | Không chủ động log token/password; cần rà production logger/redaction. |
-| Audit login/task/workflow/permission/config/download/delete file | `PARTIAL` | Nhiều hành động có. Download/delete file/config/import/export chưa phủ hết. |
+| Audit login/task/workflow/permission/config/download/delete file | `PARTIAL` | Nhiều hành động và download file task/workflow có. Delete file/config/import/export chưa phủ hết. |
 
 ## 9. Giao diện trang bắt buộc
 
@@ -261,7 +262,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API/UI bổ sung progress, review, redo reset theo setting và overdue. Cần integration tests đầy đủ hơn. |
 | Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có thêm validate form data + smoke API/UI nhiều luồng. Chưa có integration transaction failure tự động. |
 | Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
-| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, dashboard department stats, user edit, department edit, role preview, tạo workflow template bằng builder, tạo workflow instance bằng form động, task upload/download/reply/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, progress, evaluation attachment, redo reset, workflow action attachment, approved notification, approve/reject/request-info/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
+| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, dashboard department stats, user edit, department edit, role preview, tạo workflow template bằng builder, tạo workflow instance bằng form động, task upload/download/download audit/reply/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, progress, evaluation attachment, redo reset, workflow action attachment, approved notification, approve/reject/request-info/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
 | Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `PARTIAL` | Windows desktop build và Android arm64 APK build đã pass. Chưa QA cài/chạy trên thiết bị Android, chưa có Edge/iOS/macOS matrix. |
 
 ## 14. Triển khai
@@ -459,7 +460,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
-| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, dashboard department stats, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, auto progress parent từ child, tạo task qua API, mở detail UI, upload/download attachment, reply comment/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, cập nhật progress, đánh giá hoàn thành task kèm tệp xác nhận, yêu cầu làm lại reset progress theo setting, workflow action attachment, approved notification, approve/reject/request-info/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
+| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, dashboard department stats, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, auto progress parent từ child, tạo task qua API, mở detail UI, upload/download attachment/download audit, reply comment/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, cập nhật progress, đánh giá hoàn thành task kèm tệp xác nhận, yêu cầu làm lại reset progress theo setting, workflow action attachment, approved notification, approve/reject/request-info/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
 | Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; smoke có tạo template bằng builder động và tạo hồ sơ bằng form động. Canvas designer, responsive/offline matrix và builder nâng cao chưa có. |
 | Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 
