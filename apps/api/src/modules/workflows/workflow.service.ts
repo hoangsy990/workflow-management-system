@@ -106,6 +106,33 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+function collectEffectiveApprovedIds(
+  approvals: Array<{ id: string; approverId: string; status: ApprovalStatus; changedData: Prisma.JsonValue | null }>,
+  actualApprovedIds: string[]
+) {
+  const effectiveIds = new Set(actualApprovedIds);
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    for (const approval of approvals) {
+      if (approval.status !== "TRANSFERRED") {
+        continue;
+      }
+      const changedData = asRecord(approval.changedData);
+      const fromApproverId = typeof changedData.fromApproverId === "string" ? changedData.fromApproverId : undefined;
+      const toApproverId = typeof changedData.toApproverId === "string" ? changedData.toApproverId : undefined;
+
+      if (fromApproverId && toApproverId && effectiveIds.has(toApproverId) && !effectiveIds.has(fromApproverId)) {
+        effectiveIds.add(fromApproverId);
+        changed = true;
+      }
+    }
+  }
+
+  return [...effectiveIds];
+}
+
 async function resolveStepAssignees(
   db: Db,
   step: StepWithAssignees,
@@ -716,8 +743,9 @@ export async function actOnWorkflowInstance(
   auth: AuthContext,
   instanceId: string,
   input: {
-    action: Extract<WorkflowAction, "APPROVE" | "REJECT" | "REQUEST_INFO" | "RETURN">;
+    action: Extract<WorkflowAction, "APPROVE" | "REJECT" | "REQUEST_INFO" | "RETURN" | "TRANSFER">;
     comment?: string;
+    transferToUserId?: string;
     idempotencyKey?: string;
   },
   ipAddress?: string
@@ -779,8 +807,36 @@ export async function actOnWorkflowInstance(
       APPROVE: "APPROVED",
       REJECT: "REJECTED",
       REQUEST_INFO: "REQUESTED_INFO",
-      RETURN: "RETURNED"
+      RETURN: "RETURNED",
+      TRANSFER: "TRANSFERRED"
     };
+
+    if (input.action === "TRANSFER") {
+      if (!input.transferToUserId) {
+        throw badRequest("Người nhận chuyển xử lý là bắt buộc.");
+      }
+      if (input.transferToUserId === auth.userId) {
+        throw badRequest("Không thể chuyển xử lý cho chính bạn.");
+      }
+      const targetUser = await tx.user.findFirst({
+        where: { id: input.transferToUserId, status: "ACTIVE", deletedAt: null },
+        select: { id: true, fullName: true }
+      });
+      if (!targetUser) {
+        throw notFound("Không tìm thấy người nhận chuyển xử lý.");
+      }
+      const existingTargetApproval = await tx.workflowApproval.findUnique({
+        where: {
+          instanceStepId_approverId: {
+            instanceStepId: instanceStep.id,
+            approverId: input.transferToUserId
+          }
+        }
+      });
+      if (existingTargetApproval) {
+        throw conflict("Người này đã có trong danh sách xử lý của bước hiện tại.");
+      }
+    }
 
     await tx.workflowApproval.update({
       where: { id: pendingApproval.id },
@@ -788,6 +844,13 @@ export async function actOnWorkflowInstance(
         action: input.action,
         status: nextStatusByAction[input.action],
         comment: input.comment,
+        changedData:
+          input.action === "TRANSFER"
+            ? {
+                fromApproverId: auth.userId,
+                toApproverId: input.transferToUserId
+              }
+            : undefined,
         ipAddress,
         idempotencyKey: input.idempotencyKey,
         actedAt: new Date()
@@ -816,6 +879,28 @@ export async function actOnWorkflowInstance(
           link: `/workflows/instances/${instanceId}`
         }
       ]);
+    } else if (input.action === "TRANSFER") {
+      await tx.workflowApproval.create({
+        data: {
+          instanceId,
+          instanceStepId: instanceStep.id,
+          stepId: currentStep.id,
+          approverId: input.transferToUserId!,
+          status: "PENDING"
+        }
+      });
+      await enqueueNotifications(tx, [
+        {
+          userId: input.transferToUserId!,
+          title: "Bạn được chuyển xử lý hồ sơ",
+          content: `${instance.code} - ${currentStep.name}`,
+          type: "WORKFLOW_APPROVAL_TRANSFERRED",
+          objectType: "workflow_instance",
+          objectId: instanceId,
+          link: `/workflows/instances/${instanceId}`
+        }
+      ]);
+      response = await tx.workflowInstance.findUniqueOrThrow({ where: { id: instanceId } });
     } else if (input.action === "REQUEST_INFO") {
       response = await tx.workflowInstance.update({
         where: { id: instanceId },
@@ -863,12 +948,15 @@ export async function actOnWorkflowInstance(
         formData
       });
       const approvals = await tx.workflowApproval.findMany({ where: { instanceStepId: instanceStep.id } });
-      const approvedIds = approvals
+      const actualApprovedIds = approvals
         .filter((approval) => approval.status === "APPROVED" || approval.id === pendingApproval.id)
         .map((approval) => approval.approverId);
+      const effectiveApprovedIds = collectEffectiveApprovedIds(approvals, actualApprovedIds);
+      const approvedAssigneeIds = allAssigneeIds.filter((id) => effectiveApprovedIds.includes(id));
+      const previousApproverIds = [...new Set([...actualApprovedIds, ...approvedAssigneeIds])];
 
       if (currentStep.approvalMode === "SEQUENTIAL") {
-        const nextApprover = allAssigneeIds.find((id) => !approvedIds.includes(id));
+        const nextApprover = allAssigneeIds.find((id) => !effectiveApprovedIds.includes(id));
         if (nextApprover) {
           await tx.workflowApproval.create({
             data: {
@@ -899,7 +987,7 @@ export async function actOnWorkflowInstance(
           mode: currentStep.approvalMode,
           rule: currentStep.completionRule,
           totalApprovers: allAssigneeIds.length,
-          approvedCount: approvedIds.length,
+          approvedCount: approvedAssigneeIds.length,
           minCount: currentStep.minCount,
           minPercent: currentStep.minPercent
         });
@@ -912,7 +1000,7 @@ export async function actOnWorkflowInstance(
               requesterId: instance.requesterId,
               formData,
               transitions: instance.workflowVersion.transitions,
-              previousApproverIds: approvedIds
+              previousApproverIds
             })
           : await tx.workflowInstance.findUniqueOrThrow({ where: { id: instanceId } });
       }
@@ -924,7 +1012,7 @@ export async function actOnWorkflowInstance(
       entityType: "workflow_instances",
       entityId: instanceId,
       ipAddress,
-      metadata: { comment: input.comment }
+      metadata: { comment: input.comment, transferToUserId: input.transferToUserId }
     });
 
     if (input.idempotencyKey) {

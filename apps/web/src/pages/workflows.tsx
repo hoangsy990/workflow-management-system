@@ -93,13 +93,14 @@ type WorkflowTemplateDetail = {
   versions?: WorkflowVersionDetail[];
 };
 
-type WorkflowActionType = "APPROVE" | "REJECT" | "REQUEST_INFO" | "RETURN";
+type WorkflowActionType = "APPROVE" | "REJECT" | "REQUEST_INFO" | "RETURN" | "TRANSFER";
 
 const workflowActionLabels: Record<WorkflowActionType, string> = {
   APPROVE: "Duyệt hồ sơ",
   REJECT: "Từ chối hồ sơ",
   REQUEST_INFO: "Yêu cầu bổ sung",
-  RETURN: "Trả về bước trước"
+  RETURN: "Trả về bước trước",
+  TRANSFER: "Chuyển xử lý"
 };
 
 const fieldTypeOptions = [
@@ -754,15 +755,18 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
     () => (instanceId ? api.workflowInstance(instanceId) : Promise.resolve(null)),
     [instanceId]
   );
+  const users = useAsyncData(() => api.users(), []);
   const [busy, setBusy] = useState(false);
   const [pendingAction, setPendingAction] = useState<WorkflowActionType | null>(null);
   const [actionComment, setActionComment] = useState("");
+  const [transferToUserId, setTransferToUserId] = useState("");
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
 
   function openAction(action: WorkflowActionType) {
     setPendingAction(action);
     setActionComment("");
+    setTransferToUserId("");
     setActionError("");
     setActionMessage("");
   }
@@ -774,13 +778,23 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
       setActionError("Vui lòng nhập ý kiến xử lý.");
       return;
     }
+    if (pendingAction === "TRANSFER" && !transferToUserId) {
+      setActionError("Vui lòng chọn người nhận chuyển xử lý.");
+      return;
+    }
     setBusy(true);
     setActionError("");
     try {
-      await api.actWorkflow(instanceId, { action: pendingAction, comment: actionComment.trim(), idempotencyKey: crypto.randomUUID() });
+      await api.actWorkflow(instanceId, {
+        action: pendingAction,
+        comment: actionComment.trim(),
+        transferToUserId: pendingAction === "TRANSFER" ? transferToUserId : undefined,
+        idempotencyKey: crypto.randomUUID()
+      });
       setActionMessage("Đã xử lý hồ sơ thành công.");
       setPendingAction(null);
       setActionComment("");
+      setTransferToUserId("");
       await reload();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Không xử lý được hồ sơ.");
@@ -858,6 +872,15 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
           >
             Trả bước
           </button>
+          <button
+            className="ghost-button"
+            data-testid="workflow-action-transfer"
+            type="button"
+            disabled={busy}
+            onClick={() => openAction("TRANSFER")}
+          >
+            Chuyển xử lý
+          </button>
         </div>
         {pendingAction && (
           <form className="approval-confirm-panel" data-testid="workflow-action-panel" onSubmit={confirmAction}>
@@ -865,6 +888,26 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
               <h3>{workflowActionLabels[pendingAction]}</h3>
               <p>Kiểm tra nội dung trước khi xác nhận thao tác.</p>
             </div>
+            {pendingAction === "TRANSFER" && (
+              <label>
+                Người nhận xử lý
+                <select
+                  data-testid="workflow-action-transfer-user"
+                  value={transferToUserId}
+                  onChange={(event) => {
+                    setTransferToUserId(event.target.value);
+                    setActionError("");
+                  }}
+                >
+                  <option value="">Chọn người nhận</option>
+                  {(users.data?.data ?? []).map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.fullName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label>
               Ý kiến xử lý
               <textarea

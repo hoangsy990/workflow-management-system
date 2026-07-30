@@ -12,8 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
+**Tiến độ hiện tại:** `DONE=77`, `PARTIAL=144`, `TODO=39`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `29.6%`, tính trọng số partial `57.3%`.
+
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `WORKFLOW-TRANSFER-ACTION` | Bổ sung hành động chuyển xử lý hồ sơ phê duyệt: backend nhận `TRANSFER`, kiểm người nhận, chuyển pending approval trong transaction, tính approval được chuyển như người duyệt thay trong bước tuần tự, ghi changedData/audit/idempotency và UI chọn người nhận xử lý. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted transfer smoke 1/1, `pnpm smoke:web` 16/16. |
 | 30/07/2026 | `TASK-ADVANCED-FILTERS` | Bổ sung panel lọc công việc nâng cao trên UI: mã, người tạo, người thực hiện, người quản lý, phòng ban, ưu tiên, danh mục, nhãn, khoảng hạn và quá hạn; tất cả nối query server-side. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 15/15. |
 | 30/07/2026 | `MY-TASK-TABS` | Hoàn thiện trang Công việc của tôi với 7 tab bắt buộc, nối filter server-side theo assignee/assigner/manager/follower/review/overdue/done; bổ sung đủ cột list view và smoke test lọc tab. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 14/14. |
 | 30/07/2026 | `TASK-EVALUATION-PANEL` | Thay prompt đánh giá task bằng panel trong app: chọn hoàn thành/làm lại, chấm 1-5 sao, nhập nhận xét/lý do, loading/error rõ ràng và smoke test quản lý xác nhận hoàn thành task. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 13/13. |
@@ -125,7 +128,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Sequential approval | `DONE` | API/service/test/smoke pass. |
 | Parallel approval all/any/min count/min percent | `PARTIAL` | Domain logic có; UI builder chọn sequential/parallel và ALL/ANY cơ bản. Min count/min percent UI còn thiếu. |
 | Approve/reject/request info/return | `DONE` | API/UI/smoke pass; UI có panel xác nhận trong app thay cho browser prompt. |
-| Forward/chuyển xử lý | `TODO` | Chưa triển khai. |
+| Forward/chuyển xử lý | `DONE` | Có action `TRANSFER`, chọn người nhận xử lý trên UI, chuyển pending approval trong transaction, gửi notification, lưu changedData/audit/idempotency và smoke test admin duyệt sau chuyển. |
 | Approval action lưu người, thời gian, action, comment, IP | `DONE` | WorkflowApproval có fields và service ghi. |
 | Lưu step trước/sau và dữ liệu thay đổi | `PARTIAL` | History approvals/steps có; metadata before/after chưa đầy đủ. |
 | Điều kiện rẽ nhánh structured, không eval | `DONE` | Domain condition builder/test/smoke lớn tiền pass; workflow builder có UI điều kiện chuyển bước cơ bản. |
@@ -472,7 +475,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission chưa có cấu hình riêng. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk task advanced filters đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 15/15. Responsive còn cần QA sâu. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk workflow transfer action đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted transfer smoke 1/1 và `pnpm smoke:web` 16/16. Responsive còn cần QA sâu. |
 
 ## Việc ưu tiên tiếp theo
 

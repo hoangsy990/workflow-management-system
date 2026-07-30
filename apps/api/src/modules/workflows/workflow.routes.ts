@@ -122,11 +122,22 @@ const instanceQuerySchema = paginationSchema.extend({
   pendingMine: z.coerce.boolean().optional()
 });
 
-const actionSchema = z.object({
-  action: z.enum(["APPROVE", "REJECT", "REQUEST_INFO", "RETURN"]),
-  comment: z.string().optional(),
-  idempotencyKey: z.string().min(8).optional()
-});
+const actionSchema = z
+  .object({
+    action: z.enum(["APPROVE", "REJECT", "REQUEST_INFO", "RETURN", "TRANSFER"]),
+    comment: z.string().optional(),
+    transferToUserId: z.string().uuid().optional(),
+    idempotencyKey: z.string().min(8).optional()
+  })
+  .superRefine((value, ctx) => {
+    if (value.action === "TRANSFER" && !value.transferToUserId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["transferToUserId"],
+        message: "Người nhận chuyển xử lý là bắt buộc."
+      });
+    }
+  });
 
 const statusSchema = z.object({
   status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"])
@@ -178,4 +189,3 @@ export async function workflowRoutes(app: FastifyInstance) {
     return actOnWorkflowInstance(prisma, request.auth!, params.id, body, request.ip);
   });
 }
-

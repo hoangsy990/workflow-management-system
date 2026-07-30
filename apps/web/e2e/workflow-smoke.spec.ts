@@ -85,6 +85,7 @@ interface WorkflowInstanceDetailRecord extends WorkflowInstanceRecord {
     id: string;
     action?: string | null;
     status: string;
+    approver?: { id: string; fullName: string };
   }>;
 }
 
@@ -257,11 +258,21 @@ async function openWorkflowApproval(page: Page, manager: ApiSession, instance: W
   await expect(page.getByText(instance.code)).toBeVisible();
 }
 
-async function runWorkflowAction(page: Page, testId: string, comment: string) {
+async function runWorkflowAction(page: Page, testId: string, comment: string, transferToUserId?: string) {
   await page.getByTestId(testId).click();
   await expect(page.getByTestId("workflow-action-panel")).toBeVisible();
+  if (transferToUserId) {
+    const transferSelect = page.getByTestId("workflow-action-transfer-user");
+    await expect(transferSelect.locator(`option[value="${transferToUserId}"]`)).toHaveCount(1);
+    await transferSelect.selectOption(transferToUserId);
+  }
   await page.getByTestId("workflow-action-comment").fill(comment);
+  const actionResponse = page.waitForResponse(
+    (response) => response.url().includes("/workflow-instances/") && response.url().endsWith("/actions") && response.request().method() === "POST"
+  );
   await page.getByTestId("workflow-action-confirm").click();
+  const actionResult = await actionResponse;
+  expect(actionResult.ok(), await actionResult.text()).toBeTruthy();
 }
 
 async function openTaskFromNav(page: Page, navTestId: string, task: TaskRecord, keyword = task.title) {
@@ -620,6 +631,23 @@ test("yêu cầu bổ sung hồ sơ PAYMENT trên UI", async ({ page, request })
   await openWorkflowApproval(page, manager, instance);
   await runWorkflowAction(page, "workflow-action-request-info", `Bổ sung smoke ${runId}`);
   await expect(page.getByTestId("workflow-instance-status")).toContainText("Chờ bổ sung");
+});
+
+test("chuyển xử lý hồ sơ PAYMENT sang người khác", async ({ page, request }) => {
+  const employee = await apiLogin(request, "employee");
+  const manager = await apiLogin(request, "manager");
+  const admin = await apiLogin(request, "admin");
+  const instance = await createSmokeWorkflowInstance(request, employee, "transfer");
+
+  await openWorkflowApproval(page, manager, instance);
+  await runWorkflowAction(page, "workflow-action-transfer", `Chuyển xử lý smoke ${runId}`, admin.user.id);
+
+  const transferred = await apiGet<WorkflowInstanceDetailRecord>(request, admin, `/workflow-instances/${instance.id}`);
+  expect(transferred.approvals?.some((approval) => approval.status === "PENDING" && approval.approver?.id === admin.user.id)).toBe(true);
+
+  await openWorkflowApproval(page, admin, instance);
+  await runWorkflowAction(page, "workflow-action-approve", `Admin duyệt sau chuyển ${runId}`);
+  await expect(page.getByTestId("workflow-instance-status")).toContainText(/Đã duyệt|Hoàn thành/);
 });
 
 test("idempotency key không ghi nhận duyệt trùng", async ({ request }) => {
