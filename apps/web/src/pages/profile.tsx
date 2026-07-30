@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { api } from "../api/client";
+import { api, apiAssetUrl } from "../api/client";
 import { ErrorBlock, LoadingBlock } from "../components/common";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { formatDate, statusLabels } from "../lib/format";
@@ -37,11 +37,15 @@ export function ProfilePage({
   const activity = useAsyncData(() => api.profileActivity(), []);
   const [form, setForm] = useState(profileForm(null));
   const [passwordForm, setPasswordForm] = useState(emptyPasswordForm);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [avatarError, setAvatarError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [avatarSaved, setAvatarSaved] = useState(false);
 
   useEffect(() => {
     if (data) {
@@ -87,6 +91,34 @@ export function ProfilePage({
       setSaveError(err instanceof Error ? err.message : "Không cập nhật được hồ sơ.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function uploadAvatar() {
+    if (!avatarFile || avatarUploading) return;
+    setAvatarError("");
+    setAvatarSaved(false);
+    if (!["image/jpeg", "image/png", "image/webp"].includes(avatarFile.type)) {
+      setAvatarError("Ảnh đại diện chỉ hỗ trợ JPG, PNG hoặc WebP.");
+      return;
+    }
+    if (avatarFile.size > 5 * 1024 * 1024) {
+      setAvatarError("Ảnh đại diện không được vượt quá 5MB.");
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const result = await api.uploadProfileAvatar(avatarFile);
+      setForm((current) => ({ ...current, avatarUrl: result.avatarUrl ?? "" }));
+      setAvatarFile(null);
+      setAvatarSaved(true);
+      onProfileUpdated?.(result);
+      await reload();
+      await activity.reload();
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : "Không tải được ảnh đại diện.");
+    } finally {
+      setAvatarUploading(false);
     }
   }
 
@@ -137,9 +169,34 @@ export function ProfilePage({
           <input data-testid="profile-title" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
         </label>
         <label>
-          Ảnh đại diện URL
+          URL ảnh đại diện
           <input data-testid="profile-avatar-url" value={form.avatarUrl} onChange={(event) => setForm({ ...form, avatarUrl: event.target.value })} />
         </label>
+        <div className="avatar-upload">
+          {form.avatarUrl ? (
+            <img alt="Ảnh đại diện" data-testid="profile-avatar-preview" src={apiAssetUrl(form.avatarUrl)} />
+          ) : (
+            <div className="avatar-placeholder" data-testid="profile-avatar-placeholder">Avatar</div>
+          )}
+          <label>
+            Chọn ảnh đại diện
+            <input
+              accept="image/jpeg,image/png,image/webp"
+              data-testid="profile-avatar-file"
+              type="file"
+              onChange={(event) => {
+                setAvatarSaved(false);
+                setAvatarError("");
+                setAvatarFile(event.target.files?.[0] ?? null);
+              }}
+            />
+          </label>
+          <button className="ghost-button" data-testid="profile-avatar-upload" type="button" disabled={!avatarFile || avatarUploading} onClick={uploadAvatar}>
+            {avatarUploading ? "Đang tải..." : "Tải ảnh lên"}
+          </button>
+        </div>
+        {avatarError && <p className="form-error" data-testid="profile-avatar-error">{avatarError}</p>}
+        {avatarSaved && <p className="success-text" data-testid="profile-avatar-success">Đã cập nhật ảnh đại diện.</p>}
         {saveError && <p className="form-error">{saveError}</p>}
         {saved && <p className="success-text" data-testid="profile-save-success">Đã cập nhật hồ sơ.</p>}
         <button className="primary-button" data-testid="profile-save" type="submit" disabled={saving}>

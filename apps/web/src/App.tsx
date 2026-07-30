@@ -114,9 +114,10 @@ export default function App() {
                 current
                   ? {
                       ...current,
-                      fullName: profile.fullName,
-                      title: profile.title,
-                      department: profile.department
+                      fullName: profile.fullName ?? current.fullName,
+                      title: profile.title ?? current.title,
+                      avatarUrl: profile.avatarUrl ?? current.avatarUrl,
+                      department: profile.department ?? current.department
                     }
                   : current
               )

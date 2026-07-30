@@ -28,13 +28,19 @@ const userQuerySchema = paginationSchema.extend({
   keyword: z.string().optional()
 });
 
+const externalAvatarUrlSchema = z.string().url();
+const avatarUrlSchema = z.string().max(500).refine(
+  (value) => value.startsWith("/api/v1/avatars/") || externalAvatarUrlSchema.safeParse(value).success,
+  "Ảnh đại diện phải là URL hợp lệ."
+);
+
 const createUserSchema = z.object({
   employeeCode: z.string().min(2),
   fullName: z.string().min(2),
   email: z.string().email(),
   phone: z.string().optional(),
   password: z.string().min(8),
-  avatarUrl: z.string().url().optional(),
+  avatarUrl: avatarUrlSchema.optional(),
   title: z.string().optional(),
   departmentId: z.string().uuid().optional(),
   managerId: z.string().uuid().optional(),
@@ -48,7 +54,7 @@ const updateUserSchema = createUserSchema
   .extend({
     status: z.enum(["ACTIVE", "INACTIVE", "LOCKED"]).optional(),
     phone: z.string().nullable().optional(),
-    avatarUrl: z.string().url().nullable().optional(),
+    avatarUrl: avatarUrlSchema.nullable().optional(),
     title: z.string().nullable().optional(),
     departmentId: z.string().uuid().nullable().optional(),
     managerId: z.string().uuid().nullable().optional()
@@ -57,7 +63,7 @@ const updateUserSchema = createUserSchema
 const profileUpdateSchema = z.object({
   fullName: z.string().min(2).max(120).optional(),
   phone: z.string().max(30).nullable().optional(),
-  avatarUrl: z.string().url().nullable().optional(),
+  avatarUrl: avatarUrlSchema.nullable().optional(),
   title: z.string().max(120).nullable().optional()
 });
 

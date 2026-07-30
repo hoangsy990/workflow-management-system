@@ -766,6 +766,31 @@ tbody tr:hover {
   overflow-wrap: anywhere;
 }
 
+.avatar-upload {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.avatar-upload img,
+.avatar-placeholder {
+  width: 72px;
+  height: 72px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--panel-soft);
+}
+
+.avatar-placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .required-mark,
 .field-error {
   color: var(--danger);
@@ -1690,6 +1715,14 @@ progress {
 
   .session-row {
     grid-template-columns: 1fr;
+  }
+
+  .avatar-upload {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .avatar-upload button {
+    grid-column: span 2;
   }
 
   .content {

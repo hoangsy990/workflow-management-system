@@ -422,6 +422,19 @@ test("người dùng cập nhật hồ sơ cá nhân trên UI", async ({ page, r
   await openAppWithSession(page, manager);
   await page.getByTestId("account-profile-open").click();
   await expect(page.getByTestId("profile-form")).toBeVisible();
+  await page.getByTestId("profile-avatar-file").setInputFiles({
+    name: `avatar-${runId}.png`,
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+      "base64"
+    )
+  });
+  const avatarResponse = page.waitForResponse((response) => response.url().endsWith("/profile/avatar") && response.request().method() === "POST");
+  await page.getByTestId("profile-avatar-upload").click();
+  expect((await avatarResponse).ok()).toBe(true);
+  await expect(page.getByTestId("profile-avatar-success")).toBeVisible();
+  await expect(page.getByTestId("profile-avatar-preview")).toBeVisible();
   await page.getByTestId("profile-phone").fill(nextPhone);
   await page.getByTestId("profile-title").fill(nextTitle);
   await page.getByTestId("profile-save").click();
@@ -432,6 +445,7 @@ test("người dùng cập nhật hồ sơ cá nhân trên UI", async ({ page, r
   const profile = await apiGet<Record<string, any>>(request, manager, "/profile");
   expect(profile.phone).toBe(nextPhone);
   expect(profile.title).toBe(nextTitle);
+  expect(profile.avatarUrl).toContain("/api/v1/avatars/");
 });
 
 test("dashboard hiển thị thống kê công việc theo phòng ban", async ({ page, request }) => {

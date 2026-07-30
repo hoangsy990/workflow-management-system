@@ -16,6 +16,10 @@ import { ensureCanReadWorkflowInstance, ensureCanUploadWorkflowAttachment } from
 
 const taskParamSchema = z.object({ id: z.string().uuid() });
 const attachmentParamSchema = z.object({ id: z.string().uuid() });
+const avatarParamSchema = z.object({
+  userId: z.string().uuid(),
+  filename: z.string().regex(/^[A-Za-z0-9_-]+\.(jpg|jpeg|png|webp)$/i)
+});
 
 const allowedMimeTypes = new Set([
   "image/jpeg",
@@ -28,6 +32,12 @@ const allowedMimeTypes = new Set([
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "video/mp4"
 ]);
+const avatarMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const avatarExtensionByMime: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp"
+};
 
 function safeOriginalName(filename: string) {
   return path.basename(filename).replace(/[^\w.\- ()]/g, "_").slice(0, 180);
@@ -50,6 +60,82 @@ async function ensureTaskVisible(taskId: string, userId: string, authWhere: Awai
 }
 
 export async function uploadRoutes(app: FastifyInstance) {
+  app.get("/avatars/:userId/:filename", async (request, reply) => {
+    const params = parseParams(request, avatarParamSchema);
+    const avatarUrl = `/api/v1/avatars/${params.userId}/${params.filename}`;
+    const user = await prisma.user.findFirst({
+      where: { id: params.userId, avatarUrl, deletedAt: null },
+      select: { id: true }
+    });
+    if (!user) {
+      throw notFound("Không tìm thấy ảnh đại diện.");
+    }
+
+    const storageKey = path.posix.join("avatars", params.userId, params.filename);
+    const absolutePath = path.resolve(config.UPLOAD_DIR, storageKey);
+    const uploadRoot = path.resolve(config.UPLOAD_DIR);
+    if (!absolutePath.startsWith(uploadRoot + path.sep)) {
+      throw forbidden("Đường dẫn tệp không hợp lệ.");
+    }
+
+    let fileStat;
+    try {
+      fileStat = await stat(absolutePath);
+    } catch {
+      throw notFound("Không tìm thấy ảnh đại diện.");
+    }
+
+    const extension = path.extname(params.filename).toLowerCase();
+    const mimeType = extension === ".webp" ? "image/webp" : extension === ".png" ? "image/png" : "image/jpeg";
+    reply.type(mimeType);
+    reply.header("Content-Length", fileStat.size);
+    return reply.send(createReadStream(absolutePath));
+  });
+
+  app.post("/profile/avatar", { preHandler: requireAuth }, async (request) => {
+    const file = await request.file({
+      limits: { fileSize: Math.min(config.MAX_UPLOAD_MB, 5) * 1024 * 1024 }
+    });
+    if (!file) {
+      throw badRequest("Vui lòng chọn ảnh đại diện.");
+    }
+    if (!avatarMimeTypes.has(file.mimetype)) {
+      throw badRequest("Ảnh đại diện chỉ hỗ trợ JPG, PNG hoặc WebP.");
+    }
+
+    const originalName = safeOriginalName(file.filename);
+    const storedName = `${nanoid(24)}${avatarExtensionByMime[file.mimetype]}`;
+    const relativeKey = path.posix.join("avatars", request.auth!.userId, storedName);
+    const avatarUrl = `/api/v1/avatars/${request.auth!.userId}/${storedName}`;
+    const absoluteDir = path.resolve(config.UPLOAD_DIR, "avatars", request.auth!.userId);
+    const absolutePath = path.join(absoluteDir, storedName);
+
+    await mkdir(absoluteDir, { recursive: true });
+    await pipeline(file.file, createWriteStream(absolutePath));
+    const fileStat = await stat(absolutePath);
+
+    await prisma.user.update({
+      where: { id: request.auth!.userId },
+      data: { avatarUrl }
+    });
+
+    await writeAuditLog(prisma, {
+      actorId: request.auth!.userId,
+      action: "user.avatar.upload",
+      entityType: "users",
+      entityId: request.auth!.userId,
+      ipAddress: request.ip,
+      metadata: { originalName, sizeBytes: fileStat.size, mimeType: file.mimetype, storageKey: relativeKey }
+    });
+
+    return {
+      avatarUrl,
+      originalName,
+      mimeType: file.mimetype,
+      sizeBytes: fileStat.size
+    };
+  });
+
   app.post("/tasks/:id/attachments", { preHandler: requireAuth }, async (request) => {
     const params = parseParams(request, taskParamSchema);
     const authWhere = await visibleTaskWhere(prisma, request.auth!);

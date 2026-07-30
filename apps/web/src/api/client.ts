@@ -11,6 +11,7 @@ export interface ApiUser {
   fullName: string;
   email: string;
   title?: string | null;
+  avatarUrl?: string | null;
   permissions: string[];
   roles: Array<{ code: string; name: string }>;
   department?: { id: string; name: string; code: string } | null;
@@ -59,6 +60,17 @@ export function setStoredSession(session: ApiSession | null) {
     return;
   }
   sessionStorage.setItem(sessionKey, JSON.stringify(session));
+}
+
+export function apiAssetUrl(value?: string | null) {
+  if (!value) return "";
+  if (/^(https?:|data:|blob:)/i.test(value)) return value;
+  if (!value.startsWith("/")) return value;
+  try {
+    return `${new URL(API_URL).origin}${value}`;
+  } catch {
+    return value;
+  }
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -180,6 +192,11 @@ export const api = {
   changePassword: (payload: Record<string, unknown>) =>
     apiRequest<{ ok: true; revokedSessions: number }>("/profile/password", { method: "POST", body: JSON.stringify(payload) }),
   profileActivity: () => apiRequest<Paginated<Record<string, any>>>("/profile/activity?pageSize=8"),
+  uploadProfileAvatar: (file: File) => {
+    const form = new FormData();
+    form.set("file", file);
+    return apiRequest<Record<string, any>>("/profile/avatar", { method: "POST", body: form });
+  },
   logout: (refreshToken?: string) =>
     apiRequest<{ ok: true }>("/auth/logout", {
       method: "POST",
