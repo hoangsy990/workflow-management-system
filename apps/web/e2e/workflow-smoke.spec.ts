@@ -618,6 +618,23 @@ test("tạo task kèm tệp đính kèm ngay trên form UI", async ({ page, requ
   await expect(attachmentButton).toBeVisible();
 });
 
+test("lịch công việc hiển thị ngày bắt đầu và hạn hoàn thành", async ({ page, request }) => {
+  const manager = await apiLogin(request, "manager");
+  const task = await createSmokeTask(request, manager, "calendar", {
+    startDate: `${dateInput(-29)}T00:00:00.000Z`,
+    dueDate: `${dateInput(-28)}T00:00:00.000Z`
+  });
+
+  await openAppWithSession(page, manager);
+  await page.getByTestId("nav-calendar").click();
+  await expect(page.getByTestId("task-calendar-board")).toBeVisible();
+  await expect(page.getByTestId(`task-calendar-start-${task.id}`)).toContainText("Bắt đầu");
+  await expect(page.getByTestId(`task-calendar-start-${task.id}`)).toContainText(task.title);
+  await expect(page.getByTestId(`task-calendar-due-${task.id}`)).toContainText("Hạn");
+  await page.getByTestId(`task-calendar-due-${task.id}`).click();
+  await expect(page.getByRole("heading", { name: task.title })).toBeVisible();
+});
+
 test("lọc công việc phía server trên UI", async ({ page, request }) => {
   const manager = await apiLogin(request, "manager");
   const users = await apiGet<Paginated<UserRecord>>(request, manager, "/users?pageSize=100");

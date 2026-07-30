@@ -96,6 +96,56 @@ function collectAllowedAttachmentFiles(files: FileList | null) {
   return { accepted, error };
 }
 
+function toLocalDate(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function calendarDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function startOfWeek(date: Date) {
+  const result = new Date(date);
+  const offset = (result.getDay() + 6) % 7;
+  result.setDate(result.getDate() - offset);
+  return result;
+}
+
+function endOfWeek(date: Date) {
+  return addDays(startOfWeek(date), 6);
+}
+
+function buildCalendarDays(tasks: Record<string, any>[]) {
+  const today = toLocalDate(new Date().toISOString()) ?? new Date();
+  let min = today;
+  let max = addDays(today, 13);
+
+  for (const task of tasks) {
+    const start = toLocalDate(task.startDate);
+    const due = toLocalDate(task.dueDate);
+    for (const date of [start, due]) {
+      if (!date) continue;
+      if (date < min) min = date;
+      if (date > max) max = date;
+    }
+  }
+
+  const days: Date[] = [];
+  for (let current = startOfWeek(min); current <= endOfWeek(max); current = addDays(current, 1)) {
+    days.push(current);
+  }
+  return days;
+}
+
 export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "all" | "mine" }) {
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState("");
@@ -449,39 +499,80 @@ export function Kanban({ setPage, setTaskId }: TaskPageProps) {
 }
 
 export function CalendarPage({ setPage, setTaskId }: TaskPageProps) {
-  const { data, loading, error } = useAsyncData(() => api.tasks("?pageSize=100"), []);
+  const calendarQuery = useMemo(() => {
+    const params = new URLSearchParams({ pageSize: "100" });
+    params.set("from", addDays(new Date(), -30).toISOString());
+    params.set("to", addDays(new Date(), 90).toISOString());
+    return `?${params.toString()}`;
+  }, []);
+  const { data, loading, error } = useAsyncData(() => api.tasks(calendarQuery), [calendarQuery]);
   if (loading) return <LoadingBlock />;
   if (error) return <ErrorBlock message={error} />;
-  const grouped = new Map<string, Record<string, any>[]>();
-  for (const task of data?.data ?? []) {
-    const key = formatDate(task.dueDate) || "Chưa có hạn";
-    grouped.set(key, [...(grouped.get(key) ?? []), task]);
+  const tasks = data?.data ?? [];
+  const days = buildCalendarDays(tasks);
+  const tasksByStart = new Map<string, Record<string, any>[]>();
+  const tasksByDue = new Map<string, Record<string, any>[]>();
+  for (const task of tasks) {
+    const start = toLocalDate(task.startDate);
+    const due = toLocalDate(task.dueDate);
+    if (start) {
+      const key = calendarDateKey(start);
+      tasksByStart.set(key, [...(tasksByStart.get(key) ?? []), task]);
+    }
+    if (due) {
+      const key = calendarDateKey(due);
+      tasksByDue.set(key, [...(tasksByDue.get(key) ?? []), task]);
+    }
   }
+  const openTask = (task: Record<string, any>) => {
+    setTaskId(task.id);
+    setPage("taskDetail");
+  };
+
   return (
-    <section className="calendar-list">
-      {[...grouped.entries()].map(([date, tasks]) => (
-        <div className="panel" key={date}>
-          <div className="panel-head">
-            <h2>{date}</h2>
+    <section className="calendar-board" data-testid="task-calendar-board">
+      {days.map((day) => {
+        const key = calendarDateKey(day);
+        const starts = tasksByStart.get(key) ?? [];
+        const dues = tasksByDue.get(key) ?? [];
+        return (
+          <div className="calendar-day" data-testid={`task-calendar-day-${key}`} key={key}>
+            <div className="calendar-date">
+              <strong>{formatDate(day.toISOString())}</strong>
+              <span>{day.toLocaleDateString("vi-VN", { weekday: "short" })}</span>
+            </div>
+            <div className="calendar-events">
+              {starts.map((task) => (
+                <button
+                  className="calendar-event start"
+                  data-testid={`task-calendar-start-${task.id}`}
+                  key={`start-${task.id}`}
+                  type="button"
+                  onClick={() => openTask(task)}
+                >
+                  <small>Bắt đầu</small>
+                  <strong>{task.title}</strong>
+                  <span>{task.code}</span>
+                </button>
+              ))}
+              {dues.map((task) => (
+                <button
+                  className="calendar-event due"
+                  data-testid={`task-calendar-due-${task.id}`}
+                  key={`due-${task.id}`}
+                  type="button"
+                  onClick={() => openTask(task)}
+                >
+                  <small>Hạn</small>
+                  <strong>{task.title}</strong>
+                  <span>{statusLabels[task.displayStatus ?? task.status]}</span>
+                </button>
+              ))}
+              {starts.length === 0 && dues.length === 0 && <span className="empty-text tight">Không có việc</span>}
+            </div>
           </div>
-          <div className="stack-list">
-            {tasks.map((task) => (
-              <button
-                key={task.id}
-                type="button"
-                onClick={() => {
-                  setTaskId(task.id);
-                  setPage("taskDetail");
-                }}
-              >
-                <strong>{task.title}</strong>
-                <span>{task.code}</span>
-                <small>{statusLabels[task.displayStatus ?? task.status]}</small>
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </section>
   );
 }

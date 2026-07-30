@@ -989,9 +989,74 @@ progress {
   accent-color: var(--primary);
 }
 
-.calendar-list {
+.calendar-board {
   display: grid;
-  gap: 16px;
+  grid-template-columns: repeat(7, minmax(160px, 1fr));
+  gap: 10px;
+  overflow-x: auto;
+}
+
+.calendar-day {
+  min-height: 170px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.calendar-date {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.calendar-date span {
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+.calendar-events {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.calendar-event {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.calendar-event small {
+  width: fit-content;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #075985;
+  background: #e0f2fe;
+  font-weight: 800;
+}
+
+.calendar-event.due small {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.calendar-event strong,
+.calendar-event span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .info-grid {
@@ -1479,6 +1544,10 @@ progress {
   .kanban {
     grid-template-columns: repeat(6, 82vw);
     min-height: auto;
+  }
+
+  .calendar-board {
+    grid-template-columns: repeat(7, 78vw);
   }
 
   .info-grid {

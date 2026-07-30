@@ -185,12 +185,10 @@ export async function listTasks(db: PrismaClient, auth: AuthContext, input: Task
   if (input.categoryId) filters.push({ categoryId: input.categoryId });
   if (input.tagId) filters.push({ tags: { some: { tagId: input.tagId } } });
   if (input.from || input.to) {
-    filters.push({
-      dueDate: {
-        gte: input.from,
-        lte: input.to
-      }
-    });
+    const dateRange: Prisma.DateTimeNullableFilter = {};
+    if (input.from) dateRange.gte = input.from;
+    if (input.to) dateRange.lte = input.to;
+    filters.push({ OR: [{ startDate: dateRange }, { dueDate: dateRange }] });
   }
   if (input.overdue || input.myView === "overdue") {
     filters.push({
