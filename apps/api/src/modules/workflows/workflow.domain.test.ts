@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyWorkflowDefaultValues,
   assertWorkflowVersionEditable,
   evaluateConditions,
   isStepComplete,
@@ -64,5 +65,33 @@ describe("workflow domain", () => {
     expect(errors[1]).toContain("Amount");
     expect(errors[2]).toContain("From date");
     expect(errors[3]).toContain("Confirmed");
+  });
+
+  it("applies default values and validates structured rules", () => {
+    const fields = [
+      {
+        code: "purpose",
+        name: "Purpose",
+        type: "SHORT_TEXT" as const,
+        isRequired: true,
+        defaultValue: "Payment proposal",
+        validation: { minLength: 5, maxLength: 20 }
+      },
+      {
+        code: "amount",
+        name: "Amount",
+        type: "CURRENCY" as const,
+        isRequired: true,
+        validation: { min: 1000, max: 5000 }
+      }
+    ];
+
+    const withDefaults = applyWorkflowDefaultValues(fields, { amount: 900 });
+    expect(withDefaults.purpose).toBe("Payment proposal");
+    expect(validateWorkflowFormData(fields, withDefaults)).toEqual(["Trường 'Amount' phải lớn hơn hoặc bằng 1000."]);
+    expect(validateWorkflowFormData(fields, { purpose: "abc", amount: 6000 })).toEqual([
+      "Trường 'Purpose' cần tối thiểu 5 ký tự.",
+      "Trường 'Amount' phải nhỏ hơn hoặc bằng 5000."
+    ]);
   });
 });

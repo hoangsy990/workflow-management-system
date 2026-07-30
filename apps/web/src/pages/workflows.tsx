@@ -51,6 +51,11 @@ type WorkflowFieldDraft = {
   type: string;
   isRequired: boolean;
   placeholder: string;
+  defaultValue: string;
+  minLength: string;
+  maxLength: string;
+  minValue: string;
+  maxValue: string;
 };
 
 type WorkflowApprovalStepDraft = {
@@ -78,7 +83,15 @@ type WorkflowFormField = {
   isRequired?: boolean;
   defaultValue?: unknown;
   placeholder?: string | null;
+  validation?: WorkflowValidationRules | null;
   displayOrder?: number;
+};
+
+type WorkflowValidationRules = {
+  minLength?: number;
+  maxLength?: number;
+  min?: number;
+  max?: number;
 };
 
 type WorkflowVersionDetail = {
@@ -168,7 +181,12 @@ function newWorkflowField(index: number): WorkflowFieldDraft {
       code: "purpose",
       type: "SHORT_TEXT",
       isRequired: true,
-      placeholder: ""
+      placeholder: "",
+      defaultValue: "",
+      minLength: "",
+      maxLength: "",
+      minValue: "",
+      maxValue: ""
     };
   }
   if (index === 2) {
@@ -178,7 +196,12 @@ function newWorkflowField(index: number): WorkflowFieldDraft {
       code: "amount",
       type: "CURRENCY",
       isRequired: true,
-      placeholder: ""
+      placeholder: "",
+      defaultValue: "",
+      minLength: "",
+      maxLength: "",
+      minValue: "",
+      maxValue: ""
     };
   }
   return {
@@ -187,7 +210,12 @@ function newWorkflowField(index: number): WorkflowFieldDraft {
     code: "field_" + index,
     type: "SHORT_TEXT",
     isRequired: false,
-    placeholder: ""
+    placeholder: "",
+    defaultValue: "",
+    minLength: "",
+    maxLength: "",
+    minValue: "",
+    maxValue: ""
   };
 }
 
@@ -217,6 +245,75 @@ function parseConditionValue(value: string) {
   if (trimmed.toLowerCase() === "true") return true;
   if (trimmed.toLowerCase() === "false") return false;
   return trimmed;
+}
+
+function supportsTextValidation(type: string) {
+  return type === "SHORT_TEXT" || type === "LONG_TEXT" || type === "SELECT" || type === "RADIO" || type === "TABLE";
+}
+
+function supportsNumberValidation(type: string) {
+  return type === "NUMBER" || type === "CURRENCY";
+}
+
+function parseOptionalWorkflowNumber(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function workflowRuleNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return undefined;
+}
+
+function parseWorkflowFieldDefault(field: WorkflowFieldDraft): { value?: unknown; error?: string } {
+  const raw = field.defaultValue.trim();
+  if (!raw || field.type === "HEADING") {
+    return {};
+  }
+  if (supportsNumberValidation(field.type)) {
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? { value: parsed } : { error: `Giá trị mặc định của ${field.name} phải là số hợp lệ.` };
+  }
+  if (field.type === "CHECKBOX") {
+    const normalized = raw.toLowerCase();
+    return { value: normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "co" || normalized === "có" };
+  }
+  return { value: raw };
+}
+
+function buildWorkflowFieldValidation(field: WorkflowFieldDraft): { validation?: WorkflowValidationRules; error?: string } {
+  const validation: WorkflowValidationRules = {};
+
+  if (supportsTextValidation(field.type)) {
+    const minLength = parseOptionalWorkflowNumber(field.minLength);
+    const maxLength = parseOptionalWorkflowNumber(field.maxLength);
+    if (minLength === null || maxLength === null) {
+      return { error: `Độ dài validation của ${field.name} phải là số hợp lệ.` };
+    }
+    if (minLength !== undefined) validation.minLength = Math.trunc(minLength);
+    if (maxLength !== undefined) validation.maxLength = Math.trunc(maxLength);
+    if (validation.minLength !== undefined && validation.maxLength !== undefined && validation.minLength > validation.maxLength) {
+      return { error: `Độ dài tối thiểu của ${field.name} không được lớn hơn tối đa.` };
+    }
+  }
+
+  if (supportsNumberValidation(field.type)) {
+    const min = parseOptionalWorkflowNumber(field.minValue);
+    const max = parseOptionalWorkflowNumber(field.maxValue);
+    if (min === null || max === null) {
+      return { error: `Giá trị validation của ${field.name} phải là số hợp lệ.` };
+    }
+    if (min !== undefined) validation.min = min;
+    if (max !== undefined) validation.max = max;
+    if (validation.min !== undefined && validation.max !== undefined && validation.min > validation.max) {
+      return { error: `Giá trị tối thiểu của ${field.name} không được lớn hơn tối đa.` };
+    }
+  }
+
+  return Object.keys(validation).length > 0 ? { validation } : {};
 }
 
 const currencyFormatter = new Intl.NumberFormat("vi-VN");
@@ -266,6 +363,28 @@ function validateWorkflowValues(fields: WorkflowFormField[], values: Record<stri
     }
     if ((field.type === "DATE" || field.type === "DATETIME") && Number.isNaN(new Date(String(value)).getTime())) {
       errors[field.code] = "Vui lòng chọn ngày hợp lệ.";
+    }
+    if (supportsTextValidation(field.type)) {
+      const minLength = workflowRuleNumber(field.validation?.minLength);
+      const maxLength = workflowRuleNumber(field.validation?.maxLength);
+      const textValue = String(value);
+      if (minLength !== undefined && textValue.length < minLength) {
+        errors[field.code] = `Vui lòng nhập tối thiểu ${minLength} ký tự.`;
+      }
+      if (maxLength !== undefined && textValue.length > maxLength) {
+        errors[field.code] = `Vui lòng nhập tối đa ${maxLength} ký tự.`;
+      }
+    }
+    if (supportsNumberValidation(field.type) && Number.isFinite(Number(value))) {
+      const min = workflowRuleNumber(field.validation?.min);
+      const max = workflowRuleNumber(field.validation?.max);
+      const numericValue = Number(value);
+      if (min !== undefined && numericValue < min) {
+        errors[field.code] = `Giá trị phải lớn hơn hoặc bằng ${min}.`;
+      }
+      if (max !== undefined && numericValue > max) {
+        errors[field.code] = `Giá trị phải nhỏ hơn hoặc bằng ${max}.`;
+      }
     }
     return errors;
   }, {});
@@ -362,6 +481,12 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
     if (stepCodes.some((code) => !code)) return "Mã bước không được để trống.";
     if (new Set(fieldCodes).size !== fieldCodes.length) return "Mã trường không được trùng.";
     if (new Set(stepCodes).size !== stepCodes.length) return "Mã bước không được trùng.";
+    for (const field of fields) {
+      const defaultResult = parseWorkflowFieldDefault(field);
+      if (defaultResult.error) return defaultResult.error;
+      const validationResult = buildWorkflowFieldValidation(field);
+      if (validationResult.error) return validationResult.error;
+    }
     const invalidMinRule = approvalSteps.find(
       (step) =>
         (step.completionRule === "MIN_COUNT" && (!Number.isInteger(step.minCount) || step.minCount < 1)) ||
@@ -412,14 +537,20 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
         category: form.category.trim() || undefined,
         description: form.description.trim() || undefined,
         activate: true,
-        fields: fields.map((field, index) => ({
-          name: field.name.trim(),
-          code: normalizeWorkflowCode(field.code),
-          type: field.type,
-          isRequired: field.isRequired,
-          placeholder: field.placeholder.trim() || undefined,
-          displayOrder: index + 1
-        })),
+        fields: fields.map((field, index) => {
+          const defaultResult = parseWorkflowFieldDefault(field);
+          const validationResult = buildWorkflowFieldValidation(field);
+          return {
+            name: field.name.trim(),
+            code: normalizeWorkflowCode(field.code),
+            type: field.type,
+            isRequired: field.isRequired,
+            defaultValue: defaultResult.value,
+            placeholder: field.placeholder.trim() || undefined,
+            validation: validationResult.validation,
+            displayOrder: index + 1
+          };
+        }),
         steps: [
           { code: "start", name: "Bắt đầu", type: "START", orderIndex: 1 },
           ...normalizedSteps.map((step) => ({
@@ -474,7 +605,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
       <fieldset className="builder-list">
         <legend>{"Biểu mẫu"}</legend>
         {fields.map((field, index) => (
-          <div className="builder-row" key={field.id}>
+          <div className="builder-row workflow-field-row" key={field.id}>
             <input
               data-testid={"workflow-field-name-" + index}
               placeholder="Tên trường"
@@ -489,7 +620,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
               onChange={(event) => updateField(field.id, { code: event.target.value })}
               required
             />
-            <select value={field.type} onChange={(event) => updateField(field.id, { type: event.target.value })}>
+            <select data-testid={"workflow-field-type-" + index} value={field.type} onChange={(event) => updateField(field.id, { type: event.target.value })}>
               {fieldTypeOptions.map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
@@ -501,6 +632,54 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
               {"Bắt buộc"}
             </label>
             <input placeholder="Gợi ý" value={field.placeholder} onChange={(event) => updateField(field.id, { placeholder: event.target.value })} />
+            <div className="workflow-field-rules">
+              <label>
+                {"Giá trị mặc định"}
+                <input data-testid={"workflow-field-default-" + index} value={field.defaultValue} onChange={(event) => updateField(field.id, { defaultValue: event.target.value })} />
+              </label>
+              <label>
+                {"Ký tự tối thiểu"}
+                <input
+                  data-testid={"workflow-field-min-length-" + index}
+                  type="number"
+                  min={0}
+                  value={field.minLength}
+                  disabled={!supportsTextValidation(field.type)}
+                  onChange={(event) => updateField(field.id, { minLength: event.target.value })}
+                />
+              </label>
+              <label>
+                {"Ký tự tối đa"}
+                <input
+                  data-testid={"workflow-field-max-length-" + index}
+                  type="number"
+                  min={1}
+                  value={field.maxLength}
+                  disabled={!supportsTextValidation(field.type)}
+                  onChange={(event) => updateField(field.id, { maxLength: event.target.value })}
+                />
+              </label>
+              <label>
+                {"Giá trị tối thiểu"}
+                <input
+                  data-testid={"workflow-field-min-value-" + index}
+                  type="number"
+                  value={field.minValue}
+                  disabled={!supportsNumberValidation(field.type)}
+                  onChange={(event) => updateField(field.id, { minValue: event.target.value })}
+                />
+              </label>
+              <label>
+                {"Giá trị tối đa"}
+                <input
+                  data-testid={"workflow-field-max-value-" + index}
+                  type="number"
+                  value={field.maxValue}
+                  disabled={!supportsNumberValidation(field.type)}
+                  onChange={(event) => updateField(field.id, { maxValue: event.target.value })}
+                />
+              </label>
+            </div>
             <button className="icon-button" type="button" title="Xóa trường" disabled={fields.length <= 1} onClick={() => setFields((current) => current.filter((item) => item.id !== field.id))}>
               <Trash2 size={16} />
             </button>

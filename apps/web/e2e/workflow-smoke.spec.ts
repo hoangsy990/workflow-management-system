@@ -86,6 +86,11 @@ interface WorkflowTemplateRecord {
   code: string;
   name: string;
   versions?: Array<{
+    fields?: Array<{
+      code: string;
+      defaultValue?: unknown;
+      validation?: Record<string, unknown> | null;
+    }>;
     steps?: Array<{
       code: string;
       approvalMode?: string | null;
@@ -552,12 +557,18 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   const admin = await apiLogin(request, "admin");
   const code = `SMOKE_${runId.replace(/[^A-Za-z0-9]/g, "_").toUpperCase()}`;
   const name = `Smoke workflow ${runId}`;
+  const defaultPurpose = `Noi dung mac dinh ${runId}`;
 
   await openAppWithSession(page, admin);
   await page.getByTestId("nav-workflowTemplates").click();
   await page.getByTestId("workflow-template-create").click();
   await page.getByTestId("workflow-template-code").fill(code);
   await page.getByTestId("workflow-template-name").fill(name);
+  await page.getByTestId("workflow-field-default-0").fill(defaultPurpose);
+  await page.getByTestId("workflow-field-min-length-0").fill("5");
+  await page.getByTestId("workflow-field-max-length-0").fill("90");
+  await page.getByTestId("workflow-field-min-value-1").fill("1000000");
+  await page.getByTestId("workflow-field-max-value-1").fill("100000000");
   await page.getByTestId("workflow-field-add").click();
   await page.getByTestId("workflow-field-name-2").fill("Ghi chú kiểm thử");
   await page.getByTestId("workflow-field-code-2").fill("smoke_note");
@@ -577,8 +588,12 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   const created = (await (await createResponse).json()) as WorkflowTemplateRecord;
   const condition = created.versions?.[0]?.transitions?.flatMap((transition) => transition.conditions ?? []).find((item) => item.fieldCode === "amount");
   const minCountStep = created.versions?.[0]?.steps?.find((step) => step.code === "final_confirm");
+  const purposeField = created.versions?.[0]?.fields?.find((field) => field.code === "purpose");
+  const amountField = created.versions?.[0]?.fields?.find((field) => field.code === "amount");
   expect(condition).toMatchObject({ fieldCode: "amount", operator: "gt", compareValue: 50000000 });
   expect(minCountStep).toMatchObject({ approvalMode: "PARALLEL", completionRule: "MIN_COUNT", minCount: 1 });
+  expect(purposeField).toMatchObject({ defaultValue: defaultPurpose, validation: { minLength: 5, maxLength: 90 } });
+  expect(amountField).toMatchObject({ validation: { min: 1000000, max: 100000000 } });
   await expect(page.locator(`tr[data-testid="workflow-template-row-${created.id}"]`)).toBeVisible();
 });
 

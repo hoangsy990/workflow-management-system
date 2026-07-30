@@ -19,6 +19,31 @@ import {
 const idParamSchema = z.object({ id: z.string().uuid() });
 const compareParamSchema = z.object({ leftId: z.string().uuid(), rightId: z.string().uuid() });
 
+const fieldValidationSchema = z
+  .object({
+    minLength: z.number().int().min(0).optional(),
+    maxLength: z.number().int().min(1).optional(),
+    min: z.number().optional(),
+    max: z.number().optional()
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.minLength !== undefined && value.maxLength !== undefined && value.minLength > value.maxLength) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["minLength"],
+        message: "Độ dài tối thiểu không được lớn hơn độ dài tối đa."
+      });
+    }
+    if (value.min !== undefined && value.max !== undefined && value.min > value.max) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["min"],
+        message: "Giá trị tối thiểu không được lớn hơn giá trị tối đa."
+      });
+    }
+  });
+
 const fieldSchema = z.object({
   name: z.string().min(1),
   code: z.string().min(1),
@@ -41,7 +66,7 @@ const fieldSchema = z.object({
   isRequired: z.boolean().optional(),
   defaultValue: z.unknown().optional(),
   placeholder: z.string().optional(),
-  validation: z.record(z.string(), z.unknown()).optional(),
+  validation: fieldValidationSchema.optional(),
   displayOrder: z.number().int().optional(),
   editableBySteps: z.unknown().optional(),
   visibleToRoles: z.unknown().optional()

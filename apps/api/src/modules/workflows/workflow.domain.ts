@@ -24,6 +24,8 @@ export interface WorkflowFieldDefinition {
   name: string;
   type: WorkflowFieldType;
   isRequired: boolean;
+  defaultValue?: unknown;
+  validation?: unknown;
 }
 
 function isEmptyValue(value: unknown) {
@@ -42,6 +44,39 @@ function isDateValue(value: unknown) {
     return !Number.isNaN(value.getTime());
   }
   return typeof value === "string" && value.trim() !== "" && !Number.isNaN(new Date(value).getTime());
+}
+
+function asValidationRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function optionalNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) {
+    return Number(value);
+  }
+  return undefined;
+}
+
+function isTextLikeField(type: WorkflowFieldType) {
+  return type === "SHORT_TEXT" || type === "LONG_TEXT" || type === "SELECT" || type === "RADIO" || type === "TABLE";
+}
+
+export function applyWorkflowDefaultValues(fields: WorkflowFieldDefinition[], values: Record<string, unknown>) {
+  const nextValues = { ...values };
+
+  for (const field of fields) {
+    if (field.type === "HEADING" || Object.prototype.hasOwnProperty.call(nextValues, field.code)) {
+      continue;
+    }
+    if (field.defaultValue !== undefined && field.defaultValue !== null) {
+      nextValues[field.code] = field.defaultValue;
+    }
+  }
+
+  return nextValues;
 }
 
 export function validateWorkflowFormData(fields: WorkflowFieldDefinition[], values: Record<string, unknown>): string[] {
@@ -69,6 +104,30 @@ export function validateWorkflowFormData(fields: WorkflowFieldDefinition[], valu
     }
     if (field.type === "CHECKBOX" && typeof value !== "boolean") {
       errors.push(`Trường '${field.name}' phải là giá trị đúng hoặc sai.`);
+    }
+    const validation = asValidationRecord(field.validation);
+    if (isTextLikeField(field.type)) {
+      const textValue = String(value);
+      const minLength = optionalNumber(validation.minLength);
+      const maxLength = optionalNumber(validation.maxLength);
+      if (minLength !== undefined && textValue.length < minLength) {
+        errors.push(`Trường '${field.name}' cần tối thiểu ${minLength} ký tự.`);
+      }
+      if (maxLength !== undefined && textValue.length > maxLength) {
+        errors.push(`Trường '${field.name}' không được vượt quá ${maxLength} ký tự.`);
+      }
+    }
+
+    if ((field.type === "NUMBER" || field.type === "CURRENCY") && isNumericValue(value)) {
+      const numericValue = Number(value);
+      const min = optionalNumber(validation.min);
+      const max = optionalNumber(validation.max);
+      if (min !== undefined && numericValue < min) {
+        errors.push(`Trường '${field.name}' phải lớn hơn hoặc bằng ${min}.`);
+      }
+      if (max !== undefined && numericValue > max) {
+        errors.push(`Trường '${field.name}' phải nhỏ hơn hoặc bằng ${max}.`);
+      }
     }
   }
 

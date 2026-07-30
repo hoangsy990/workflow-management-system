@@ -10,7 +10,13 @@ import type { AuthContext } from "../../types/fastify.js";
 import { badRequest, conflict, forbidden, notFound } from "../../http/errors.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { enqueueNotifications } from "../notifications/notification.service.js";
-import { assertWorkflowVersionEditable, evaluateConditions, isStepComplete, validateWorkflowFormData } from "./workflow.domain.js";
+import {
+  applyWorkflowDefaultValues,
+  assertWorkflowVersionEditable,
+  evaluateConditions,
+  isStepComplete,
+  validateWorkflowFormData
+} from "./workflow.domain.js";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 type StepWithAssignees = Prisma.WorkflowStepGetPayload<{ include: { assignees: true } }>;
@@ -611,7 +617,8 @@ export async function submitWorkflowInstance(
     throw badRequest("Mẫu quy trình chưa có phiên bản đang hoạt động.");
   }
 
-  const formErrors = validateWorkflowFormData(version.fields, input.formData);
+  const formData = applyWorkflowDefaultValues(version.fields, input.formData);
+  const formErrors = validateWorkflowFormData(version.fields, formData);
   if (formErrors.length > 0) {
     throw badRequest(formErrors[0]!);
   }
@@ -630,14 +637,14 @@ export async function submitWorkflowInstance(
         requesterId: auth.userId,
         currentStepId: firstStep.id,
         status: "IN_PROGRESS",
-        formData: input.formData as Prisma.InputJsonValue,
+        formData: formData as Prisma.InputJsonValue,
         submittedAt: new Date(),
         values: {
           createMany: {
             data: version.fields.map((field) => ({
               fieldId: field.id,
               fieldCode: field.code,
-              value: (input.formData[field.code] ?? null) as Prisma.InputJsonValue
+              value: (formData[field.code] ?? null) as Prisma.InputJsonValue
             }))
           }
         }
@@ -646,7 +653,7 @@ export async function submitWorkflowInstance(
 
     await startStep(tx, instance.id, firstStep, {
       requesterId: auth.userId,
-      formData: input.formData
+      formData
     });
 
     await writeAuditLog(tx, {
