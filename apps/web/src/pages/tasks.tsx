@@ -1,4 +1,4 @@
-import { Download, Loader2, Plus, Search, Upload, XCircle } from "lucide-react";
+import { Download, Loader2, Plus, Search, Star, Upload, XCircle } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock, MultiCheck } from "../components/common";
@@ -6,6 +6,7 @@ import { useAsyncData } from "../hooks/useAsyncData";
 import { cls, formatDate, statusLabels } from "../lib/format";
 
 type TaskPage = "tasks" | "newTask" | "taskDetail";
+type TaskEvaluationMode = "accept" | "redo";
 
 interface TaskPageProps {
   setPage: (page: TaskPage) => void;
@@ -376,6 +377,11 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
   const [busy, setBusy] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [localError, setLocalError] = useState("");
+  const [evaluationMode, setEvaluationMode] = useState<TaskEvaluationMode | null>(null);
+  const [evaluationRating, setEvaluationRating] = useState(5);
+  const [evaluationComment, setEvaluationComment] = useState("");
+  const [evaluationError, setEvaluationError] = useState("");
+  const [evaluationMessage, setEvaluationMessage] = useState("");
   const { data, loading, error, reload } = useAsyncData(() => (taskId ? api.task(taskId) : Promise.resolve(null)), [taskId]);
 
   useEffect(() => {
@@ -446,17 +452,36 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
     }
   }
 
-  async function evaluate(accepted: boolean) {
-    if (!taskId) return;
-    const commentText = window.prompt(accepted ? "Nhận xét hoàn thành" : "Lý do yêu cầu làm lại") ?? "";
-    if (!window.confirm(accepted ? "Xác nhận hoàn thành công việc?" : "Yêu cầu thực hiện lại công việc?")) return;
+  function openEvaluation(mode: TaskEvaluationMode) {
+    setEvaluationMode(mode);
+    setEvaluationRating(5);
+    setEvaluationComment("");
+    setEvaluationError("");
+    setEvaluationMessage("");
+  }
+
+  async function submitEvaluation(event: FormEvent) {
+    event.preventDefault();
+    if (!taskId || !evaluationMode) return;
+    if (evaluationMode === "redo" && !evaluationComment.trim()) {
+      setEvaluationError("Vui lòng nhập lý do yêu cầu làm lại.");
+      return;
+    }
     setBusy(true);
-    setLocalError("");
+    setEvaluationError("");
+    setEvaluationMessage("");
     try {
-      await api.evaluateTask(taskId, { accepted, rating: accepted ? 5 : undefined, comment: commentText });
+      await api.evaluateTask(taskId, {
+        accepted: evaluationMode === "accept",
+        rating: evaluationMode === "accept" ? evaluationRating : undefined,
+        comment: evaluationComment.trim()
+      });
+      setEvaluationMode(null);
+      setEvaluationComment("");
+      setEvaluationMessage("Đã đánh giá công việc thành công.");
       await reload();
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : "Không đánh giá được công việc.");
+      setEvaluationError(err instanceof Error ? err.message : "Không đánh giá được công việc.");
     } finally {
       setBusy(false);
     }
@@ -562,13 +587,61 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
           </button>
         </div>
         <div className="approval-actions">
-          <button className="primary-button" type="button" disabled={busy} onClick={() => void evaluate(true)}>
+          <button className="primary-button" data-testid="task-evaluate-accept" type="button" disabled={busy} onClick={() => openEvaluation("accept")}>
             Xác nhận hoàn thành
           </button>
-          <button className="danger-button" type="button" disabled={busy} onClick={() => void evaluate(false)}>
+          <button className="danger-button" data-testid="task-evaluate-redo" type="button" disabled={busy} onClick={() => openEvaluation("redo")}>
             Yêu cầu làm lại
           </button>
         </div>
+        {evaluationMode && (
+          <form className="task-evaluation-panel" data-testid="task-evaluation-panel" onSubmit={submitEvaluation}>
+            <div>
+              <h3>{evaluationMode === "accept" ? "Đánh giá hoàn thành" : "Yêu cầu thực hiện lại"}</h3>
+              <p>{evaluationMode === "accept" ? "Chấm chất lượng và ghi nhận xét cho kết quả công việc." : "Nhập lý do rõ ràng để người thực hiện tiếp tục xử lý."}</p>
+            </div>
+            {evaluationMode === "accept" && (
+              <div className="rating-picker" data-testid="task-evaluation-rating">
+                {[1, 2, 3, 4, 5].map((rating) => (
+                  <button
+                    key={rating}
+                    className={cls("icon-button", evaluationRating >= rating && "active-rating")}
+                    data-testid={"task-evaluation-rating-" + rating}
+                    type="button"
+                    title={`${rating} sao`}
+                    onClick={() => setEvaluationRating(rating)}
+                  >
+                    <Star size={18} />
+                  </button>
+                ))}
+              </div>
+            )}
+            <label>
+              Nhận xét
+              <textarea
+                data-testid="task-evaluation-comment"
+                value={evaluationComment}
+                rows={3}
+                placeholder={evaluationMode === "accept" ? "Nhận xét kết quả" : "Lý do yêu cầu làm lại"}
+                onChange={(event) => {
+                  setEvaluationComment(event.target.value);
+                  setEvaluationError("");
+                }}
+              />
+            </label>
+            {evaluationError && <p className="form-error">{evaluationError}</p>}
+            <div className="form-actions">
+              <button className="ghost-button" data-testid="task-evaluation-cancel" type="button" disabled={busy} onClick={() => setEvaluationMode(null)}>
+                Hủy
+              </button>
+              <button className={evaluationMode === "redo" ? "danger-button" : "primary-button"} data-testid="task-evaluation-submit" type="submit" disabled={busy}>
+                {busy && <Loader2 className="spin" size={16} />}
+                Xác nhận
+              </button>
+            </div>
+          </form>
+        )}
+        {evaluationMessage && <p className="success-text" data-testid="task-evaluation-message">{evaluationMessage}</p>}
       </article>
 
       <aside className="panel">

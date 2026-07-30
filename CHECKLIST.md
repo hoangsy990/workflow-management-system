@@ -14,6 +14,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `TASK-EVALUATION-PANEL` | Thay prompt đánh giá task bằng panel trong app: chọn hoàn thành/làm lại, chấm 1-5 sao, nhập nhận xét/lý do, loading/error rõ ràng và smoke test quản lý xác nhận hoàn thành task. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 13/13. |
 | 30/07/2026 | `WORKFLOW-CONDITION-BUILDER` | Bổ sung UI cấu hình điều kiện chuyển bước trong workflow builder: chọn field, operator, giá trị so sánh, gửi structured condition vào transition và smoke test kiểm tra condition được lưu qua API. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 12/12. |
 | 29/07/2026 | `WORKFLOW-ACTION-PANEL` | Thay browser prompt/confirm khi duyệt/từ chối/yêu cầu bổ sung/trả bước bằng panel xác nhận trong app có textarea, validation ý kiến, loading chống bấm lặp, lỗi/thành công rõ ràng và cập nhật smoke test. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 12/12. |
 | 29/07/2026 | `WORKFLOW-INSTANCE-DYNAMIC-FORM` | Nâng tạo hồ sơ quy trình từ nhập JSON sang form động theo field của template active; backend validate type cơ bản, detail hồ sơ hiển thị dữ liệu theo nhãn field, thêm smoke test tạo hồ sơ bằng UI form động. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 12/12. |
@@ -99,7 +100,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Trạng thái mặc định, quá hạn tính động | `DONE` | `displayStatus=OVERDUE` tính động ở list/dashboard/detail. |
 | Cập nhật tiến độ 0-100, ghi chú, lịch sử | `DONE` | API/UI/history có. |
 | 100% -> chờ đánh giá hoặc hoàn thành | `DONE` | Domain/service/test có. |
-| Đánh giá hoàn thành/làm lại, rating, comment | `PARTIAL` | API có rating/comment; UI dùng prompt/rating mặc định 5, chưa có form đánh giá đầy đủ/attachment xác nhận. |
+| Đánh giá hoàn thành/làm lại, rating, comment | `PARTIAL` | API có rating/comment; UI đã có panel đánh giá với accept/redo, 1-5 sao và nhận xét/lý do. Attachment xác nhận riêng cho evaluation còn thiếu. |
 | Làm lại giữ/reset tiến độ theo cấu hình | `PARTIAL` | Setting seed có nhưng service hiện giữ tiến độ, chưa áp config reset. |
 | Tiến độ task cha từ task con | `PARTIAL` | Schema flag/subTaskProgress có; auto recalc chưa đầy đủ. |
 | Comment, mention, attachment | `PARTIAL` | Comment/mention IDs/attachment upload có. Reply, `@` autocomplete văn bản, edit history còn thiếu. |
@@ -305,7 +306,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Tạo task chia nhóm/tệp/liên kết/cấu hình nâng cao | `PARTIAL` | Form nhóm cơ bản có. |
 | Chi tiết task có khu vực chính/panel/thanh thao tác/timeline | `PARTIAL` | Có overview/progress/comment/file/history. Cần layout detail nâng cao/tabs. |
 | Timeline task đầy đủ thay đổi trạng thái/người/hạn/progress | `PARTIAL` | Progress history có; status/user/due logs chưa đầy đủ UI. |
-| Đánh giá task form chuẩn 1-5 sao/attachment | `TODO` | UI prompt tạm thời. |
+| Đánh giá task form chuẩn 1-5 sao/attachment | `PARTIAL` | Có panel đánh giá 1-5 sao và nhận xét/lý do; attachment xác nhận trong evaluation chưa có. |
 | Kanban/lịch hoàn thiện | `PARTIAL` | Có cơ bản. |
 
 ## 20. Trình thiết kế quy trình trực quan
@@ -435,7 +436,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
-| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, department edit, role permission preview, tạo task qua API, mở detail UI, upload/download attachment, cập nhật progress, approve/reject/request-info và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
+| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, department edit, role permission preview, tạo task qua API, mở detail UI, upload/download attachment, cập nhật progress, đánh giá hoàn thành task, approve/reject/request-info workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
 | Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; smoke có tạo template bằng builder động và tạo hồ sơ bằng form động. Canvas designer, responsive/offline matrix và builder nâng cao chưa có. |
 | Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 
@@ -469,7 +470,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission chưa có cấu hình riêng. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk workflow condition builder đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 12/12. Responsive còn cần QA sâu. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk task evaluation panel đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 13/13. Responsive còn cần QA sâu. |
 
 ## Việc ưu tiên tiếp theo
 

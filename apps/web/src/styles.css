@@ -971,6 +971,38 @@ progress {
   margin: 18px 0;
 }
 
+.task-evaluation-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--green);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.task-evaluation-panel h3,
+.task-evaluation-panel p {
+  margin: 0;
+}
+
+.task-evaluation-panel p {
+  color: var(--muted);
+}
+
+.rating-picker {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rating-picker .icon-button.active-rating {
+  color: #b7791f;
+  background: #fff7db;
+  border-color: #f4c152;
+}
+
 .comment-list,
 .timeline,
 .bar-list,

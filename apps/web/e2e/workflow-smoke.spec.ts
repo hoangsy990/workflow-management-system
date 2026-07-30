@@ -430,6 +430,30 @@ test("nhân viên cập nhật tiến độ task lên chờ đánh giá trên UI
   await expect(page.getByTestId("task-detail-status")).toContainText("Chờ đánh giá");
 });
 
+test("quản lý đánh giá hoàn thành task bằng panel UI", async ({ page, request }) => {
+  const manager = await apiLogin(request, "manager");
+  const employee = await apiLogin(request, "employee");
+  const task = await createSmokeTask(request, manager, "evaluation");
+
+  await apiPost<Record<string, any>>(request, employee, `/tasks/${task.id}/progress`, {
+    progress: 100,
+    note: `Sẵn sàng đánh giá ${runId}`
+  });
+
+  await openAppWithSession(page, manager);
+  await page.getByTestId("nav-tasks").click();
+  const row = page.locator(`tr[data-testid="task-row-${task.id}"]`);
+  await expect(row).toBeVisible();
+  await row.click();
+  await expect(page.getByTestId("task-detail-status")).toContainText("Chờ đánh giá");
+  await page.getByTestId("task-evaluate-accept").click();
+  await expect(page.getByTestId("task-evaluation-panel")).toBeVisible();
+  await page.getByTestId("task-evaluation-rating-4").click();
+  await page.getByTestId("task-evaluation-comment").fill(`Đạt yêu cầu smoke ${runId}`);
+  await page.getByTestId("task-evaluation-submit").click();
+  await expect(page.getByTestId("task-detail-status")).toContainText("Hoàn thành");
+});
+
 test("duyệt hồ sơ PAYMENT tuần tự trên UI", async ({ page, request }) => {
   const employee = await apiLogin(request, "employee");
   const manager = await apiLogin(request, "manager");
