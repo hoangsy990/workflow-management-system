@@ -273,6 +273,69 @@ legend {
   justify-content: flex-end;
 }
 
+.account-menu {
+  position: relative;
+}
+
+.session-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 20;
+  width: min(420px, calc(100vw - 32px));
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.session-popover p,
+.session-popover strong,
+.session-popover span {
+  margin: 0;
+}
+
+.session-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.session-list {
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.session-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.session-row div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.session-row span,
+.session-row small {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .sync-pill {
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -1568,6 +1631,14 @@ progress {
   .account-menu span,
   .sync-pill {
     display: none;
+  }
+
+  .session-popover {
+    right: -44px;
+  }
+
+  .session-row {
+    grid-template-columns: 1fr;
   }
 
   .content {

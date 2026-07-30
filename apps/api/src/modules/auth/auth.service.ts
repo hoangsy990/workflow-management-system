@@ -173,3 +173,50 @@ export async function logout(db: PrismaClient, userId: string, refreshToken?: st
   });
 }
 
+export async function listAuthSessions(db: PrismaClient, userId: string) {
+  return db.refreshToken.findMany({
+    where: {
+      userId,
+      revokedAt: null,
+      expiresAt: { gt: new Date() }
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      deviceName: true,
+      ipAddress: true,
+      userAgent: true,
+      createdAt: true,
+      expiresAt: true
+    }
+  });
+}
+
+export async function revokeAuthSession(db: PrismaClient, userId: string, sessionId: string, ipAddress?: string) {
+  const result = await db.$transaction(async (tx) => {
+    const updated = await tx.refreshToken.updateMany({
+      where: {
+        id: sessionId,
+        userId,
+        revokedAt: null
+      },
+      data: { revokedAt: new Date() }
+    });
+
+    if (updated.count > 0) {
+      await writeAuditLog(tx, {
+        actorId: userId,
+        action: "auth.session.revoke",
+        entityType: "refresh_tokens",
+        entityId: sessionId,
+        ipAddress
+      });
+    }
+
+    return updated;
+  });
+
+  if (result.count === 0) {
+    throw badRequest("Phiên đăng nhập không tồn tại hoặc đã bị thu hồi.");
+  }
+}

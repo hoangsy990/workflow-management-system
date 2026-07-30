@@ -1,8 +1,17 @@
 import { Bell, LogOut, Menu, Moon, Smartphone, Sun } from "lucide-react";
 import { useState } from "react";
-import { ApiUser } from "../api/client";
-import { cls } from "../lib/format";
+import { api, ApiUser } from "../api/client";
+import { cls, formatDate } from "../lib/format";
 import { mobileNav, navItems, Page } from "../navigation";
+
+type AuthSession = {
+  id: string;
+  deviceName?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  createdAt: string;
+  expiresAt: string;
+};
 
 export function AppShell({
   user,
@@ -27,10 +36,48 @@ export function AppShell({
 }) {
   const activeItem = navItems.find((item) => item.page === page);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sessionsOpen, setSessionsOpen] = useState(false);
+  const [sessions, setSessions] = useState<AuthSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState("");
+  const [revokingSessionId, setRevokingSessionId] = useState("");
 
   function goToPage(nextPage: Page) {
     setPage(nextPage);
     setMobileMenuOpen(false);
+  }
+
+  async function loadSessions() {
+    setSessionsLoading(true);
+    setSessionsError("");
+    try {
+      setSessions((await api.authSessions()) as AuthSession[]);
+    } catch (err) {
+      setSessionsError(err instanceof Error ? err.message : "Không tải được phiên đăng nhập.");
+    } finally {
+      setSessionsLoading(false);
+    }
+  }
+
+  function toggleSessions() {
+    setSessionsOpen((open) => {
+      const nextOpen = !open;
+      if (nextOpen) void loadSessions();
+      return nextOpen;
+    });
+  }
+
+  async function revokeSession(id: string) {
+    setRevokingSessionId(id);
+    setSessionsError("");
+    try {
+      await api.revokeAuthSession(id);
+      setSessions((current) => current.filter((session) => session.id !== id));
+    } catch (err) {
+      setSessionsError(err instanceof Error ? err.message : "Không thu hồi được phiên đăng nhập.");
+    } finally {
+      setRevokingSessionId("");
+    }
   }
 
   return (
@@ -90,9 +137,44 @@ export function AppShell({
             </button>
             <div className="account-menu">
               <span>{user.fullName}</span>
+              <button className="icon-button" data-testid="account-sessions-open" type="button" title="Phiên đăng nhập" onClick={toggleSessions}>
+                <Smartphone size={18} />
+              </button>
               <button className="icon-button" type="button" title="Đăng xuất" onClick={onLogout}>
                 <LogOut size={18} />
               </button>
+              {sessionsOpen && (
+                <div className="session-popover" data-testid="auth-session-panel">
+                  <div className="session-popover-head">
+                    <strong>Phiên đăng nhập</strong>
+                    <button className="ghost-button compact" type="button" disabled={sessionsLoading} onClick={loadSessions}>
+                      Làm mới
+                    </button>
+                  </div>
+                  {sessionsError && <p className="form-error">{sessionsError}</p>}
+                  {sessionsLoading ? (
+                    <p>Đang tải...</p>
+                  ) : (
+                    <div className="session-list" data-testid="auth-session-list">
+                      {sessions.length === 0 && <p>Không có phiên đang hoạt động.</p>}
+                      {sessions.map((session) => (
+                        <div className="session-row" data-testid={`auth-session-row-${session.id}`} key={session.id}>
+                          <div>
+                            <strong>{session.deviceName || "Thiết bị không rõ"}</strong>
+                            <span>
+                              {session.ipAddress || "Không có IP"} · {formatDate(session.createdAt)}
+                            </span>
+                            {session.userAgent && <small>{session.userAgent}</small>}
+                          </div>
+                          <button className="danger-button compact" type="button" disabled={revokingSessionId === session.id} onClick={() => revokeSession(session.id)}>
+                            {revokingSessionId === session.id ? "Đang thu hồi" : "Thu hồi"}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </header>

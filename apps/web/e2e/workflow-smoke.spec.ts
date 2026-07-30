@@ -367,6 +367,33 @@ test("đăng nhập web bằng tài khoản quản trị", async ({ page }) => {
   await expect(page.getByTestId("nav-tasks")).toBeVisible();
 });
 
+test("xem và thu hồi phiên đăng nhập thiết bị", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  const deviceName = `Smoke device ${runId}`;
+  const extraSession = await parseApi<ApiSession>(
+    await request.post(`${apiUrl}/auth/login`, {
+      data: {
+        email: accounts.admin.email,
+        password: accounts.admin.password,
+        deviceName
+      }
+    })
+  );
+
+  await openAppWithSession(page, admin);
+  await page.getByTestId("account-sessions-open").click();
+  const panel = page.getByTestId("auth-session-panel");
+  await expect(panel).toContainText(deviceName);
+  const row = panel.locator(".session-row").filter({ hasText: deviceName });
+  await row.getByRole("button", { name: "Thu hồi" }).click();
+  await expect(panel).not.toContainText(deviceName);
+
+  const refresh = await request.post(`${apiUrl}/auth/refresh`, {
+    data: { refreshToken: extraSession.refreshToken }
+  });
+  expect(refresh.status()).toBe(401);
+});
+
 test("dashboard hiển thị thống kê công việc theo phòng ban", async ({ page, request }) => {
   const manager = await apiLogin(request, "manager");
   const users = await apiGet<Paginated<UserRecord>>(request, manager, "/users?pageSize=100");

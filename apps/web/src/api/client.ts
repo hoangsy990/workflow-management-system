@@ -79,7 +79,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 function buildHeaders(options: RequestInit, session: ApiSession | null) {
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
-  if (!(options.body instanceof FormData)) {
+  if (options.body !== undefined && !(options.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
   if (session?.accessToken) {
@@ -179,6 +179,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ refreshToken })
     }),
+  authSessions: () => apiRequest<Record<string, any>[]>("/auth/sessions"),
+  revokeAuthSession: (id: string) => apiRequest<{ ok: true }>(`/auth/sessions/${id}`, { method: "DELETE" }),
   dashboard: () => apiRequest<Record<string, any>>("/dashboard"),
   notifications: () => apiRequest<Paginated<Record<string, any>> & { unread: number }>("/notifications?pageSize=8"),
   readNotification: (id: string) => apiRequest<{ ok: true }>(`/notifications/${id}/read`, { method: "POST" }),

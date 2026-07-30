@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../prisma.js";
-import { parseBody } from "../../http/validation.js";
+import { parseBody, parseParams } from "../../http/validation.js";
 import { requireAuth } from "./auth.guard.js";
-import { getUserAuthContext, login, logout, refreshAccessToken } from "./auth.service.js";
+import { getUserAuthContext, listAuthSessions, login, logout, refreshAccessToken, revokeAuthSession } from "./auth.service.js";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -14,6 +14,7 @@ const loginSchema = z.object({
 const refreshSchema = z.object({
   refreshToken: z.string().min(16)
 });
+const sessionParamSchema = z.object({ id: z.string().uuid() });
 
 export async function authRoutes(app: FastifyInstance) {
   app.post("/auth/login", {
@@ -43,8 +44,17 @@ export async function authRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  app.get("/auth/sessions", { preHandler: requireAuth }, async (request) => {
+    return listAuthSessions(prisma, request.auth!.userId);
+  });
+
+  app.delete("/auth/sessions/:id", { preHandler: requireAuth }, async (request) => {
+    const params = parseParams(request, sessionParamSchema);
+    await revokeAuthSession(prisma, request.auth!.userId, params.id, request.ip);
+    return { ok: true };
+  });
+
   app.get("/auth/me", { preHandler: requireAuth }, async (request) => {
     return getUserAuthContext(prisma, request.auth!.userId);
   });
 }
-
