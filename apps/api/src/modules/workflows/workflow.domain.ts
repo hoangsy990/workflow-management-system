@@ -64,6 +64,10 @@ function isTextLikeField(type: WorkflowFieldType) {
   return type === "SHORT_TEXT" || type === "LONG_TEXT" || type === "SELECT" || type === "RADIO" || type === "TABLE";
 }
 
+function validationOptions(value: unknown) {
+  return Array.isArray(value) ? value.filter((option): option is string => typeof option === "string" && option.trim() !== "") : [];
+}
+
 export function applyWorkflowDefaultValues(fields: WorkflowFieldDefinition[], values: Record<string, unknown>) {
   const nextValues = { ...values };
 
@@ -127,6 +131,12 @@ export function validateWorkflowFormData(fields: WorkflowFieldDefinition[], valu
       }
       if (max !== undefined && numericValue > max) {
         errors.push(`Trường '${field.name}' phải nhỏ hơn hoặc bằng ${max}.`);
+      }
+    }
+    if (field.type === "SELECT" || field.type === "RADIO") {
+      const options = validationOptions(validation.options);
+      if (options.length > 0 && !options.includes(String(value))) {
+        errors.push(`Trường '${field.name}' phải thuộc danh sách lựa chọn.`);
       }
     }
   }

@@ -555,6 +555,7 @@ test("admin reviews role permission preview on UI", async ({ page, request }) =>
 
 test("admin creates workflow template with dynamic builder", async ({ page, request }) => {
   const admin = await apiLogin(request, "admin");
+  const employee = await apiLogin(request, "employee");
   const code = `SMOKE_${runId.replace(/[^A-Za-z0-9]/g, "_").toUpperCase()}`;
   const name = `Smoke workflow ${runId}`;
   const defaultPurpose = `Noi dung mac dinh ${runId}`;
@@ -572,6 +573,9 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   await page.getByTestId("workflow-field-add").click();
   await page.getByTestId("workflow-field-name-2").fill("Ghi chú kiểm thử");
   await page.getByTestId("workflow-field-code-2").fill("smoke_note");
+  await page.getByTestId("workflow-field-type-2").selectOption("SELECT");
+  await page.getByTestId("workflow-field-default-2").fill("Noi bo");
+  await page.getByTestId("workflow-field-options-2").fill("Noi bo, Khach hang");
   await page.getByTestId("workflow-step-add").click();
   await page.getByTestId("workflow-step-name-1").fill("Xác nhận sau cùng");
   await page.getByTestId("workflow-step-code-1").fill("final_confirm");
@@ -590,10 +594,27 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   const minCountStep = created.versions?.[0]?.steps?.find((step) => step.code === "final_confirm");
   const purposeField = created.versions?.[0]?.fields?.find((field) => field.code === "purpose");
   const amountField = created.versions?.[0]?.fields?.find((field) => field.code === "amount");
+  const noteField = created.versions?.[0]?.fields?.find((field) => field.code === "smoke_note");
   expect(condition).toMatchObject({ fieldCode: "amount", operator: "gt", compareValue: 50000000 });
   expect(minCountStep).toMatchObject({ approvalMode: "PARALLEL", completionRule: "MIN_COUNT", minCount: 1 });
   expect(purposeField).toMatchObject({ defaultValue: defaultPurpose, validation: { minLength: 5, maxLength: 90 } });
   expect(amountField).toMatchObject({ validation: { min: 1000000, max: 100000000 } });
+  expect(noteField).toMatchObject({ defaultValue: "Noi bo", validation: { options: ["Noi bo", "Khach hang"] } });
+  const invalidOption = await request.post(`${apiUrl}/workflow-instances`, {
+    headers: authHeaders(employee),
+    data: {
+      templateId: created.id,
+      formData: { amount: 2_500_000, smoke_note: "Ngoai danh sach" },
+      idempotencyKey: uniqueSlug("invalid-option")
+    }
+  });
+  expect(invalidOption.status()).toBe(400);
+  const validInstance = await apiPost<WorkflowInstanceRecord>(request, employee, "/workflow-instances", {
+    templateId: created.id,
+    formData: { amount: 2_500_000, smoke_note: "Khach hang" },
+    idempotencyKey: uniqueSlug("valid-option")
+  });
+  expect(validInstance.status).toBe("IN_PROGRESS");
   await expect(page.locator(`tr[data-testid="workflow-template-row-${created.id}"]`)).toBeVisible();
 });
 

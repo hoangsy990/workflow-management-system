@@ -24,7 +24,8 @@ const fieldValidationSchema = z
     minLength: z.number().int().min(0).optional(),
     maxLength: z.number().int().min(1).optional(),
     min: z.number().optional(),
-    max: z.number().optional()
+    max: z.number().optional(),
+    options: z.array(z.string().trim().min(1)).max(100).optional()
   })
   .strict()
   .superRefine((value, ctx) => {

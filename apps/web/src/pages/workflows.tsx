@@ -56,6 +56,7 @@ type WorkflowFieldDraft = {
   maxLength: string;
   minValue: string;
   maxValue: string;
+  optionText: string;
 };
 
 type WorkflowApprovalStepDraft = {
@@ -92,6 +93,7 @@ type WorkflowValidationRules = {
   maxLength?: number;
   min?: number;
   max?: number;
+  options?: string[];
 };
 
 type WorkflowVersionDetail = {
@@ -186,7 +188,8 @@ function newWorkflowField(index: number): WorkflowFieldDraft {
       minLength: "",
       maxLength: "",
       minValue: "",
-      maxValue: ""
+      maxValue: "",
+      optionText: ""
     };
   }
   if (index === 2) {
@@ -201,7 +204,8 @@ function newWorkflowField(index: number): WorkflowFieldDraft {
       minLength: "",
       maxLength: "",
       minValue: "",
-      maxValue: ""
+      maxValue: "",
+      optionText: ""
     };
   }
   return {
@@ -215,7 +219,8 @@ function newWorkflowField(index: number): WorkflowFieldDraft {
     minLength: "",
     maxLength: "",
     minValue: "",
-    maxValue: ""
+    maxValue: "",
+    optionText: ""
   };
 }
 
@@ -253,6 +258,25 @@ function supportsTextValidation(type: string) {
 
 function supportsNumberValidation(type: string) {
   return type === "NUMBER" || type === "CURRENCY";
+}
+
+function supportsChoiceOptions(type: string) {
+  return type === "SELECT" || type === "RADIO";
+}
+
+function parseWorkflowOptions(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(/[\n,]/)
+        .map((option) => option.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function workflowFieldOptions(field: { validation?: WorkflowValidationRules | null }) {
+  return Array.isArray(field.validation?.options) ? field.validation.options.filter((option) => option.trim() !== "") : [];
 }
 
 function parseOptionalWorkflowNumber(value: string) {
@@ -311,6 +335,14 @@ function buildWorkflowFieldValidation(field: WorkflowFieldDraft): { validation?:
     if (validation.min !== undefined && validation.max !== undefined && validation.min > validation.max) {
       return { error: `Giá trị tối thiểu của ${field.name} không được lớn hơn tối đa.` };
     }
+  }
+
+  if (supportsChoiceOptions(field.type)) {
+    const options = parseWorkflowOptions(field.optionText);
+    if (options.length === 0) {
+      return { error: `${field.name} cần ít nhất một lựa chọn.` };
+    }
+    validation.options = options;
   }
 
   return Object.keys(validation).length > 0 ? { validation } : {};
@@ -384,6 +416,12 @@ function validateWorkflowValues(fields: WorkflowFormField[], values: Record<stri
       }
       if (max !== undefined && numericValue > max) {
         errors[field.code] = `Giá trị phải nhỏ hơn hoặc bằng ${max}.`;
+      }
+    }
+    if (supportsChoiceOptions(field.type)) {
+      const options = workflowFieldOptions(field);
+      if (options.length > 0 && !options.includes(String(value))) {
+        errors[field.code] = "Vui lòng chọn giá trị trong danh sách.";
       }
     }
     return errors;
@@ -486,6 +524,14 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
       if (defaultResult.error) return defaultResult.error;
       const validationResult = buildWorkflowFieldValidation(field);
       if (validationResult.error) return validationResult.error;
+      if (
+        supportsChoiceOptions(field.type) &&
+        defaultResult.value !== undefined &&
+        validationResult.validation?.options &&
+        !validationResult.validation.options.includes(String(defaultResult.value))
+      ) {
+        return `Giá trị mặc định của ${field.name} phải nằm trong danh sách lựa chọn.`;
+      }
     }
     const invalidMinRule = approvalSteps.find(
       (step) =>
@@ -636,6 +682,16 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
               <label>
                 {"Giá trị mặc định"}
                 <input data-testid={"workflow-field-default-" + index} value={field.defaultValue} onChange={(event) => updateField(field.id, { defaultValue: event.target.value })} />
+              </label>
+              <label>
+                {"Lựa chọn"}
+                <input
+                  data-testid={"workflow-field-options-" + index}
+                  placeholder="Noi bo, Khach hang"
+                  value={field.optionText}
+                  disabled={!supportsChoiceOptions(field.type)}
+                  onChange={(event) => updateField(field.id, { optionText: event.target.value })}
+                />
               </label>
               <label>
                 {"Ký tự tối thiểu"}
@@ -874,6 +930,7 @@ function WorkflowDynamicField({
     required: field.isRequired,
     placeholder: field.placeholder ?? undefined
   };
+  const choiceOptions = workflowFieldOptions(field);
 
   return (
     <label>
@@ -886,6 +943,24 @@ function WorkflowDynamicField({
           <input data-testid={testId} type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} />
           <span>Đã chọn</span>
         </span>
+      ) : field.type === "SELECT" && choiceOptions.length > 0 ? (
+        <select {...commonProps} value={String(value ?? "")} onChange={(event) => onChange(event.target.value)}>
+          <option value="">{"Chọn giá trị"}</option>
+          {choiceOptions.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      ) : field.type === "RADIO" && choiceOptions.length > 0 ? (
+        <div className="workflow-radio-options" data-testid={testId}>
+          {choiceOptions.map((option) => (
+            <label className="toggle-line compact-toggle" key={option}>
+              <input name={field.code} type="radio" checked={String(value ?? "") === option} value={option} onChange={(event) => onChange(event.target.value)} />
+              {option}
+            </label>
+          ))}
+        </div>
       ) : (
         <input
           {...commonProps}
@@ -894,7 +969,10 @@ function WorkflowDynamicField({
           onChange={(event) => onChange(event.target.value)}
         />
       )}
-      {(field.type === "ATTACHMENT" || field.type === "USER_SELECT" || field.type === "DEPARTMENT_SELECT" || field.type === "SELECT" || field.type === "RADIO") && (
+      {(field.type === "ATTACHMENT" ||
+        field.type === "USER_SELECT" ||
+        field.type === "DEPARTMENT_SELECT" ||
+        ((field.type === "SELECT" || field.type === "RADIO") && choiceOptions.length === 0)) && (
         <small className="field-hint">Phiên bản này lưu giá trị nhập; danh sách lựa chọn và upload chuyên dụng sẽ được nối ở bước tiếp theo.</small>
       )}
       {error && <span className="field-error">{error}</span>}

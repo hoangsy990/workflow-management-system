@@ -914,7 +914,7 @@ tbody tr:hover {
   grid-column: 1 / -1;
   grid-row: 2;
   display: grid;
-  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  grid-template-columns: repeat(6, minmax(110px, 1fr));
   gap: 10px;
 }
 
@@ -989,6 +989,15 @@ tbody tr:hover {
 
 .dynamic-checkbox {
   min-height: 40px;
+}
+
+.workflow-radio-options {
+  display: grid;
+  gap: 8px;
+}
+
+.workflow-radio-options .toggle-line {
+  justify-content: flex-start;
 }
 
 .workflow-value-grid {

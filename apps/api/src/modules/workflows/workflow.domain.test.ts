@@ -94,4 +94,31 @@ describe("workflow domain", () => {
       "Trường 'Amount' phải nhỏ hơn hoặc bằng 5000."
     ]);
   });
+
+  it("validates select and radio values against configured options", () => {
+    const errors = validateWorkflowFormData(
+      [
+        {
+          code: "requestType",
+          name: "Request type",
+          type: "SELECT",
+          isRequired: true,
+          validation: { options: ["Payment", "Purchase"] }
+        },
+        {
+          code: "confirmation",
+          name: "Confirmation",
+          type: "RADIO",
+          isRequired: true,
+          validation: { options: ["Yes", "No"] }
+        }
+      ],
+      { requestType: "Other", confirmation: "Maybe" }
+    );
+
+    expect(errors).toEqual([
+      "Trường 'Request type' phải thuộc danh sách lựa chọn.",
+      "Trường 'Confirmation' phải thuộc danh sách lựa chọn."
+    ]);
+  });
 });
