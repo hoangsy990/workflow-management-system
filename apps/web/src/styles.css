@@ -1090,6 +1090,48 @@ progress {
   margin: 6px 0;
 }
 
+.comment-item {
+  display: grid;
+  gap: 10px;
+}
+
+.comment-body {
+  display: grid;
+  gap: 4px;
+}
+
+.comment-meta,
+.reply-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.comment-replies {
+  display: grid;
+  gap: 8px;
+  margin-left: 18px;
+  padding-left: 14px;
+  border-left: 2px solid var(--line);
+}
+
+.comment-reply {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--panel-soft);
+}
+
+.reply-banner {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--muted);
+}
+
 .comment-form {
   display: grid;
   gap: 10px;

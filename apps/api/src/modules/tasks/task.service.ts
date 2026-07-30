@@ -682,6 +682,16 @@ export async function addTaskComment(
   }
 
   return db.$transaction(async (tx) => {
+    if (input.parentCommentId) {
+      const parentComment = await tx.taskComment.findFirst({
+        where: { id: input.parentCommentId, taskId: id, deletedAt: null },
+        select: { id: true }
+      });
+      if (!parentComment) {
+        throw badRequest("Bình luận cha không hợp lệ.");
+      }
+    }
+
     if (input.attachmentIds?.length) {
       const attachmentCount = await tx.taskAttachment.count({
         where: {

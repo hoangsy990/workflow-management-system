@@ -772,6 +772,7 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
   const [note, setNote] = useState("");
   const [comment, setComment] = useState("");
   const [commentMentions, setCommentMentions] = useState<string[]>([]);
+  const [replyToComment, setReplyToComment] = useState<{ id: string; authorName: string } | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -798,6 +799,20 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
     ].filter(Boolean) as Array<{ id: string; fullName: string }>;
     return [...new Map(users.map((user) => [user.id, user])).values()];
   }, [data]);
+
+  const commentThreads = useMemo(() => {
+    const comments = ((data?.comments ?? []) as Record<string, any>[]).filter((item) => !item.deletedAt);
+    const repliesByParent = new Map<string, Record<string, any>[]>();
+    for (const item of comments) {
+      if (!item.parentCommentId) continue;
+      const replies = repliesByParent.get(item.parentCommentId) ?? [];
+      replies.push(item);
+      repliesByParent.set(item.parentCommentId, replies);
+    }
+    return comments
+      .filter((item) => !item.parentCommentId)
+      .map((item) => ({ ...item, replies: repliesByParent.get(item.id) ?? [] }));
+  }, [data?.comments]);
 
   function addFiles(files: FileList | null) {
     const result = collectAllowedAttachmentFiles(files);
@@ -906,9 +921,11 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
       await api.commentTask(taskId, {
         content: comment.trim() || "Đã đính kèm tệp.",
         mentions: commentMentions,
+        parentCommentId: replyToComment?.id,
         attachmentIds: uploaded.map((attachment) => attachment.id)
       });
       setComment("");
+      setReplyToComment(null);
       setSelectedFiles([]);
       setCommentMentions([]);
       await reload();
@@ -1119,25 +1136,61 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
           <h2>Trao đổi</h2>
         </div>
         <div className="comment-list">
-          {(data.comments ?? []).map((item: Record<string, any>) => (
-            <div key={item.id}>
-              <strong>{item.author?.fullName}</strong>
-              <p>{item.content}</p>
-              <AttachmentList
-                attachments={item.attachments ?? []}
-                downloadingId={downloadingId}
-                onDownload={(attachment) => void downloadAttachment(attachment)}
-              />
-              <small>{formatDate(item.createdAt)}</small>
+          {commentThreads.map((item: Record<string, any>) => (
+            <div key={item.id} className="comment-item" data-testid={`task-comment-${item.id}`}>
+              <div className="comment-body">
+                <strong>{item.author?.fullName}</strong>
+                <p>{item.content}</p>
+                <AttachmentList
+                  attachments={item.attachments ?? []}
+                  downloadingId={downloadingId}
+                  onDownload={(attachment) => void downloadAttachment(attachment)}
+                />
+                <div className="comment-meta">
+                  <small>{formatDate(item.createdAt)}</small>
+                  <button
+                    className="ghost-button compact"
+                    data-testid={`task-comment-reply-${item.id}`}
+                    type="button"
+                    onClick={() => setReplyToComment({ id: item.id, authorName: item.author?.fullName ?? "bình luận" })}
+                  >
+                    Trả lời
+                  </button>
+                </div>
+              </div>
+              {(item.replies ?? []).length > 0 && (
+                <div className="comment-replies" data-testid={`task-comment-replies-${item.id}`}>
+                  {(item.replies ?? []).map((reply: Record<string, any>) => (
+                    <div key={reply.id} className="comment-item comment-reply" data-testid={`task-comment-${reply.id}`}>
+                      <strong>{reply.author?.fullName}</strong>
+                      <p>{reply.content}</p>
+                      <AttachmentList
+                        attachments={reply.attachments ?? []}
+                        downloadingId={downloadingId}
+                        onDownload={(attachment) => void downloadAttachment(attachment)}
+                      />
+                      <small>{formatDate(reply.createdAt)}</small>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
         <form className="comment-form" onSubmit={sendComment}>
+          {replyToComment && (
+            <div className="reply-banner" data-testid="task-comment-replying">
+              <span>Đang trả lời {replyToComment.authorName}</span>
+              <button className="ghost-button compact" type="button" onClick={() => setReplyToComment(null)}>
+                Hủy trả lời
+              </button>
+            </div>
+          )}
           <textarea
             data-testid="task-comment-input"
             value={comment}
             onChange={(event) => setComment(event.target.value)}
-            placeholder="Nhập bình luận"
+            placeholder={replyToComment ? `Trả lời ${replyToComment.authorName}` : "Nhập bình luận"}
           />
           <div className="comment-tools">
             <div className="mention-picker">

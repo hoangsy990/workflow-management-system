@@ -66,6 +66,7 @@ interface TaskDetailRecord extends TaskRecord {
   parentTask?: { id: string; code: string; title: string } | null;
   dependenciesFrom?: Array<{ targetTask?: { id: string; code: string; title: string } | null }>;
   attachments?: Array<{ id: string; originalName: string }>;
+  comments?: Array<{ id: string; content: string; parentCommentId?: string | null }>;
   evaluations?: Array<{ attachmentIds?: string[]; comment?: string | null; rating?: number | null }>;
 }
 
@@ -496,11 +497,12 @@ test("tạo task qua API rồi upload và download tệp trên UI", async ({ pag
   const manager = await apiLogin(request, "manager");
   const task = await createSmokeTask(request, manager);
   const fileName = `smoke-${runId}.pdf`;
+  const commentText = `Đính kèm kiểm thử ${runId}`;
 
   await openAppWithSession(page, manager);
   await openTaskFromNav(page, "nav-tasks", task);
 
-  await page.getByTestId("task-comment-input").fill(`Đính kèm kiểm thử ${runId}`);
+  await page.getByTestId("task-comment-input").fill(commentText);
   await page.getByTestId("task-attachment-input").setInputFiles({
     name: fileName,
     mimeType: "application/pdf",
@@ -513,6 +515,25 @@ test("tạo task qua API rồi upload và download tệp trên UI", async ({ pag
     .getByRole("button", { name: new RegExp(fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) })
     .first();
   await expect(attachmentButton).toBeVisible();
+
+  const detailWithComment = await apiGet<TaskDetailRecord>(request, manager, `/tasks/${task.id}`);
+  const parentComment = detailWithComment.comments?.find((item) => item.content === commentText);
+  if (!parentComment) throw new Error("Parent smoke comment was not saved");
+  const replyText = `Trả lời kiểm thử ${runId}`;
+  await page.getByTestId(`task-comment-reply-${parentComment.id}`).click();
+  await expect(page.getByTestId("task-comment-replying")).toContainText(manager.user.fullName);
+  const replyResponse = page.waitForResponse(
+    (response) => response.url().includes(`/tasks/${task.id}/comments`) && response.request().method() === "POST"
+  );
+  await page.getByTestId("task-comment-input").fill(replyText);
+  await page.getByTestId("task-comment-submit").click();
+  const replyResult = await replyResponse;
+  expect(replyResult.ok(), await replyResult.text()).toBeTruthy();
+  await expect(page.getByTestId(`task-comment-replies-${parentComment.id}`)).toContainText(replyText);
+  const detailWithReply = await apiGet<TaskDetailRecord>(request, manager, `/tasks/${task.id}`);
+  const replyComment = detailWithReply.comments?.find((item) => item.content === replyText);
+  expect(replyComment?.parentCommentId).toBe(parentComment.id);
+
   const download = page.waitForEvent("download");
   await attachmentButton.click();
   const downloadedFile = await download;
