@@ -239,6 +239,10 @@ export async function getTask(db: PrismaClient, auth: AuthContext, id: string) {
       category: true,
       parentTask: { select: { id: true, code: true, title: true } },
       subTasks: { select: { id: true, code: true, title: true, progress: true, status: true } },
+      dependenciesFrom: {
+        where: { type: "RELATES_TO" },
+        include: { targetTask: { select: { id: true, code: true, title: true, status: true, progress: true } } }
+      },
       assignees: { include: { user: { select: { id: true, fullName: true, avatarUrl: true } } } },
       followers: { include: { user: { select: { id: true, fullName: true } } } },
       tags: { include: { tag: true } },

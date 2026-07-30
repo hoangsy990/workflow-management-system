@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=81`, `PARTIAL=140`, `TODO=39`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `31.2%`, tính trọng số partial `58.1%`.
+**Tiến độ hiện tại:** `DONE=82`, `PARTIAL=139`, `TODO=39`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `31.5%`, tính trọng số partial `58.3%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `TASK-RELATIONS-UI` | Bổ sung chọn công việc cha và công việc liên quan trên form tạo task, có ô tìm task theo mã/tên, API detail trả `dependenciesFrom.targetTask`, detail UI hiển thị parent/subtasks/related và smoke test assert parent/related được lưu. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted task form smoke 1/1, `pnpm smoke:web` 18/18. |
 | 30/07/2026 | `TASK-ASSIGNER-FIELD` | Bổ sung trường Người giao việc trên form tạo task, lưu draft, gửi `assignerId` về API và smoke test tạo task UI kiểm tra assigner được lưu đúng cùng attachment. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted task form attachment smoke 1/1, `pnpm smoke:web` 18/18. |
 | 30/07/2026 | `TASK-CREATE-ATTACHMENTS` | Bổ sung tệp đính kèm ngay trên form tạo công việc: validate MIME/dung lượng dùng chung với chi tiết task, chọn nhiều file, hiển thị danh sách file đã chọn, upload file sau khi tạo task và smoke test tạo task UI kèm PDF. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted task form attachment smoke 1/1, `pnpm smoke:web` 18/18. |
 | 30/07/2026 | `WORKFLOW-MIN-RULE-UI` | Hoàn thiện UI cấu hình điều kiện hoàn thành bước phê duyệt song song: chọn `PARALLEL`, `ALL/ANY/MIN_COUNT/MIN_PERCENT`, nhập số lượng/tỷ lệ tối thiểu, validate phía UI và gửi `minCount/minPercent` vào API; smoke test assert cấu hình được lưu. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted workflow builder smoke 1/1, `pnpm smoke:web` 17/17. |
@@ -100,8 +101,8 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Form tạo task: title, mô tả, assigner, assignee, manager, follower, department, start/due, priority, category, tags, review | `DONE` | UI/API có. |
 | Người giao việc | `DONE` | Backend có `assignerId`; UI form tạo task đã có select Người giao việc, lưu draft và smoke test assert API lưu đúng. |
 | Tệp đính kèm khi tạo task | `DONE` | Form tạo task chọn nhiều file, validate MIME/dung lượng, upload sau khi tạo task và smoke test kiểm tra attachment trong detail API/UI. |
-| Công việc cha/con | `PARTIAL` | Schema/service chống vòng lặp có; UI tạo parent/subtask còn thiếu. |
-| Công việc liên quan/phụ thuộc | `PARTIAL` | Schema/API create relatedTaskIds có; UI chưa có. |
+| Công việc cha/con | `PARTIAL` | Schema/service chống vòng lặp có; UI tạo task đã chọn được công việc cha và detail hiển thị parent/subtasks. Auto progress cha còn chưa đầy đủ. |
+| Công việc liên quan/phụ thuộc | `DONE` | Schema/API `relatedTaskIds`, form tạo task chọn công việc liên quan, API detail trả related target và UI detail hiển thị; smoke test assert lưu đúng. |
 | Lặp lại ngày/tuần/tháng | `PARTIAL` | Field/schema có; scheduler sinh task lặp chưa có UI/logic đầy đủ. |
 | Custom fields | `PARTIAL` | JSON field có; UI cấu hình custom field chưa có. |
 | Validation ngày bắt đầu <= hạn | `DONE` | Backend kiểm. |
@@ -445,7 +446,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
-| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/attachment, tạo task qua API, mở detail UI, upload/download attachment, cập nhật progress, đánh giá hoàn thành task, approve/reject/request-info/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
+| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, tạo task qua API, mở detail UI, upload/download attachment, cập nhật progress, đánh giá hoàn thành task, approve/reject/request-info/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
 | Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; smoke có tạo template bằng builder động và tạo hồ sơ bằng form động. Canvas designer, responsive/offline matrix và builder nâng cao chưa có. |
 | Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 
@@ -479,7 +480,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission chưa có cấu hình riêng. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk task assigner field đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted task form attachment smoke 1/1 và `pnpm smoke:web` 18/18. Responsive còn cần QA sâu. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk task relations UI đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted task form smoke 1/1 và `pnpm smoke:web` 18/18. Responsive còn cần QA sâu. |
 
 ## Việc ưu tiên tiếp theo
 

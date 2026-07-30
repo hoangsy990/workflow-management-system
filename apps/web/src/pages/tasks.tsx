@@ -491,6 +491,13 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
   const departments = useAsyncData(() => api.departments(), []);
   const categories = useAsyncData(() => api.taskCategories(), []);
   const tags = useAsyncData(() => api.tags(), []);
+  const [taskLinkKeyword, setTaskLinkKeyword] = useState("");
+  const taskLinkQuery = useMemo(() => {
+    const params = new URLSearchParams({ pageSize: "100" });
+    if (taskLinkKeyword.trim()) params.set("keyword", taskLinkKeyword.trim());
+    return `?${params.toString()}`;
+  }, [taskLinkKeyword]);
+  const taskOptions = useAsyncData(() => api.tasks(taskLinkQuery), [taskLinkQuery]);
   const draftKey = "workflow.task.draft";
   const initial = useMemo(() => {
     const stored = localStorage.getItem(draftKey);
@@ -504,6 +511,8 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
     followerIds: initial.followerIds ?? [],
     managerId: initial.managerId ?? "",
     departmentId: initial.departmentId ?? "",
+    parentTaskId: initial.parentTaskId ?? "",
+    relatedTaskIds: initial.relatedTaskIds ?? [],
     priority: initial.priority ?? "NORMAL",
     startDate: initial.startDate ?? "",
     dueDate: initial.dueDate ?? "",
@@ -514,6 +523,10 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const taskLinkItems = useMemo<Array<Record<string, any> & { name: string }>>(
+    () => (taskOptions.data?.data ?? []).map((task: Record<string, any>) => ({ ...task, name: `${task.code} - ${task.title}` })),
+    [taskOptions.data]
+  );
 
   useEffect(() => {
     localStorage.setItem(draftKey, JSON.stringify(form));
@@ -539,6 +552,8 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
         assignerId: form.assignerId || undefined,
         managerId: form.managerId || undefined,
         departmentId: form.departmentId || undefined,
+        parentTaskId: form.parentTaskId || undefined,
+        relatedTaskIds: form.relatedTaskIds ?? [],
         categoryId: form.categoryId || undefined,
         startDate: form.startDate || undefined,
         dueDate: form.dueDate || undefined
@@ -666,6 +681,37 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
           />
           Cần đánh giá khi hoàn thành
         </label>
+      </fieldset>
+      <fieldset>
+        <legend>{"Liên kết công việc"}</legend>
+        <label>
+          {"Tìm công việc"}
+          <input
+            data-testid="task-create-link-search"
+            value={taskLinkKeyword}
+            onChange={(event) => setTaskLinkKeyword(event.target.value)}
+            placeholder="Nhập mã hoặc tên công việc"
+          />
+        </label>
+        <label>
+          {"Công việc cha"}
+          <select data-testid="task-create-parent" value={form.parentTaskId} onChange={(event) => update("parentTaskId", event.target.value)}>
+            <option value="">{"Không có công việc cha"}</option>
+            {taskLinkItems.map((task) => (
+              <option key={task.id} value={task.id}>
+                {task.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div data-testid="task-create-related-tasks">
+          <MultiCheck
+            label="Công việc liên quan"
+            items={taskLinkItems.filter((task) => task.id !== form.parentTaskId)}
+            value={form.relatedTaskIds}
+            onChange={(value) => update("relatedTaskIds", value.filter((id) => id !== form.parentTaskId))}
+          />
+        </div>
       </fieldset>
       <fieldset>
         <legend>{"Tệp đính kèm"}</legend>
@@ -881,6 +927,34 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
             <b data-testid="task-detail-progress">{data.progress}%</b>
           </span>
         </div>
+        {(data.parentTask || data.subTasks?.length || data.dependenciesFrom?.length) && (
+          <section className="stack-list" data-testid="task-relations">
+            {data.parentTask && (
+              <span>
+                <small>{"Công việc cha"}</small>
+                <strong>{data.parentTask.code} - {data.parentTask.title}</strong>
+              </span>
+            )}
+            {(data.subTasks ?? []).length > 0 && (
+              <span>
+                <small>{"Công việc con"}</small>
+                <strong>{data.subTasks.map((task: Record<string, any>) => `${task.code} - ${task.title}`).join(", ")}</strong>
+              </span>
+            )}
+            {(data.dependenciesFrom ?? []).length > 0 && (
+              <span>
+                <small>{"Công việc liên quan"}</small>
+                <strong>
+                  {data.dependenciesFrom
+                    .map((dependency: Record<string, any>) => dependency.targetTask)
+                    .filter(Boolean)
+                    .map((task: Record<string, any>) => `${task.code} - ${task.title}`)
+                    .join(", ")}
+                </strong>
+              </span>
+            )}
+          </section>
+        )}
         <section className="attachment-section">
           <div className="subhead">
             <h3>Tệp đính kèm</h3>

@@ -61,6 +61,8 @@ interface TaskRecord {
 
 interface TaskDetailRecord extends TaskRecord {
   assigner?: { id: string; fullName: string } | null;
+  parentTask?: { id: string; code: string; title: string } | null;
+  dependenciesFrom?: Array<{ targetTask?: { id: string; code: string; title: string } | null }>;
   attachments?: Array<{ id: string; originalName: string }>;
 }
 
@@ -520,6 +522,8 @@ test("tạo task kèm tệp đính kèm ngay trên form UI", async ({ page, requ
   const categories = await apiGet<TaskCategoryRecord[]>(request, manager, "/task-categories");
   const department = departments[0];
   const category = categories[0];
+  const parentTask = await createSmokeTask(request, manager, "parent-link");
+  const relatedTask = await createSmokeTask(request, manager, "related-link");
   const title = `Smoke form attachment ${runId}`;
   const fileName = `create-form-${runId}.pdf`;
 
@@ -538,6 +542,12 @@ test("tạo task kèm tệp đính kèm ngay trên form UI", async ({ page, requ
   await page.getByTestId("task-create-start-date").fill(dateInput(0));
   await page.getByTestId("task-create-due-date").fill(dateInput(3));
   await page.getByTestId("task-create-category").selectOption(category!.id);
+  await page.getByTestId("task-create-link-search").fill(parentTask.code);
+  await expect(page.getByTestId("task-create-parent").locator(`option[value="${parentTask.id}"]`)).toHaveCount(1);
+  await page.getByTestId("task-create-parent").selectOption(parentTask.id);
+  await page.getByTestId("task-create-link-search").fill(relatedTask.code);
+  await expect(page.getByTestId("task-create-related-tasks").getByLabel(`${relatedTask.code} - ${relatedTask.title}`)).toBeVisible();
+  await page.getByTestId("task-create-related-tasks").getByLabel(`${relatedTask.code} - ${relatedTask.title}`).check();
   await page.getByTestId("task-create-attachment-input").setInputFiles({
     name: fileName,
     mimeType: "application/pdf",
@@ -554,7 +564,11 @@ test("tạo task kèm tệp đính kèm ngay trên form UI", async ({ page, requ
 
   const detail = await apiGet<TaskDetailRecord>(request, manager, `/tasks/${created.id}`);
   expect(detail.assigner?.id).toBe(manager.user.id);
+  expect(detail.parentTask?.id).toBe(parentTask.id);
+  expect(detail.dependenciesFrom?.some((dependency) => dependency.targetTask?.id === relatedTask.id)).toBe(true);
   expect(detail.attachments?.some((attachment) => attachment.originalName === fileName)).toBe(true);
+  await expect(page.getByTestId("task-relations")).toContainText(parentTask.code);
+  await expect(page.getByTestId("task-relations")).toContainText(relatedTask.code);
   const attachmentButton = page
     .getByRole("button", { name: new RegExp(fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) })
     .first();
