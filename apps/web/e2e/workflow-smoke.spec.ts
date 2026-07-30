@@ -260,7 +260,12 @@ async function createSmokeTask(
   });
 }
 
-async function createSmokeWorkflowInstance(request: APIRequestContext, employee: ApiSession, label = "approval") {
+async function createSmokeWorkflowInstance(
+  request: APIRequestContext,
+  employee: ApiSession,
+  label = "approval",
+  formOverrides: Record<string, unknown> = {}
+) {
   const paymentTemplate = await getPaymentTemplate(request, employee);
   const slug = uniqueSlug(label);
 
@@ -269,7 +274,8 @@ async function createSmokeWorkflowInstance(request: APIRequestContext, employee:
     formData: {
       purpose: `Smoke ${label} ${slug}`,
       amount: 12_000_000,
-      vendor: "Playwright Vendor"
+      vendor: "Playwright Vendor",
+      ...formOverrides
     },
     idempotencyKey: `smoke-instance-${slug}`
   });
@@ -1115,6 +1121,25 @@ test("yêu cầu bổ sung hồ sơ PAYMENT trên UI", async ({ page, request })
   await openWorkflowApproval(page, manager, instance);
   await runWorkflowAction(page, "workflow-action-request-info", `Bổ sung smoke ${runId}`);
   await expect(page.getByTestId("workflow-instance-status")).toContainText("Chờ bổ sung");
+});
+
+test("trả bước hồ sơ PAYMENT về người xử lý trước", async ({ page, request }) => {
+  const employee = await apiLogin(request, "employee");
+  const manager = await apiLogin(request, "manager");
+  const admin = await apiLogin(request, "admin");
+  const instance = await createSmokeWorkflowInstance(request, employee, "return", { amount: 72_000_000 });
+
+  await openWorkflowApproval(page, manager, instance);
+  await runWorkflowAction(page, "workflow-action-approve", `Manager duyệt để chuyển giám đốc ${runId}`);
+
+  await openWorkflowApproval(page, admin, instance);
+  await runWorkflowAction(page, "workflow-action-return", `Trả bước smoke ${runId}`);
+  await expect(page.getByTestId("workflow-instance-status")).toContainText("Đang thực hiện");
+
+  const returned = await apiGet<WorkflowInstanceDetailRecord>(request, manager, `/workflow-instances/${instance.id}`);
+  expect(returned.status).toBe("IN_PROGRESS");
+  expect(returned.approvals?.some((approval) => approval.status === "PENDING" && approval.approver?.id === manager.user.id)).toBe(true);
+  expect(returned.approvals?.some((approval) => approval.action === "RETURN" && approval.approver?.id === admin.user.id)).toBe(true);
 });
 
 test("chuyển xử lý hồ sơ PAYMENT sang người khác", async ({ page, request }) => {
