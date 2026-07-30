@@ -6,6 +6,7 @@ import { enqueueNotifications } from "../notifications/notification.service.js";
 import { assertNoTaskCycle, daysRemaining, isTaskOverdue, nextStatusAfterProgress } from "./task.domain.js";
 
 type Db = PrismaClient | Prisma.TransactionClient;
+const resetProgressOnRedoKey = "task.redo.reset_progress";
 
 export interface TaskListInput {
   page: number;
@@ -134,6 +135,10 @@ function canEditTask(auth: AuthContext, task: Pick<Task, "creatorId" | "assigner
     task.assignerId === auth.userId ||
     task.managerId === auth.userId
   );
+}
+
+function isEnabledSetting(value: Prisma.JsonValue | undefined) {
+  return value === true || value === "true";
 }
 
 function myRelatedTaskWhere(auth: AuthContext): Prisma.TaskWhereInput {
@@ -622,14 +627,35 @@ export async function evaluateTask(
   }
 
   return db.$transaction(async (tx) => {
+    const resetProgressSetting = input.accepted
+      ? null
+      : await tx.systemSetting.findUnique({ where: { key: resetProgressOnRedoKey }, select: { value: true } });
+    const shouldResetProgress = !input.accepted && isEnabledSetting(resetProgressSetting?.value);
+    const newProgress = input.accepted ? 100 : shouldResetProgress ? 0 : task.progress;
+    const newStatus = input.accepted ? "DONE" : "IN_PROGRESS";
+
     const updated = await tx.task.update({
       where: { id },
       data: {
-        status: input.accepted ? "DONE" : "IN_PROGRESS",
-        progress: input.accepted ? 100 : task.progress,
+        status: newStatus,
+        progress: newProgress,
         version: { increment: 1 }
       }
     });
+
+    if (!input.accepted && newProgress !== task.progress) {
+      await tx.taskProgressLog.create({
+        data: {
+          taskId: id,
+          userId: auth.userId,
+          progress: newProgress,
+          note: "Đặt lại tiến độ khi yêu cầu thực hiện lại theo cấu hình hệ thống.",
+          oldStatus: task.status,
+          newStatus
+        }
+      });
+      await recalculateParentTaskProgress(tx, task, auth.userId, ipAddress);
+    }
 
     await tx.taskEvaluation.create({
       data: {
@@ -647,7 +673,12 @@ export async function evaluateTask(
       action: input.accepted ? "task.evaluate.accept" : "task.evaluate.redo",
       entityType: "tasks",
       entityId: id,
-      ipAddress
+      ipAddress,
+      metadata: {
+        oldProgress: task.progress,
+        newProgress,
+        resetProgressOnRedo: shouldResetProgress
+      }
     });
 
     if (!input.accepted) {

@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=85`, `PARTIAL=136`, `TODO=39`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `32.7%`, tính trọng số partial `58.8%`.
+**Tiến độ hiện tại:** `DONE=86`, `PARTIAL=135`, `TODO=39`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `33.1%`, tính trọng số partial `59.0%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `TASK-REDO-RESET-PROGRESS` | Áp cấu hình `task.redo.reset_progress` khi yêu cầu làm lại công việc: service đọc setting trong transaction, reset progress về 0 nếu bật, ghi progress log/audit metadata và smoke test UI bật setting, redo task, assert progress 0 rồi restore setting. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted redo reset smoke 1/1, `pnpm smoke:web` 19/19. |
 | 30/07/2026 | `TASK-COMMENT-REPLIES` | Bổ sung trả lời bình luận trong chi tiết công việc: backend validate `parentCommentId` thuộc đúng task, UI hiển thị thread/replies, banner đang trả lời và smoke test kiểm tra `parentCommentId` qua API detail. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted comment reply smoke 1/1, `pnpm smoke:web` 18/18. |
 | 30/07/2026 | `TASK-EVALUATION-ATTACHMENTS` | Bổ sung tệp xác nhận trong panel đánh giá công việc: validate file phía UI, upload trước khi gửi đánh giá, lưu `attachmentIds` vào `task_evaluations` và smoke test đối chiếu attachment qua API detail. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted task evaluation smoke 1/1, `pnpm smoke:web` 18/18. |
 | 30/07/2026 | `TASK-PARENT-AUTO-PROGRESS` | Bổ sung tự tính tiến độ công việc cha từ các công việc con khi bật `autoCalculateParentProgress`: cập nhật parent trong transaction, ghi progress log/audit, UI có toggle và detail hiển thị tổng tiến độ con; smoke test cập nhật child rồi assert parent progress/subTaskProgress. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted task form smoke 1/1, `pnpm smoke:web` 18/18. |
@@ -114,7 +115,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Cập nhật tiến độ 0-100, ghi chú, lịch sử | `DONE` | API/UI/history có. |
 | 100% -> chờ đánh giá hoặc hoàn thành | `DONE` | Domain/service/test có. |
 | Đánh giá hoàn thành/làm lại, rating, comment | `DONE` | API/UI có accept/redo, 1-5 sao, nhận xét/lý do và upload tệp xác nhận lưu vào `task_evaluations.attachmentIds`; smoke test kiểm tra attachment qua API detail. |
-| Làm lại giữ/reset tiến độ theo cấu hình | `PARTIAL` | Setting seed có nhưng service hiện giữ tiến độ, chưa áp config reset. |
+| Làm lại giữ/reset tiến độ theo cấu hình | `DONE` | Setting `task.redo.reset_progress` đã được service áp dụng trong transaction; khi bật sẽ reset progress về 0, ghi progress log/audit và smoke test UI pass. |
 | Tiến độ task cha từ task con | `DONE` | Khi parent bật `autoCalculateParentProgress`, cập nhật progress child sẽ tự tính trung bình các child, cập nhật parent trong transaction và ghi progress log/audit. |
 | Comment, mention, attachment | `PARTIAL` | Comment/mention IDs/attachment upload/reply comment có. `@` autocomplete văn bản và edit history còn thiếu. |
 | List view | `DONE` | Có list/mobile cards với mã, tên, trạng thái, tiến độ, người thực hiện, người giao, phòng ban, ưu tiên, ngày bắt đầu, hạn hoàn thành và số ngày còn/quá hạn. |
@@ -248,10 +249,10 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Nhóm test | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API bổ sung. Cần integration tests đầy đủ hơn. |
+| Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API/UI bổ sung progress, review, redo reset theo setting và overdue. Cần integration tests đầy đủ hơn. |
 | Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có thêm validate form data + smoke API/UI nhiều luồng. Chưa có integration transaction failure tự động. |
 | Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
-| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, user edit, department edit, role preview, tạo workflow template bằng builder, tạo workflow instance bằng form động, task upload/download, progress, approve/reject/request-info và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
+| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, user edit, department edit, role preview, tạo workflow template bằng builder, tạo workflow instance bằng form động, task upload/download/reply, progress, evaluation attachment, redo reset, approve/reject/request-info/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
 | Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `PARTIAL` | Windows desktop build và Android arm64 APK build đã pass. Chưa QA cài/chạy trên thiết bị Android, chưa có Edge/iOS/macOS matrix. |
 
 ## 14. Triển khai
@@ -363,7 +364,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | --- | --- | --- |
 | Cấu hình chung | `PARTIAL` | Key/value settings có. |
 | Mã tự động | `TODO` | Hard-coded generator hiện tại, chưa UI/config. |
-| Cấu hình công việc | `PARTIAL` | Có seed setting redo reset nhưng chưa enforce đầy đủ/UI nhóm. |
+| Cấu hình công việc | `PARTIAL` | Setting redo reset đã được enforce trong service; UI cấu hình vẫn dạng key/value, chưa có nhóm cấu hình công việc chuyên biệt. |
 | Cấu hình quy trình | `TODO` | Chưa có UI nhóm. |
 | Ngày làm việc/ngày nghỉ/SLA | `TODO` | Chưa có. |
 | Cấu hình tệp | `PARTIAL` | Backend env size/type hard-coded; chưa UI. |
@@ -449,7 +450,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
-| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, auto progress parent từ child, tạo task qua API, mở detail UI, upload/download attachment, reply comment, cập nhật progress, đánh giá hoàn thành task kèm tệp xác nhận, approve/reject/request-info/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
+| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, auto progress parent từ child, tạo task qua API, mở detail UI, upload/download attachment, reply comment, cập nhật progress, đánh giá hoàn thành task kèm tệp xác nhận, yêu cầu làm lại reset progress theo setting, approve/reject/request-info/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
 | Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; smoke có tạo template bằng builder động và tạo hồ sơ bằng form động. Canvas designer, responsive/offline matrix và builder nâng cao chưa có. |
 | Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 
@@ -483,7 +484,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission chưa có cấu hình riêng. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk task comment replies đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted comment reply smoke 1/1 và `pnpm smoke:web` 18/18. Responsive còn cần QA sâu. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk task redo reset progress đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted redo reset smoke 1/1 và `pnpm smoke:web` 19/19. Responsive còn cần QA sâu. |
 
 ## Việc ưu tiên tiếp theo
 

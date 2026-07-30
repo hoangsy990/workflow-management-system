@@ -202,6 +202,15 @@ async function apiPost<T>(request: APIRequestContext, session: ApiSession, path:
   );
 }
 
+async function apiPut<T>(request: APIRequestContext, session: ApiSession, path: string, data: unknown): Promise<T> {
+  return parseApiWithRetry<T>(() =>
+    request.put(`${apiUrl}${path}`, {
+      headers: authHeaders(session),
+      data
+    })
+  );
+}
+
 async function openAppWithSession(page: Page, session: ApiSession) {
   await page.goto("/");
   await page.evaluate((storedSession) => {
@@ -782,6 +791,49 @@ test("quản lý đánh giá hoàn thành task bằng panel UI", async ({ page, 
   expect(evaluationAttachmentIds.size).toBeGreaterThan(0);
   expect(detail.attachments?.some((attachment) => attachment.originalName === fileName && evaluationAttachmentIds.has(attachment.id))).toBe(true);
   await expect(page.getByTestId("task-detail-status")).toContainText("Hoàn thành");
+});
+
+test("yêu cầu làm lại reset tiến độ theo cấu hình", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  const manager = await apiLogin(request, "manager");
+  const employee = await apiLogin(request, "employee");
+
+  await apiPut<Record<string, any>>(request, admin, "/system-settings", {
+    key: "task.redo.reset_progress",
+    value: true,
+    description: "Reset progress on redo during smoke test"
+  });
+
+  try {
+    const task = await createSmokeTask(request, manager, "redo-reset");
+    await apiPost<Record<string, any>>(request, employee, `/tasks/${task.id}/progress`, {
+      progress: 100,
+      note: `Sẵn sàng làm lại ${runId}`
+    });
+
+    await openAppWithSession(page, manager);
+    await openTaskFromNav(page, "nav-tasks", task);
+    await expect(page.getByTestId("task-detail-status")).toContainText("Chờ đánh giá");
+    await page.getByTestId("task-evaluate-redo").click();
+    await expect(page.getByTestId("task-evaluation-panel")).toBeVisible();
+    await page.getByTestId("task-evaluation-comment").fill(`Cần làm lại smoke ${runId}`);
+    const redoResponse = page.waitForResponse(
+      (response) => response.url().includes(`/tasks/${task.id}/evaluations`) && response.request().method() === "POST"
+    );
+    await page.getByTestId("task-evaluation-submit").click();
+    const redoResult = await redoResponse;
+    expect(redoResult.ok(), await redoResult.text()).toBeTruthy();
+    await expect(page.getByTestId("task-detail-status")).toContainText("Đang thực hiện");
+    await expect(page.getByTestId("task-detail-progress")).toContainText("0%");
+    const detail = await apiGet<TaskDetailRecord>(request, manager, `/tasks/${task.id}`);
+    expect(detail.progress).toBe(0);
+  } finally {
+    await apiPut<Record<string, any>>(request, admin, "/system-settings", {
+      key: "task.redo.reset_progress",
+      value: false,
+      description: "Có đặt lại tiến độ khi yêu cầu thực hiện lại hay không."
+    });
+  }
 });
 
 test("duyệt hồ sơ PAYMENT tuần tự trên UI", async ({ page, request }) => {
