@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=100`, `PARTIAL=123`, `TODO=37`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `38.5%`, tính trọng số partial `62.1%`.
+**Tiến độ hiện tại:** `DONE=101`, `PARTIAL=123`, `TODO=36`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `38.8%`, tính trọng số partial `62.5%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `TASK-SEARCH-DEBOUNCE` | Bổ sung hook `useDebouncedValue` và áp cho ô tìm kiếm từ khóa/mã công việc trong TaskList để giảm gọi API khi gõ liên tục; select/date/filter khác vẫn phản hồi tức thời. Chuyển checklist `Debounce search` sang DONE. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted task filter smoke 1/1, `pnpm smoke:web` 30/30. |
 | 30/07/2026 | `PROFILE-RELATED-WORK` | Bổ sung dữ liệu liên quan trong hồ sơ cá nhân: API `/profile/related` gom công việc liên quan, hồ sơ tôi tạo và hồ sơ chờ tôi phê duyệt theo scope quyền backend; UI profile hiển thị metric + danh sách recent responsive; smoke test tạo task/workflow thật rồi assert API/UI đọc được dữ liệu. Chuyển `User profile đầy đủ` và `Thiết bị đăng nhập/hoạt động gần đây/task/workflow liên quan` sang DONE. | `pnpm lint`, `pnpm test`, `pnpm build` qua Docker build, `docker compose up -d --build`, targeted profile-related smoke 1/1, `pnpm smoke:web` 30/30. |
 | 30/07/2026 | `PROFILE-AVATAR-UPLOAD` | Bổ sung upload avatar thật cho hồ sơ cá nhân: endpoint `/profile/avatar` validate JPG/PNG/WebP và dung lượng, lưu file bằng tên an toàn trong `UPLOAD_DIR/avatars`, DB lưu URL public `/api/v1/avatars/...`, endpoint serve avatar không lộ path nội bộ, UI profile có preview/chọn file/upload/success và smoke test kiểm avatarUrl trong DB. Trạng thái tổng chưa đổi vì profile vẫn còn thiếu tab task/workflow liên quan. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted profile/avatar smoke 1/1, `pnpm smoke:web` 30/30. |
 | 30/07/2026 | `PROFILE-ACTIVITY-TIMELINE` | Bổ sung hoạt động gần đây trong hồ sơ cá nhân: API `/profile/activity` chỉ trả audit log của chính người dùng, phân trang server-side; UI profile hiển thị timeline action/entity/time và reload sau khi lưu hồ sơ. Smoke test cập nhật profile rồi assert `user.profile.update` xuất hiện trên timeline. Trạng thái tổng chưa đổi vì profile vẫn thiếu avatar upload và task/workflow liên quan. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted profile activity smoke 1/1, `pnpm smoke:web` 30/30. |
@@ -461,7 +462,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Không tải toàn bộ dữ liệu lớn | `PARTIAL` | API pagination có; task list dùng pageSize 10 và pagination UI. Một số UI khác vẫn dùng pageSize 100. |
-| Debounce search | `TODO` | Chưa có. |
+| Debounce search | `DONE` | TaskList debounce từ khóa và mã công việc 350ms bằng hook dùng chung `useDebouncedValue`; smoke filter/pagination/sort vẫn pass. |
 | Lazy load tab | `PARTIAL` | Page render theo state; chưa code splitting. |
 | Cache danh mục | `TODO` | Chưa có cache layer. |
 | Upload/import/export không treo UI, progress task dài | `PARTIAL` | Loading/busy có; upload progress/cancel chưa. |

@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock, MultiCheck } from "../components/common";
 import { useAsyncData } from "../hooks/useAsyncData";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { cls, formatDate, statusLabels } from "../lib/format";
 
 type TaskPage = "tasks" | "newTask" | "taskDetail";
@@ -164,11 +165,13 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
   const categories = useAsyncData(() => api.taskCategories(), []);
   const tags = useAsyncData(() => api.tags(), []);
   const lockedStatus = mode === "mine" ? myTaskTabs.find((tab) => tab.key === myTaskView)?.lockedStatus : undefined;
+  const debouncedKeyword = useDebouncedValue(keyword.trim(), 350);
+  const debouncedCode = useDebouncedValue(filters.code.trim(), 350);
   const query = useMemo(() => {
     const params = new URLSearchParams({ page: String(currentPage), pageSize: String(taskListPageSize) });
-    if (keyword) params.set("keyword", keyword);
+    if (debouncedKeyword) params.set("keyword", debouncedKeyword);
     if (status && !lockedStatus) params.set("status", status);
-    if (filters.code) params.set("code", filters.code);
+    if (debouncedCode) params.set("code", debouncedCode);
     if (filters.creatorId) params.set("creatorId", filters.creatorId);
     if (filters.assigneeId) params.set("assigneeId", filters.assigneeId);
     if (filters.managerId) params.set("managerId", filters.managerId);
@@ -183,7 +186,27 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
     params.set("sortOrder", sortOrder);
     if (mode === "mine") params.set("myView", myTaskView);
     return `?${params.toString()}`;
-  }, [currentPage, keyword, status, lockedStatus, filters, sortBy, sortOrder, mode, myTaskView]);
+  }, [
+    currentPage,
+    debouncedKeyword,
+    status,
+    lockedStatus,
+    debouncedCode,
+    filters.creatorId,
+    filters.assigneeId,
+    filters.managerId,
+    filters.departmentId,
+    filters.priority,
+    filters.categoryId,
+    filters.tagId,
+    filters.from,
+    filters.to,
+    filters.overdue,
+    sortBy,
+    sortOrder,
+    mode,
+    myTaskView
+  ]);
   const { data, loading, error, reload } = useAsyncData(() => api.tasks(query), [query]);
   const pagination = data?.pagination;
   const userOptions = users.data?.data ?? [];
@@ -259,7 +282,25 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword, status, filters, sortBy, sortOrder, mode, myTaskView]);
+  }, [
+    debouncedKeyword,
+    status,
+    debouncedCode,
+    filters.creatorId,
+    filters.assigneeId,
+    filters.managerId,
+    filters.departmentId,
+    filters.priority,
+    filters.categoryId,
+    filters.tagId,
+    filters.from,
+    filters.to,
+    filters.overdue,
+    sortBy,
+    sortOrder,
+    mode,
+    myTaskView
+  ]);
 
   useEffect(() => {
     if (pagination && currentPage > pagination.totalPages) {
