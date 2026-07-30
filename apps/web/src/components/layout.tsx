@@ -1,4 +1,4 @@
-import { Bell, LogOut, Menu, Moon, Smartphone, Sun } from "lucide-react";
+import { Bell, LogOut, Menu, Moon, Smartphone, Sun, UserCircle } from "lucide-react";
 import { useState } from "react";
 import { api, ApiUser } from "../api/client";
 import { cls, formatDate } from "../lib/format";
@@ -47,6 +47,8 @@ export function AppShell({
   function goToPage(nextPage: Page) {
     setPage(nextPage);
     setMobileMenuOpen(false);
+    setSessionsOpen(false);
+    setConfirmingLogoutAll(false);
   }
 
   async function loadSessions() {
@@ -151,6 +153,9 @@ export function AppShell({
             </button>
             <div className="account-menu">
               <span>{user.fullName}</span>
+              <button className="icon-button" data-testid="account-profile-open" type="button" title="Hồ sơ" onClick={() => goToPage("profile")}>
+                <UserCircle size={18} />
+              </button>
               <button className="icon-button" data-testid="account-sessions-open" type="button" title="Phiên đăng nhập" onClick={toggleSessions}>
                 <Smartphone size={18} />
               </button>

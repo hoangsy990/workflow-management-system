@@ -46,6 +46,75 @@ export async function listUsers(db: PrismaClient, input: { page: number; pageSiz
   return { data, total };
 }
 
+const profileSelect = {
+  id: true,
+  employeeCode: true,
+  fullName: true,
+  email: true,
+  phone: true,
+  avatarUrl: true,
+  title: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+  lastLoginAt: true,
+  department: { select: { id: true, code: true, name: true } },
+  manager: { select: { id: true, fullName: true, email: true } },
+  teams: { include: { team: { select: { id: true, code: true, name: true } } } },
+  roles: { include: { role: { select: { id: true, code: true, name: true } } } }
+} satisfies Prisma.UserSelect;
+
+export async function getProfile(db: PrismaClient, userId: string) {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: profileSelect
+  });
+
+  if (!user || user.status !== "ACTIVE") {
+    throw notFound("Không tìm thấy hồ sơ người dùng.");
+  }
+
+  return user;
+}
+
+export async function updateOwnProfile(
+  db: PrismaClient,
+  userId: string,
+  input: {
+    fullName?: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
+    title?: string | null;
+  }
+) {
+  const existing = await db.user.findUnique({ where: { id: userId }, select: { id: true, deletedAt: true, status: true } });
+  if (!existing || existing.deletedAt || existing.status !== "ACTIVE") {
+    throw notFound("Không tìm thấy hồ sơ người dùng.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id: userId },
+      data: {
+        fullName: input.fullName,
+        phone: input.phone,
+        avatarUrl: input.avatarUrl,
+        title: input.title
+      },
+      select: profileSelect
+    });
+
+    await writeAuditLog(tx, {
+      actorId: userId,
+      action: "user.profile.update",
+      entityType: "users",
+      entityId: userId
+    });
+
+    return user;
+  });
+}
+
 export async function createUser(
   db: PrismaClient,
   actorId: string,

@@ -8,6 +8,7 @@ import { Dashboard } from "./pages/dashboard";
 import { DepartmentsPage, LogsPage, RolesPage, SettingsPage, UsersPage } from "./pages/admin";
 import { CalendarPage, Kanban, TaskDetail, TaskForm, TaskList } from "./pages/tasks";
 import { NewWorkflowInstance, WorkflowBuilder, WorkflowInstanceDetail, WorkflowInstances, WorkflowTemplates } from "./pages/workflows";
+import { ProfilePage } from "./pages/profile";
 
 export default function App() {
   const [user, setUser] = useState<ApiUser | null>(null);
@@ -104,6 +105,23 @@ export default function App() {
         return <LogsPage />;
       case "settings":
         return <SettingsPage />;
+      case "profile":
+        return (
+          <ProfilePage
+            onProfileUpdated={(profile) =>
+              setUser((current) =>
+                current
+                  ? {
+                      ...current,
+                      fullName: profile.fullName,
+                      title: profile.title,
+                      department: profile.department
+                    }
+                  : current
+              )
+            }
+          />
+        );
       default:
         return <Dashboard {...props} />;
     }

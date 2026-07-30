@@ -398,6 +398,25 @@ test("xem, thu hồi phiên thiết bị và đăng xuất tất cả", async ({
   expect(currentRefresh.status()).toBe(401);
 });
 
+test("người dùng cập nhật hồ sơ cá nhân trên UI", async ({ page, request }) => {
+  const manager = await apiLogin(request, "manager");
+  const nextTitle = `Profile smoke ${runId}`;
+  const nextPhone = `091${String(Date.now()).slice(-7)}`;
+
+  await openAppWithSession(page, manager);
+  await page.getByTestId("account-profile-open").click();
+  await expect(page.getByTestId("profile-form")).toBeVisible();
+  await page.getByTestId("profile-phone").fill(nextPhone);
+  await page.getByTestId("profile-title").fill(nextTitle);
+  await page.getByTestId("profile-save").click();
+  await expect(page.getByTestId("profile-save-success")).toBeVisible();
+  await expect(page.getByTestId("profile-summary")).toContainText(nextTitle);
+
+  const profile = await apiGet<Record<string, any>>(request, manager, "/profile");
+  expect(profile.phone).toBe(nextPhone);
+  expect(profile.title).toBe(nextTitle);
+});
+
 test("dashboard hiển thị thống kê công việc theo phòng ban", async ({ page, request }) => {
   const manager = await apiLogin(request, "manager");
   const users = await apiGet<Paginated<UserRecord>>(request, manager, "/users?pageSize=100");

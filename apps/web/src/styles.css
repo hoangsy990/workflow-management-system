@@ -740,6 +740,32 @@ tbody tr:hover {
   font-weight: 700;
 }
 
+.profile-summary {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-summary div {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.profile-summary div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.profile-summary span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.profile-summary strong {
+  overflow-wrap: anywhere;
+}
+
 .required-mark,
 .field-error {
   color: var(--danger);

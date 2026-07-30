@@ -8,6 +8,7 @@ import {
   Home,
   Settings,
   ShieldCheck,
+  UserCircle,
   Users,
   Workflow
 } from "lucide-react";
@@ -30,7 +31,8 @@ export type Page =
   | "departments"
   | "roles"
   | "logs"
-  | "settings";
+  | "settings"
+  | "profile";
 
 export interface NavItem {
   page: Page;
@@ -51,7 +53,8 @@ export const navItems: NavItem[] = [
   { page: "departments", label: "Phòng ban", icon: Activity },
   { page: "roles", label: "Vai trò", icon: ShieldCheck },
   { page: "logs", label: "Nhật ký", icon: Activity },
-  { page: "settings", label: "Cấu hình", icon: Settings }
+  { page: "settings", label: "Cấu hình", icon: Settings },
+  { page: "profile", label: "Hồ sơ", icon: UserCircle }
 ];
 
 export const mobileNav = navItems.slice(0, 5);

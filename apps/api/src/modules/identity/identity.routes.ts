@@ -7,11 +7,13 @@ import { requireAuth, requirePermission } from "../auth/auth.guard.js";
 import {
   createRole,
   createUser,
+  getProfile,
   listDepartments,
   listPermissions,
   listRoles,
   listTeams,
   listUsers,
+  updateOwnProfile,
   updateRolePermissions,
   updateUser,
   upsertDepartment,
@@ -50,6 +52,13 @@ const updateUserSchema = createUserSchema
     managerId: z.string().uuid().nullable().optional()
   });
 
+const profileUpdateSchema = z.object({
+  fullName: z.string().min(2).max(120).optional(),
+  phone: z.string().max(30).nullable().optional(),
+  avatarUrl: z.string().url().nullable().optional(),
+  title: z.string().max(120).nullable().optional()
+});
+
 const departmentSchema = z.object({
   id: z.string().uuid().optional(),
   code: z.string().min(2),
@@ -79,6 +88,15 @@ const rolePermissionsSchema = z.object({
 });
 
 export async function identityRoutes(app: FastifyInstance) {
+  app.get("/profile", { preHandler: requireAuth }, async (request) => {
+    return getProfile(prisma, request.auth!.userId);
+  });
+
+  app.patch("/profile", { preHandler: requireAuth }, async (request) => {
+    const body = parseBody(request, profileUpdateSchema);
+    return updateOwnProfile(prisma, request.auth!.userId, body);
+  });
+
   app.get("/users", { preHandler: requirePermission("user.read") }, async (request) => {
     const query = parseQuery(request, userQuerySchema);
     const result = await listUsers(prisma, query);

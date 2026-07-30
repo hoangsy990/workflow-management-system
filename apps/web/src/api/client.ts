@@ -174,6 +174,9 @@ export const api = {
       body: JSON.stringify({ email, password, deviceName })
     }),
   me: () => apiRequest<ApiUser>("/auth/me"),
+  profile: () => apiRequest<Record<string, any>>("/profile"),
+  updateProfile: (payload: Record<string, unknown>) =>
+    apiRequest<Record<string, any>>("/profile", { method: "PATCH", body: JSON.stringify(payload) }),
   logout: (refreshToken?: string) =>
     apiRequest<{ ok: true }>("/auth/logout", {
       method: "POST",
