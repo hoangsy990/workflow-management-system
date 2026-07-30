@@ -250,6 +250,16 @@ async function resolveStepAssignees(
   return [...new Set(ids)];
 }
 
+function calculateStepDeadline(step: StepWithAssignees, now = new Date()) {
+  if (step.deadlineAmount === null || step.deadlineAmount === undefined) {
+    return null;
+  }
+
+  const unit = (step.deadlineUnit ?? "DAY").toUpperCase();
+  const multiplier = unit === "HOUR" || unit === "HOURS" ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+  return new Date(now.getTime() + step.deadlineAmount * multiplier);
+}
+
 async function startStep(
   tx: Prisma.TransactionClient,
   instanceId: string,
@@ -265,7 +275,8 @@ async function startStep(
       instanceId,
       stepId: step.id,
       status: "PENDING",
-      startedAt: new Date()
+      startedAt: new Date(),
+      deadlineAt: calculateStepDeadline(step)
     }
   });
 

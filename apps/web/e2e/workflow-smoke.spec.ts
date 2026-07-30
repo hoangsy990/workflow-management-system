@@ -369,6 +369,61 @@ test("dashboard hiển thị thống kê công việc theo phòng ban", async ({
   await expect(page.getByTestId("dashboard-department-stats")).toContainText(department!.name);
 });
 
+test("scheduler gửi thông báo task và bước phê duyệt sắp hạn/quá hạn", async ({ request }) => {
+  const admin = await apiLogin(request, "admin");
+  const manager = await apiLogin(request, "manager");
+  const employee = await apiLogin(request, "employee");
+  const dueSoonTask = await createSmokeTask(request, manager, "deadline-due-soon", {
+    status: "TODO",
+    dueDate: `${dateInput(1)}T09:00:00.000Z`,
+    requiresReview: false
+  });
+  const overdueTask = await createSmokeTask(request, manager, "deadline-overdue", {
+    status: "TODO",
+    startDate: `${dateInput(-3)}T09:00:00.000Z`,
+    dueDate: `${dateInput(-1)}T09:00:00.000Z`,
+    requiresReview: false
+  });
+  const template = await apiPost<WorkflowTemplateRecord>(request, admin, "/workflow-templates", {
+    code: `DL-${uniqueSlug("deadline").slice(0, 18)}`,
+    name: `Deadline smoke ${runId}`,
+    category: "Smoke",
+    activate: true,
+    fields: [{ name: "Nội dung", code: "purpose", type: "SHORT_TEXT", isRequired: true, displayOrder: 1 }],
+    steps: [
+      { code: "start", name: "Bắt đầu", type: "START", orderIndex: 1 },
+      {
+        code: "approve",
+        name: "Duyệt có hạn",
+        type: "APPROVAL",
+        orderIndex: 2,
+        approvalMode: "SEQUENTIAL",
+        deadlineAmount: 1,
+        deadlineUnit: "HOUR",
+        reminderBeforeHours: 24,
+        assignees: [{ resolverType: "REQUESTER_MANAGER", orderIndex: 1 }]
+      },
+      { code: "end", name: "Kết thúc", type: "END", orderIndex: 3 }
+    ],
+    transitions: [{ fromStepCode: "approve", toStepCode: "end", priority: 1 }]
+  });
+  const instance = await apiPost<WorkflowInstanceRecord>(request, employee, "/workflow-instances", {
+    templateId: template.id,
+    formData: { purpose: `Deadline workflow ${runId}` },
+    idempotencyKey: `smoke-deadline-${uniqueSlug("workflow")}`
+  });
+
+  const scan = await apiPost<Record<string, any>>(request, admin, "/notifications/run-deadline-scan", {});
+  expect(scan.ok).toBe(true);
+
+  const employeeNotifications = await apiGet<Paginated<Record<string, any>>>(request, employee, "/notifications?pageSize=50");
+  expect(employeeNotifications.data.some((notification) => notification.type === "TASK_DUE_SOON" && notification.objectId === dueSoonTask.id)).toBe(true);
+  expect(employeeNotifications.data.some((notification) => notification.type === "TASK_OVERDUE" && notification.objectId === overdueTask.id)).toBe(true);
+
+  const managerNotifications = await apiGet<Paginated<Record<string, any>>>(request, manager, "/notifications?pageSize=50");
+  expect(managerNotifications.data.some((notification) => notification.type === "WORKFLOW_STEP_DUE_SOON" && String(notification.content).includes(instance.code))).toBe(true);
+});
+
 test("admin updates employee profile on UI", async ({ page, request }) => {
   const admin = await apiLogin(request, "admin");
   const users = await apiGet<Paginated<UserRecord>>(request, admin, "/users?pageSize=100");

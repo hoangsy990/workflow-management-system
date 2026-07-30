@@ -3,7 +3,8 @@ import { z } from "zod";
 import { prisma } from "../../prisma.js";
 import { paginate, paginationSchema } from "../../http/pagination.js";
 import { parseBody, parseParams, parseQuery } from "../../http/validation.js";
-import { requireAuth } from "../auth/auth.guard.js";
+import { requireAuth, requirePermission } from "../auth/auth.guard.js";
+import { runDeadlineNotificationScan } from "./notification.service.js";
 
 const idParamSchema = z.object({ id: z.string().uuid() });
 const deviceTokenSchema = z.object({
@@ -46,6 +47,10 @@ export async function notificationRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  app.post("/notifications/run-deadline-scan", { preHandler: requirePermission("setting.manage") }, async () =>
+    runDeadlineNotificationScan(prisma)
+  );
+
   app.post("/device-tokens", { preHandler: requireAuth }, async (request) => {
     const body = parseBody(request, deviceTokenSchema);
     return prisma.deviceToken.upsert({
@@ -64,4 +69,3 @@ export async function notificationRoutes(app: FastifyInstance) {
     });
   });
 }
-

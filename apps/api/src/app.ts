@@ -14,10 +14,13 @@ import { authRoutes } from "./modules/auth/auth.routes.js";
 import { dashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
 import { identityRoutes } from "./modules/identity/identity.routes.js";
 import { notificationRoutes } from "./modules/notifications/notification.routes.js";
+import { runDeadlineNotificationScan } from "./modules/notifications/notification.service.js";
 import { settingsRoutes } from "./modules/settings/settings.routes.js";
 import { taskRoutes } from "./modules/tasks/task.routes.js";
 import { uploadRoutes } from "./modules/uploads/upload.routes.js";
 import { workflowRoutes } from "./modules/workflows/workflow.routes.js";
+
+const deadlineScanIntervalMs = 60 * 60 * 1000;
 
 export async function createApp() {
   const app = Fastify({
@@ -96,6 +99,17 @@ export async function createApp() {
     await api.register(auditRoutes);
     await api.register(settingsRoutes);
   }, { prefix: "/api/v1" });
+
+  const runDeadlineScan = () => {
+    void runDeadlineNotificationScan(prisma).catch((error) => {
+      app.log.error({ err: error }, "Deadline notification scan failed");
+    });
+  };
+  runDeadlineScan();
+  const deadlineScanTimer = setInterval(runDeadlineScan, deadlineScanIntervalMs);
+  app.addHook("onClose", async () => {
+    clearInterval(deadlineScanTimer);
+  });
 
   return app;
 }
