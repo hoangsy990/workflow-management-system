@@ -820,6 +820,20 @@ tbody tr:hover {
   min-height: 40px;
 }
 
+.condition-list {
+  display: grid;
+  gap: 10px;
+}
+
+.condition-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(130px, 0.8fr) minmax(150px, 0.8fr) minmax(150px, 0.8fr);
+  gap: 10px;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
 .approval-confirm-panel {
   display: grid;
   gap: 14px;
@@ -1277,6 +1291,10 @@ progress {
   }
 
   .builder-row {
+    grid-template-columns: 1fr;
+  }
+
+  .condition-row {
     grid-template-columns: 1fr;
   }
 

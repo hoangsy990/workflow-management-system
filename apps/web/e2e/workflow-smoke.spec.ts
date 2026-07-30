@@ -55,6 +55,13 @@ interface WorkflowTemplateRecord {
   id: string;
   code: string;
   name: string;
+  versions?: Array<{
+    transitions?: Array<{
+      fromStep?: { code: string };
+      toStep?: { code: string };
+      conditions?: Array<{ fieldCode: string; operator: string; compareValue: unknown }>;
+    }>;
+  }>;
 }
 
 interface WorkflowInstanceRecord {
@@ -333,10 +340,16 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   await page.getByTestId("workflow-step-add").click();
   await page.getByTestId("workflow-step-name-1").fill("Xác nhận sau cùng");
   await page.getByTestId("workflow-step-code-1").fill("final_confirm");
+  await page.getByTestId("workflow-condition-toggle-0").check();
+  await page.getByTestId("workflow-condition-field-0").selectOption("amount");
+  await page.getByTestId("workflow-condition-operator-0").selectOption("gt");
+  await page.getByTestId("workflow-condition-value-0").fill("50000000");
 
   const createResponse = page.waitForResponse((response) => response.url().endsWith("/workflow-templates") && response.request().method() === "POST");
   await page.getByTestId("workflow-template-save").click();
   const created = (await (await createResponse).json()) as WorkflowTemplateRecord;
+  const condition = created.versions?.[0]?.transitions?.flatMap((transition) => transition.conditions ?? []).find((item) => item.fieldCode === "amount");
+  expect(condition).toMatchObject({ fieldCode: "amount", operator: "gt", compareValue: 50000000 });
   await expect(page.locator(`tr[data-testid="workflow-template-row-${created.id}"]`)).toBeVisible();
 });
 
@@ -347,7 +360,7 @@ test("employee creates workflow instance with dynamic form", async ({ page, requ
 
   await openAppWithSession(page, employee);
   await page.getByTestId("nav-workflowInstances").click();
-  await page.getByRole("button", { name: /Tạo hồ sơ/ }).click();
+  await page.getByTestId("workflow-instance-create").click();
   await page.getByTestId("workflow-instance-template").selectOption(paymentTemplate.id);
   await expect(page.getByTestId("workflow-instance-field-purpose")).toBeVisible();
   await page.getByTestId("workflow-instance-field-purpose").fill(purpose);

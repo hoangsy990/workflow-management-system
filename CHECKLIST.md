@@ -14,6 +14,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `WORKFLOW-CONDITION-BUILDER` | Bổ sung UI cấu hình điều kiện chuyển bước trong workflow builder: chọn field, operator, giá trị so sánh, gửi structured condition vào transition và smoke test kiểm tra condition được lưu qua API. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 12/12. |
 | 29/07/2026 | `WORKFLOW-ACTION-PANEL` | Thay browser prompt/confirm khi duyệt/từ chối/yêu cầu bổ sung/trả bước bằng panel xác nhận trong app có textarea, validation ý kiến, loading chống bấm lặp, lỗi/thành công rõ ràng và cập nhật smoke test. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 12/12. |
 | 29/07/2026 | `WORKFLOW-INSTANCE-DYNAMIC-FORM` | Nâng tạo hồ sơ quy trình từ nhập JSON sang form động theo field của template active; backend validate type cơ bản, detail hồ sơ hiển thị dữ liệu theo nhãn field, thêm smoke test tạo hồ sơ bằng UI form động. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 12/12. |
 | 29/07/2026 | `WORKFLOW-BUILDER-DYNAMIC` | Nâng màn tạo mẫu quy trình từ form cứng sang builder động cơ bản: thêm/xóa field, chọn loại field, bắt buộc/placeholder/order, thêm/xóa bước duyệt, resolver, approval mode/rule/deadline và smoke test tạo template bằng UI builder. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 11/11. |
@@ -124,7 +125,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Forward/chuyển xử lý | `TODO` | Chưa triển khai. |
 | Approval action lưu người, thời gian, action, comment, IP | `DONE` | WorkflowApproval có fields và service ghi. |
 | Lưu step trước/sau và dữ liệu thay đổi | `PARTIAL` | History approvals/steps có; metadata before/after chưa đầy đủ. |
-| Điều kiện rẽ nhánh structured, không eval | `DONE` | Domain condition builder/test/smoke lớn tiền pass. |
+| Điều kiện rẽ nhánh structured, không eval | `DONE` | Domain condition builder/test/smoke lớn tiền pass; workflow builder có UI điều kiện chuyển bước cơ bản. |
 | Trạng thái hồ sơ đầy đủ | `PARTIAL` | Enum/status có; draft/submitted workflow chưa đủ UI/luồng. |
 | Version workflow không sửa trực tiếp khi có instance | `PARTIAL` | Domain assert/test có cho status; UI tạo version mới/compare còn thiếu. |
 | Compare versions | `PARTIAL` | API compare có; UI chưa có. |
@@ -314,7 +315,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Canvas kéo thả workflow | `TODO` | Chưa có. |
 | Node start/form/task/approval/condition/parallel/notification/wait/create task/end | `PARTIAL` | Backend model step/transition có; UI node trực quan chưa. |
 | Panel cấu hình node | `TODO` | Chưa có. |
-| Cấu hình đường nối/condition builder | `PARTIAL` | Backend structured conditions có; UI trực quan chưa. |
+| Cấu hình đường nối/condition builder | `PARTIAL` | Backend structured conditions có; UI builder cấu hình điều kiện chuyển sang bước kế tiếp cơ bản. Chưa có canvas đường nối kéo thả. |
 | Kiểm tra quy trình/lỗi | `PARTIAL` | Backend validation cơ bản; UI checker chưa. |
 | Preview quy trình | `TODO` | Chưa có. |
 | Quản lý phiên bản visual | `PARTIAL` | Backend version có; UI chưa. |
@@ -444,7 +445,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | --- | --- | --- |
 | Task tên dài, nhiều assignee, nhiều tags, quá hạn, nhiều comment | `PARTIAL` | Một số seed/smoke có. Cần seed stress đầy đủ. |
 | Task con | `TODO` | Chưa seed rõ. |
-| Workflow form dài/bảng nhiều dòng/nhiều nhánh/parallel | `PARTIAL` | Branch có; form dài/parallel seed chưa. |
+| Workflow form dài/bảng nhiều dòng/nhiều nhánh/parallel | `PARTIAL` | Branch có ở backend và builder điều kiện cơ bản; form dài/parallel seed chưa. |
 | User tên dài, phòng ban nhiều cấp, >100 records | `TODO` | Chưa có. |
 
 ## 33. Quy trình phát triển UI
@@ -462,13 +463,13 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Design system rõ ràng/UI nhất quán/light-dark/responsive/card mobile/loading-empty-error-offline | `PARTIAL` | Có nền tảng, cần tài liệu và audit. |
-| Workflow designer kéo thả, node, mũi tên, panel, condition, validate, draft, publish version | `TODO` | Chưa có canvas designer. |
+| Workflow designer kéo thả, node, mũi tên, panel, condition, validate, draft, publish version | `PARTIAL` | Chưa có canvas designer; đã có builder condition cơ bản cho transition tuần tự. |
 | Form builder kéo thả, section/tab/condition/field permission/preview PC-mobile | `PARTIAL` | Có builder động cơ bản cho field/step khi tạo template. Chưa có kéo thả, section/tab, condition, field permission và preview PC/mobile. |
 | Configuration center, auto code, working days/SLA | `PARTIAL` | Settings cơ bản; center nâng cao chưa. |
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission chưa có cấu hình riêng. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk workflow instance dynamic form đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 12/12. Responsive còn cần QA sâu. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk workflow condition builder đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 12/12. Responsive còn cần QA sâu. |
 
 ## Việc ưu tiên tiếp theo
 

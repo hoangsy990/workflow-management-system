@@ -62,6 +62,10 @@ type WorkflowApprovalStepDraft = {
   completionRule: string;
   deadlineAmount: number;
   deadlineUnit: string;
+  conditionalNext: boolean;
+  conditionFieldCode: string;
+  conditionOperator: string;
+  conditionValue: string;
 };
 
 type WorkflowFormField = {
@@ -121,6 +125,17 @@ const resolverTypeOptions = [
   ["PREVIOUS_STEP_ASSIGNEE", "Người xử lý bước trước"]
 ] as const;
 
+const conditionOperatorOptions = [
+  ["gt", "Lớn hơn"],
+  ["gte", "Lớn hơn hoặc bằng"],
+  ["lt", "Nhỏ hơn"],
+  ["lte", "Nhỏ hơn hoặc bằng"],
+  ["eq", "Bằng"],
+  ["neq", "Khác"],
+  ["contains", "Có chứa"],
+  ["exists", "Có dữ liệu"]
+] as const;
+
 function normalizeWorkflowCode(value: string) {
   return value
     .trim()
@@ -169,8 +184,21 @@ function newApprovalStep(index: number): WorkflowApprovalStepDraft {
     approvalMode: "SEQUENTIAL",
     completionRule: "ALL",
     deadlineAmount: 1,
-    deadlineUnit: "DAY"
+    deadlineUnit: "DAY",
+    conditionalNext: false,
+    conditionFieldCode: "amount",
+    conditionOperator: "gt",
+    conditionValue: "50000000"
   };
+}
+
+function parseConditionValue(value: string) {
+  const trimmed = value.trim();
+  if (trimmed === "") return "";
+  if (!Number.isNaN(Number(trimmed))) return Number(trimmed);
+  if (trimmed.toLowerCase() === "true") return true;
+  if (trimmed.toLowerCase() === "false") return false;
+  return trimmed;
 }
 
 const currencyFormatter = new Intl.NumberFormat("vi-VN");
@@ -289,6 +317,11 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
     if (stepCodes.some((code) => !code)) return "Mã bước không được để trống.";
     if (new Set(fieldCodes).size !== fieldCodes.length) return "Mã trường không được trùng.";
     if (new Set(stepCodes).size !== stepCodes.length) return "Mã bước không được trùng.";
+    const invalidCondition = approvalSteps.slice(0, -1).find((step) => {
+      if (!step.conditionalNext) return false;
+      return !fieldCodes.includes(normalizeWorkflowCode(step.conditionFieldCode)) || (step.conditionOperator !== "exists" && step.conditionValue.trim() === "");
+    });
+    if (invalidCondition) return "Điều kiện chuyển bước cần chọn trường hợp lệ và giá trị so sánh.";
     return "";
   }
 
@@ -303,6 +336,25 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
     setError("");
     try {
       const normalizedSteps = approvalSteps.map((step, index) => ({ ...step, code: normalizeWorkflowCode(step.code), orderIndex: index + 2 }));
+      const transitions = normalizedSteps.map((step, index) => {
+        const nextStepCode = normalizedSteps[index + 1]?.code ?? "end";
+        return {
+          fromStepCode: step.code,
+          toStepCode: nextStepCode,
+          priority: index + 1,
+          conditions:
+            step.conditionalNext && nextStepCode !== "end"
+              ? [
+                  {
+                    fieldCode: normalizeWorkflowCode(step.conditionFieldCode),
+                    operator: step.conditionOperator,
+                    compareValue: step.conditionOperator === "exists" ? true : parseConditionValue(step.conditionValue),
+                    groupType: "AND"
+                  }
+                ]
+              : []
+        };
+      });
       await api.createWorkflowTemplate({
         code: form.code.trim(),
         name: form.name.trim(),
@@ -332,11 +384,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
           })),
           { code: "end", name: "Kết thúc", type: "END", orderIndex: normalizedSteps.length + 2 }
         ],
-        transitions: normalizedSteps.map((step, index) => ({
-          fromStepCode: step.code,
-          toStepCode: normalizedSteps[index + 1]?.code ?? "end",
-          priority: index + 1
-        }))
+        transitions
       });
       setPage("workflowTemplates");
     } catch (err) {
@@ -453,6 +501,44 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
             </button>
           </div>
         ))}
+        {approvalSteps.length > 1 && (
+          <div className="condition-list">
+            {approvalSteps.slice(0, -1).map((step, index) => (
+              <div className="condition-row" key={"condition-" + step.id}>
+                <label className="toggle-line compact-toggle">
+                  <input
+                    data-testid={"workflow-condition-toggle-" + index}
+                    type="checkbox"
+                    checked={step.conditionalNext}
+                    onChange={(event) => updateStep(step.id, { conditionalNext: event.target.checked })}
+                  />
+                  {"Chỉ chuyển sang bước kế tiếp khi"}
+                </label>
+                <select data-testid={"workflow-condition-field-" + index} value={step.conditionFieldCode} onChange={(event) => updateStep(step.id, { conditionFieldCode: event.target.value })} disabled={!step.conditionalNext}>
+                  {fields.map((field) => (
+                    <option key={field.id} value={normalizeWorkflowCode(field.code)}>
+                      {field.name}
+                    </option>
+                  ))}
+                </select>
+                <select data-testid={"workflow-condition-operator-" + index} value={step.conditionOperator} onChange={(event) => updateStep(step.id, { conditionOperator: event.target.value })} disabled={!step.conditionalNext}>
+                  {conditionOperatorOptions.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  data-testid={"workflow-condition-value-" + index}
+                  placeholder="Giá trị so sánh"
+                  value={step.conditionValue}
+                  onChange={(event) => updateStep(step.id, { conditionValue: event.target.value })}
+                  disabled={!step.conditionalNext || step.conditionOperator === "exists"}
+                />
+              </div>
+            ))}
+          </div>
+        )}
         <button className="ghost-button compact" data-testid="workflow-step-add" type="button" onClick={() => setApprovalSteps((current) => [...current, newApprovalStep(current.length + 1)])}>
           <Plus size={16} />
           {"Thêm bước"}
@@ -481,7 +567,7 @@ export function WorkflowInstances({ setPage, setInstanceId, pendingMine = false 
     <section className="panel">
       <div className="panel-head wrap">
         <h2>{pendingMine ? "Yêu cầu chờ tôi phê duyệt" : "Hồ sơ quy trình"}</h2>
-        <button className="primary-button compact" type="button" onClick={() => setPage("newInstance")}>
+        <button className="primary-button compact" data-testid="workflow-instance-create" type="button" onClick={() => setPage("newInstance")}>
           <Plus size={16} />
           Tạo hồ sơ
         </button>
