@@ -166,6 +166,22 @@ async function parseApiWithRetry<T>(requester: () => Promise<APIResponse>): Prom
   throw new Error("API retry attempts exhausted");
 }
 
+async function rawLoginWithRetry(request: APIRequestContext, email: string, password: string, deviceName: string): Promise<APIResponse> {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const response = await request.post(`${apiUrl}/auth/login`, {
+      data: { email, password, deviceName }
+    });
+    if (response.status() === 429 && attempt < 5) {
+      const text = await response.text();
+      const retrySeconds = Number(text.match(/retry in (\d+) seconds/i)?.[1] ?? 5);
+      await wait(Math.min(retrySeconds * 1000 + 1000, 60_000));
+      continue;
+    }
+    return response;
+  }
+  throw new Error("Login retry attempts exhausted");
+}
+
 function authHeaders(session: ApiSession) {
   return {
     Authorization: `Bearer ${session.accessToken}`
@@ -1278,4 +1294,41 @@ test("idempotency key không ghi nhận duyệt trùng", async ({ request }) => 
   expect(second.id).toBe(first.id);
   expect(second.status).toBe(first.status);
   expect(detail.approvals?.filter((approval) => approval.action === "APPROVE")).toHaveLength(1);
+});
+
+test("người dùng đổi mật khẩu và phiên cũ bị thu hồi", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  const slug = uniqueSlug("password").replace(/[^a-z0-9]/gi, "").slice(0, 18);
+  const email = `password-${slug}@workflow.local`;
+  const oldPassword = "OldPass@123456";
+  const newPassword = `NewPass@${String(Date.now()).slice(-6)}`;
+
+  await apiPost<Record<string, any>>(request, admin, "/users", {
+    employeeCode: `PW${String(Date.now()).slice(-8)}`,
+    fullName: `User đổi mật khẩu ${runId}`,
+    email,
+    password: oldPassword,
+    roleIds: [],
+    teamIds: []
+  });
+
+  const tempSession = await parseApi<ApiSession>(await rawLoginWithRetry(request, email, oldPassword, "Password smoke"));
+  await openAppWithSession(page, tempSession);
+  await page.getByTestId("account-profile-open").click();
+  await page.getByTestId("profile-current-password").fill(oldPassword);
+  await page.getByTestId("profile-new-password").fill(newPassword);
+  await page.getByTestId("profile-confirm-password").fill(newPassword);
+  await page.getByTestId("profile-password-save").click();
+  await expect(page.getByTestId("login-submit")).toBeVisible();
+
+  const revokedRefresh = await request.post(`${apiUrl}/auth/refresh`, {
+    data: { refreshToken: tempSession.refreshToken }
+  });
+  expect(revokedRefresh.status()).toBe(401);
+
+  const oldLogin = await rawLoginWithRetry(request, email, oldPassword, "Old password check");
+  expect(oldLogin.status()).toBe(401);
+
+  const newLogin = await parseApi<ApiSession>(await rawLoginWithRetry(request, email, newPassword, "New password check"));
+  expect(newLogin.accessToken).toBeTruthy();
 });

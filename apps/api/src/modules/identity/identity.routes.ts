@@ -5,6 +5,7 @@ import { paginate, paginationSchema } from "../../http/pagination.js";
 import { parseBody, parseParams, parseQuery } from "../../http/validation.js";
 import { requireAuth, requirePermission } from "../auth/auth.guard.js";
 import {
+  changeOwnPassword,
   createRole,
   createUser,
   getProfile,
@@ -59,6 +60,16 @@ const profileUpdateSchema = z.object({
   title: z.string().max(120).nullable().optional()
 });
 
+const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1),
+    newPassword: z.string().min(8).max(128)
+  })
+  .refine((value) => value.currentPassword !== value.newPassword, {
+    path: ["newPassword"],
+    message: "Mật khẩu mới phải khác mật khẩu hiện tại."
+  });
+
 const departmentSchema = z.object({
   id: z.string().uuid().optional(),
   code: z.string().min(2),
@@ -95,6 +106,11 @@ export async function identityRoutes(app: FastifyInstance) {
   app.patch("/profile", { preHandler: requireAuth }, async (request) => {
     const body = parseBody(request, profileUpdateSchema);
     return updateOwnProfile(prisma, request.auth!.userId, body);
+  });
+
+  app.post("/profile/password", { preHandler: requireAuth }, async (request) => {
+    const body = parseBody(request, changePasswordSchema);
+    return changeOwnPassword(prisma, request.auth!.userId, body);
   });
 
   app.get("/users", { preHandler: requirePermission("user.read") }, async (request) => {

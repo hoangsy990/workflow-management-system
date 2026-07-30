@@ -16,6 +16,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `PROFILE-PASSWORD-CHANGE` | Bổ sung đổi mật khẩu cá nhân: API `/profile/password` yêu cầu mật khẩu hiện tại, validate mật khẩu mới, hash bcrypt, reset failed login, thu hồi toàn bộ refresh sessions trong transaction và ghi audit `user.password.change`; UI profile có panel đổi mật khẩu và logout local sau khi đổi thành công. Smoke test tạo user tạm, đổi mật khẩu qua UI, kiểm refresh token cũ bị từ chối, mật khẩu cũ không login được và mật khẩu mới login được. Trạng thái tổng chưa đổi vì profile vẫn thiếu avatar upload, task/workflow liên quan và hoạt động gần đây. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted password smoke 1/1, `pnpm smoke:web` 30/30. |
 | 30/07/2026 | `USER-PROFILE-SELF-SERVICE` | Bổ sung hồ sơ cá nhân tự phục vụ: API `/profile` xem/sửa thông tin cá nhân an toàn, chỉ cho cập nhật họ tên/số điện thoại/chức danh/avatar URL, ghi audit `user.profile.update`, frontend có trang Hồ sơ từ sidebar/account menu, hiển thị phòng ban/quản lý/nhóm/vai trò/timestamps và smoke test lưu DB thật. Chuyển checklist `User profile đầy đủ` từ TODO sang PARTIAL vì avatar upload, tab task/workflow liên quan và profile nâng cao còn thiếu. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted profile smoke 1/1, `pnpm smoke:web` 29/29. |
 | 30/07/2026 | `AUTH-LOGOUT-ALL-SESSIONS` | Bổ sung đăng xuất tất cả thiết bị: route `/auth/logout-all` dùng service thu hồi toàn bộ refresh sessions trong transaction, ghi audit `auth.session.revoke_all`, UI có vùng xác nhận trong panel phiên đăng nhập và smoke test kiểm current refresh token bị từ chối sau logout-all. Đồng thời sửa Playwright login retry theo thông báo rate-limit và nới timeout test để tránh fail giả. Trạng thái tổng chưa đổi vì secure storage native/profile/import user vẫn chưa hoàn tất. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted auth session/logout-all smoke 1/1, `pnpm smoke:web` 28/28. |
 | 30/07/2026 | `AUTH-SESSION-DEVICE-REVOKE` | Bổ sung quản lý phiên đăng nhập trong menu tài khoản: API liệt kê refresh sessions đang hoạt động, thu hồi từng phiên với audit log, frontend hiển thị thiết bị/IP/thời gian/user agent và smoke test xác nhận refresh token bị thu hồi không refresh lại được. Trạng thái tổng chưa đổi vì hồ sơ cá nhân đầy đủ, import user và secure storage native vẫn còn PARTIAL/TODO. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted auth session smoke 1/1, `pnpm smoke:web` 28/28. |
@@ -95,7 +96,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Module | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Đăng nhập và quản lý tài khoản | `PARTIAL` | Login/refresh/logout/logout-all/users create/edit profile/roles/status, trang hồ sơ cá nhân cơ bản và panel phiên đăng nhập/thu hồi thiết bị có. Chưa có profile nâng cao/avatar upload/import user. |
+| Đăng nhập và quản lý tài khoản | `PARTIAL` | Login/refresh/logout/logout-all/users create/edit profile/roles/status, trang hồ sơ cá nhân cơ bản, đổi mật khẩu và panel phiên đăng nhập/thu hồi thiết bị có. Chưa có profile nâng cao/avatar upload/import user. |
 | Phòng ban và cơ cấu tổ chức | `PARTIAL` | Departments create/edit/detail, parent department, list phân cấp cha-con và quản lý nhóm làm việc có; backend chống vòng lặp parent và validate team member. Company/branch UI, sơ đồ tổ chức kéo thả chưa có. |
 | Vai trò và phân quyền | `PARTIAL` | RBAC tables/API, ma trận quyền, preview phạm vi dữ liệu và cảnh báo cấu hình quyền cơ bản có. Chưa có data scope/field permissions có cấu hình riêng. |
 | Thông báo | `PARTIAL` | Notification center/inbox/device token table và scheduler nhắc hạn có. Chưa có push adapter FCM/APNs/Desktop thật. |
@@ -108,7 +109,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| User fields: mã NV, họ tên, email, phone, password, avatar, title, department, manager, status, created, last login | `PARTIAL` | Schema/API có phần lớn; UI tạo/chỉnh user đã hỗ trợ phone/title/department/manager/status/roles và hiển thị created/last login; trang hồ sơ cá nhân cho tự sửa họ tên/phone/title/avatar URL; menu tài khoản có panel phiên đăng nhập/thu hồi thiết bị/logout-all. Avatar upload/profile nâng cao chưa hoàn thiện. |
+| User fields: mã NV, họ tên, email, phone, password, avatar, title, department, manager, status, created, last login | `PARTIAL` | Schema/API có phần lớn; UI tạo/chỉnh user đã hỗ trợ phone/title/department/manager/status/roles và hiển thị created/last login; trang hồ sơ cá nhân cho tự sửa họ tên/phone/title/avatar URL và đổi mật khẩu; menu tài khoản có panel phiên đăng nhập/thu hồi thiết bị/logout-all. Avatar upload/profile nâng cao chưa hoàn thiện. |
 | Company, branch, department, team, title, direct manager | `PARTIAL` | Schema có company/branch/team/departments; UI user/department/team đã có chỉnh trực tiếp, parent department và manager. Company/branch UI nâng cao chưa có. |
 | Một người thuộc một phòng ban chính và nhiều nhóm | `DONE` | Schema `team_members`, API `/teams`, user create/edit `teamIds`, UI quản lý nhóm và smoke test tạo/cập nhật thành viên nhóm đã có. |
 | Vai trò mặc định admin/manager/employee/watcher | `DONE` | Seed tạo các vai trò mặc định. |
@@ -198,8 +199,8 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Upload file: giới hạn type/size/safe filename/no internal path leak | `DONE` | API upload kiểm MIME/size/safe name/storageKey. |
 | Rate limit login/API nhạy cảm | `DONE` | Fastify rate limit có `API_RATE_LIMIT_MAX` cấu hình theo môi trường; login route vẫn giới hạn riêng 5 lần/phút. |
 | Lock/delay sau nhiều lần login sai | `DONE` | `failedLoginAttempts`, `lockedUntil`. |
-| Không log secret | `PARTIAL` | Không chủ động log token/password; cần rà production logger/redaction. |
-| Audit login/task/workflow/permission/config/download/delete file | `PARTIAL` | Nhiều hành động và download file task/workflow có. Delete file/config/import/export chưa phủ hết. |
+| Không log secret | `PARTIAL` | Không chủ động log token/password; đổi mật khẩu chỉ audit action và số phiên thu hồi, không ghi password. Cần rà production logger/redaction. |
+| Audit login/task/workflow/permission/config/download/delete file | `PARTIAL` | Nhiều hành động, profile update/password change/session revoke và download file task/workflow có. Delete file/config/import/export chưa phủ hết. |
 
 ## 9. Giao diện trang bắt buộc
 
@@ -221,7 +222,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Tạo hồ sơ | `PARTIAL` | UI đã render form động theo field của template active, validate inline và submit idempotency. Còn thiếu upload workflow chuyên dụng, field option động và draft/sửa bổ sung theo từng bước. |
 | Chi tiết và lịch sử phê duyệt | `PARTIAL` | Có detail/history/action cơ bản; thiếu sơ đồ theo dõi. |
 | Yêu cầu chờ tôi phê duyệt | `DONE` | Có filter pendingMine. |
-| Quản lý người dùng | `PARTIAL` | Có list/create/detail/edit profile/roles/status cơ bản; người dùng tự sửa hồ sơ cá nhân, tự xem/thu hồi phiên đăng nhập và đăng xuất tất cả thiết bị trong menu tài khoản. Chưa có profile đầy đủ, avatar upload, import/export và quản trị phiên của user khác. |
+| Quản lý người dùng | `PARTIAL` | Có list/create/detail/edit profile/roles/status cơ bản; người dùng tự sửa hồ sơ cá nhân, đổi mật khẩu, tự xem/thu hồi phiên đăng nhập và đăng xuất tất cả thiết bị trong menu tài khoản. Chưa có profile đầy đủ, avatar upload, import/export và quản trị phiên của user khác. |
 | Quản lý phòng ban | `PARTIAL` | Có list phân cấp, create/detail/edit parent/manager/description và chống vòng lặp backend. Chưa có org chart kéo thả, branch/team UI. |
 | Quản lý vai trò và quyền | `PARTIAL` | Có ma trận quyền theo nhóm, chọn nhóm/toàn bộ, copy role, reset, unsaved changes, preview phạm vi và cảnh báo cấu hình quyền cơ bản. Chưa có data scope/field permission có cấu hình riêng. |
 | Nhật ký hoạt động | `DONE` | Có list. |
@@ -251,7 +252,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Không N+1 | `PARTIAL` | Prisma include chính có; cần audit khi mở rộng report. |
 | OpenAPI/Swagger | `DONE` | `/docs`. |
 | Upload file an toàn | `DONE` | Có. |
-| Refresh token | `DONE` | Backend + frontend auto refresh, liệt kê phiên, thu hồi từng phiên và logout-all có audit. |
+| Refresh token | `DONE` | Backend + frontend auto refresh, liệt kê phiên, thu hồi từng phiên, logout-all và đổi mật khẩu thu hồi sessions có audit. |
 | Device token push registration | `DONE` | API/table có. |
 
 ## 12. Seed data
@@ -403,7 +404,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | --- | --- | --- |
 | Sơ đồ tổ chức tree/org/list | `TODO` | Chưa có. |
 | Kéo chuyển phòng ban | `TODO` | Chưa có. |
-| User profile đầy đủ | `PARTIAL` | Đã có trang Hồ sơ cá nhân tự xem/sửa họ tên, phone, chức danh, avatar URL và xem phòng ban/quản lý/nhóm/vai trò/timestamps. Chưa có avatar upload, đổi mật khẩu, task/workflow liên quan và hoạt động gần đây trong profile. |
+| User profile đầy đủ | `PARTIAL` | Đã có trang Hồ sơ cá nhân tự xem/sửa họ tên, phone, chức danh, avatar URL, đổi mật khẩu và xem phòng ban/quản lý/nhóm/vai trò/timestamps. Chưa có avatar upload, task/workflow liên quan và hoạt động gần đây trong profile. |
 | Thiết bị đăng nhập/hoạt động gần đây/task/workflow liên quan | `PARTIAL` | Backend refresh tokens/audit/task/workflow có; menu tài khoản đã có danh sách phiên đăng nhập, thu hồi từng thiết bị và đăng xuất tất cả. UI profile đầy đủ và tab task/workflow liên quan chưa có. |
 | Import user Excel/CSV với preview/transaction/errors | `TODO` | Chưa có. |
 
@@ -469,7 +470,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
-| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, profile self-service, session device revoke/logout-all, dashboard department stats, deadline scheduler, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, auto progress parent từ child, tạo task qua API, mở detail UI, upload/download attachment/download audit, reply comment/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, cập nhật progress, đánh giá hoàn thành task kèm tệp xác nhận, yêu cầu làm lại reset progress theo setting, workflow action attachment, approved notification, approve/reject/request-info/return/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
+| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, profile self-service/password change, session device revoke/logout-all, dashboard department stats, deadline scheduler, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, auto progress parent từ child, tạo task qua API, mở detail UI, upload/download attachment/download audit, reply comment/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, cập nhật progress, đánh giá hoàn thành task kèm tệp xác nhận, yêu cầu làm lại reset progress theo setting, workflow action attachment, approved notification, approve/reject/request-info/return/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
 | Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; smoke có tạo template bằng builder động, default/options/validation rule và tạo hồ sơ bằng form động. Canvas designer, responsive/offline matrix và builder nâng cao chưa có. |
 | Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 

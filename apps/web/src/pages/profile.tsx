@@ -13,6 +13,12 @@ function profileForm(data?: Record<string, any> | null) {
   };
 }
 
+const emptyPasswordForm = {
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: ""
+};
+
 function names(items: Array<Record<string, any>> | undefined, key: "role" | "team") {
   const values = (items ?? []).map((item) => item[key]?.name).filter(Boolean);
   if (values.length === 0) return "Chưa có";
@@ -20,11 +26,20 @@ function names(items: Array<Record<string, any>> | undefined, key: "role" | "tea
   return values.length > 5 ? `${visible} +${values.length - 5}` : visible;
 }
 
-export function ProfilePage({ onProfileUpdated }: { onProfileUpdated?: (profile: Record<string, any>) => void }) {
+export function ProfilePage({
+  onProfileUpdated,
+  onPasswordChanged
+}: {
+  onProfileUpdated?: (profile: Record<string, any>) => void;
+  onPasswordChanged?: () => void;
+}) {
   const { data, loading, error, reload } = useAsyncData(() => api.profile(), []);
   const [form, setForm] = useState(profileForm(null));
+  const [passwordForm, setPasswordForm] = useState(emptyPasswordForm);
   const [saving, setSaving] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -70,6 +85,28 @@ export function ProfilePage({ onProfileUpdated }: { onProfileUpdated?: (profile:
       setSaveError(err instanceof Error ? err.message : "Không cập nhật được hồ sơ.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function submitPassword(event: FormEvent) {
+    event.preventDefault();
+    if (changingPassword) return;
+    setPasswordError("");
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError("Mật khẩu xác nhận không khớp.");
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      await api.changePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword
+      });
+      setPasswordForm(emptyPasswordForm);
+      onPasswordChanged?.();
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : "Không đổi được mật khẩu.");
+      setChangingPassword(false);
     }
   }
 
@@ -121,6 +158,54 @@ export function ProfilePage({ onProfileUpdated }: { onProfileUpdated?: (profile:
           ))}
         </div>
       </section>
+
+      <form className="panel wide form-grid" data-testid="profile-password-form" onSubmit={submitPassword}>
+        <div className="panel-head">
+          <div>
+            <h2>Đổi mật khẩu</h2>
+            <p>Các phiên đăng nhập sẽ được thu hồi sau khi đổi mật khẩu.</p>
+          </div>
+        </div>
+        <label>
+          Mật khẩu hiện tại
+          <input
+            autoComplete="current-password"
+            data-testid="profile-current-password"
+            type="password"
+            value={passwordForm.currentPassword}
+            onChange={(event) => setPasswordForm({ ...passwordForm, currentPassword: event.target.value })}
+            required
+          />
+        </label>
+        <label>
+          Mật khẩu mới
+          <input
+            autoComplete="new-password"
+            data-testid="profile-new-password"
+            minLength={8}
+            type="password"
+            value={passwordForm.newPassword}
+            onChange={(event) => setPasswordForm({ ...passwordForm, newPassword: event.target.value })}
+            required
+          />
+        </label>
+        <label>
+          Xác nhận mật khẩu mới
+          <input
+            autoComplete="new-password"
+            data-testid="profile-confirm-password"
+            minLength={8}
+            type="password"
+            value={passwordForm.confirmPassword}
+            onChange={(event) => setPasswordForm({ ...passwordForm, confirmPassword: event.target.value })}
+            required
+          />
+        </label>
+        {passwordError && <p className="form-error" data-testid="profile-password-error">{passwordError}</p>}
+        <button className="danger-button" data-testid="profile-password-save" type="submit" disabled={changingPassword}>
+          {changingPassword ? "Đang đổi..." : "Đổi mật khẩu"}
+        </button>
+      </form>
     </section>
   );
 }

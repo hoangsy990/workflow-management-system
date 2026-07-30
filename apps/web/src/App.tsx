@@ -108,6 +108,7 @@ export default function App() {
       case "profile":
         return (
           <ProfilePage
+            onPasswordChanged={logout}
             onProfileUpdated={(profile) =>
               setUser((current) =>
                 current

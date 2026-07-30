@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { hashPassword } from "../../security/hash.js";
+import { hashPassword, verifyPassword } from "../../security/hash.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { badRequest, conflict, notFound } from "../../http/errors.js";
 
@@ -112,6 +112,59 @@ export async function updateOwnProfile(
     });
 
     return user;
+  });
+}
+
+export async function changeOwnPassword(
+  db: PrismaClient,
+  userId: string,
+  input: {
+    currentPassword: string;
+    newPassword: string;
+  }
+) {
+  const existing = await db.user.findUnique({
+    where: { id: userId },
+    select: { id: true, deletedAt: true, status: true, passwordHash: true }
+  });
+  if (!existing || existing.deletedAt || existing.status !== "ACTIVE") {
+    throw notFound("Không tìm thấy hồ sơ người dùng.");
+  }
+
+  const isValid = await verifyPassword(input.currentPassword, existing.passwordHash);
+  if (!isValid) {
+    throw badRequest("Mật khẩu hiện tại không đúng.");
+  }
+
+  if (input.currentPassword === input.newPassword) {
+    throw badRequest("Mật khẩu mới phải khác mật khẩu hiện tại.");
+  }
+
+  const nextHash = await hashPassword(input.newPassword);
+  return db.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash: nextHash,
+        failedLoginAttempts: 0,
+        lockedUntil: null
+      }
+    });
+
+    const revoked = await tx.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
+
+    await writeAuditLog(tx, {
+      actorId: userId,
+      action: "user.password.change",
+      entityType: "users",
+      entityId: userId,
+      metadata: { revokedSessions: revoked.count }
+    });
+
+    return { ok: true, revokedSessions: revoked.count };
   });
 }
 

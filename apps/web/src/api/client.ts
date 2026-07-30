@@ -177,6 +177,8 @@ export const api = {
   profile: () => apiRequest<Record<string, any>>("/profile"),
   updateProfile: (payload: Record<string, unknown>) =>
     apiRequest<Record<string, any>>("/profile", { method: "PATCH", body: JSON.stringify(payload) }),
+  changePassword: (payload: Record<string, unknown>) =>
+    apiRequest<{ ok: true; revokedSessions: number }>("/profile/password", { method: "POST", body: JSON.stringify(payload) }),
   logout: (refreshToken?: string) =>
     apiRequest<{ ok: true }>("/auth/logout", {
       method: "POST",
