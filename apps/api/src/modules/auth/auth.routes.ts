@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../../prisma.js";
 import { parseBody, parseParams } from "../../http/validation.js";
 import { requireAuth } from "./auth.guard.js";
-import { getUserAuthContext, listAuthSessions, login, logout, refreshAccessToken, revokeAuthSession } from "./auth.service.js";
+import { getUserAuthContext, listAuthSessions, login, logout, refreshAccessToken, revokeAllAuthSessions, revokeAuthSession } from "./auth.service.js";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -40,7 +40,7 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   app.post("/auth/logout-all", { preHandler: requireAuth }, async (request) => {
-    await logout(prisma, request.auth!.userId);
+    await revokeAllAuthSessions(prisma, request.auth!.userId, request.ip);
     return { ok: true };
   });
 

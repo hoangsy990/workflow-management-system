@@ -41,6 +41,8 @@ export function AppShell({
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsError, setSessionsError] = useState("");
   const [revokingSessionId, setRevokingSessionId] = useState("");
+  const [confirmingLogoutAll, setConfirmingLogoutAll] = useState(false);
+  const [revokingAll, setRevokingAll] = useState(false);
 
   function goToPage(nextPage: Page) {
     setPage(nextPage);
@@ -60,11 +62,10 @@ export function AppShell({
   }
 
   function toggleSessions() {
-    setSessionsOpen((open) => {
-      const nextOpen = !open;
-      if (nextOpen) void loadSessions();
-      return nextOpen;
-    });
+    const nextOpen = !sessionsOpen;
+    setSessionsOpen(nextOpen);
+    setConfirmingLogoutAll(false);
+    if (nextOpen) void loadSessions();
   }
 
   async function revokeSession(id: string) {
@@ -77,6 +78,19 @@ export function AppShell({
       setSessionsError(err instanceof Error ? err.message : "Không thu hồi được phiên đăng nhập.");
     } finally {
       setRevokingSessionId("");
+    }
+  }
+
+  async function logoutAllSessions() {
+    setRevokingAll(true);
+    setSessionsError("");
+    try {
+      await api.logoutAllSessions();
+      setSessions([]);
+      onLogout();
+    } catch (err) {
+      setSessionsError(err instanceof Error ? err.message : "Không đăng xuất được tất cả thiết bị.");
+      setRevokingAll(false);
     }
   }
 
@@ -152,6 +166,37 @@ export function AppShell({
                     </button>
                   </div>
                   {sessionsError && <p className="form-error">{sessionsError}</p>}
+                  <div className="session-danger-zone">
+                    {!confirmingLogoutAll ? (
+                      <button
+                        className="danger-button compact"
+                        data-testid="auth-session-logout-all"
+                        type="button"
+                        disabled={sessionsLoading || revokingAll}
+                        onClick={() => setConfirmingLogoutAll(true)}
+                      >
+                        Đăng xuất tất cả thiết bị
+                      </button>
+                    ) : (
+                      <div className="session-confirm">
+                        <span>Thu hồi toàn bộ phiên đăng nhập của tài khoản này?</span>
+                        <div className="inline-actions">
+                          <button
+                            className="danger-button compact"
+                            data-testid="auth-session-logout-all-confirm"
+                            type="button"
+                            disabled={revokingAll}
+                            onClick={logoutAllSessions}
+                          >
+                            {revokingAll ? "Đang đăng xuất" : "Xác nhận đăng xuất"}
+                          </button>
+                          <button className="ghost-button compact" type="button" disabled={revokingAll} onClick={() => setConfirmingLogoutAll(false)}>
+                            Hủy
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   {sessionsLoading ? (
                     <p>Đang tải...</p>
                   ) : (

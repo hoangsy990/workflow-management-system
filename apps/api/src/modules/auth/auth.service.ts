@@ -173,6 +173,28 @@ export async function logout(db: PrismaClient, userId: string, refreshToken?: st
   });
 }
 
+export async function revokeAllAuthSessions(db: PrismaClient, userId: string, ipAddress?: string) {
+  const result = await db.$transaction(async (tx) => {
+    const updated = await tx.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
+
+    await writeAuditLog(tx, {
+      actorId: userId,
+      action: "auth.session.revoke_all",
+      entityType: "users",
+      entityId: userId,
+      ipAddress,
+      metadata: { revokedSessions: updated.count }
+    });
+
+    return updated;
+  });
+
+  return { revokedSessions: result.count };
+}
+
 export async function listAuthSessions(db: PrismaClient, userId: string) {
   return db.refreshToken.findMany({
     where: {

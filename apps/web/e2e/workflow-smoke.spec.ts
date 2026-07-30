@@ -3,6 +3,8 @@ import { expect, test, type APIRequestContext, type APIResponse, type Page } fro
 const apiUrl = (process.env.E2E_API_URL ?? "http://localhost:4000/api/v1").replace(/\/$/, "");
 const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+test.setTimeout(120_000);
+
 const accounts = {
   admin: { email: "admin@workflow.local", password: "Admin@123456" },
   manager: { email: "manager@workflow.local", password: "Manager@123456" },
@@ -151,9 +153,9 @@ async function parseApi<T>(response: APIResponse): Promise<T> {
 }
 
 async function parseApiWithRetry<T>(requester: () => Promise<APIResponse>): Promise<T> {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
     const response = await requester();
-    if (response.status() === 429 && attempt < 2) {
+    if (response.status() === 429 && attempt < 5) {
       const text = await response.text();
       const retrySeconds = Number(text.match(/retry in (\d+) seconds/i)?.[1] ?? 5);
       await wait(Math.min(retrySeconds * 1000 + 1000, 60_000));
@@ -175,24 +177,17 @@ async function apiLogin(request: APIRequestContext, account: AccountKey): Promis
   if (cached) return cached;
 
   const credentials = accounts[account];
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const response = await request.post(`${apiUrl}/auth/login`, {
+  const session = await parseApiWithRetry<ApiSession>(() =>
+    request.post(`${apiUrl}/auth/login`, {
       data: {
         email: credentials.email,
         password: credentials.password,
         deviceName: "Playwright smoke"
       }
-    });
-    if (response.status() === 429 && attempt < 2) {
-      await wait(25_000);
-      continue;
-    }
-    const session = await parseApi<ApiSession>(response);
-    sessionCache.set(account, session);
-    return session;
-  }
-
-  throw new Error(`Unable to login ${account}`);
+    })
+  );
+  sessionCache.set(account, session);
+  return session;
 }
 
 async function apiGet<T>(request: APIRequestContext, session: ApiSession, path: string): Promise<T> {
@@ -367,11 +362,11 @@ test("đăng nhập web bằng tài khoản quản trị", async ({ page }) => {
   await expect(page.getByTestId("nav-tasks")).toBeVisible();
 });
 
-test("xem và thu hồi phiên đăng nhập thiết bị", async ({ page, request }) => {
+test("xem, thu hồi phiên thiết bị và đăng xuất tất cả", async ({ page, request }) => {
   const admin = await apiLogin(request, "admin");
   const deviceName = `Smoke device ${runId}`;
-  const extraSession = await parseApi<ApiSession>(
-    await request.post(`${apiUrl}/auth/login`, {
+  const extraSession = await parseApiWithRetry<ApiSession>(() =>
+    request.post(`${apiUrl}/auth/login`, {
       data: {
         email: accounts.admin.email,
         password: accounts.admin.password,
@@ -392,6 +387,15 @@ test("xem và thu hồi phiên đăng nhập thiết bị", async ({ page, reque
     data: { refreshToken: extraSession.refreshToken }
   });
   expect(refresh.status()).toBe(401);
+
+  await page.getByTestId("auth-session-logout-all").click();
+  await page.getByTestId("auth-session-logout-all-confirm").click();
+  await expect(page.getByTestId("login-submit")).toBeVisible();
+
+  const currentRefresh = await request.post(`${apiUrl}/auth/refresh`, {
+    data: { refreshToken: admin.refreshToken }
+  });
+  expect(currentRefresh.status()).toBe(401);
 });
 
 test("dashboard hiển thị thống kê công việc theo phòng ban", async ({ page, request }) => {

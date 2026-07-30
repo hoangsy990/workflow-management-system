@@ -181,6 +181,7 @@ export const api = {
     }),
   authSessions: () => apiRequest<Record<string, any>[]>("/auth/sessions"),
   revokeAuthSession: (id: string) => apiRequest<{ ok: true }>(`/auth/sessions/${id}`, { method: "DELETE" }),
+  logoutAllSessions: () => apiRequest<{ ok: true }>("/auth/logout-all", { method: "POST" }),
   dashboard: () => apiRequest<Record<string, any>>("/dashboard"),
   notifications: () => apiRequest<Paginated<Record<string, any>> & { unread: number }>("/notifications?pageSize=8"),
   readNotification: (id: string) => apiRequest<{ ok: true }>(`/notifications/${id}/read`, { method: "POST" }),

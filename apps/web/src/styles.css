@@ -273,6 +273,13 @@ legend {
   justify-content: flex-end;
 }
 
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 .account-menu {
   position: relative;
 }
@@ -310,6 +317,24 @@ legend {
   gap: 10px;
   max-height: 360px;
   overflow: auto;
+}
+
+.session-danger-zone {
+  padding: 10px;
+  border: 1px solid rgba(185, 28, 28, 0.2);
+  border-radius: 8px;
+  background: rgba(254, 242, 242, 0.8);
+}
+
+.session-confirm {
+  display: grid;
+  gap: 10px;
+}
+
+.session-confirm span {
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .session-row {
