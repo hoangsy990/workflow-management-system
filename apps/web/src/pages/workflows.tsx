@@ -14,9 +14,38 @@ interface WorkflowPageProps {
 
 
 export function WorkflowTemplates({ setPage }: WorkflowPageProps) {
+  const [compareLeftId, setCompareLeftId] = useState("");
+  const [compareRightId, setCompareRightId] = useState("");
+  const [compareResult, setCompareResult] = useState<Record<string, any> | null>(null);
+  const [compareError, setCompareError] = useState("");
+  const [compareLoading, setCompareLoading] = useState(false);
   const { data, loading, error } = useAsyncData(() => api.workflowTemplates(), []);
   if (loading) return <LoadingBlock />;
   if (error) return <ErrorBlock message={error} />;
+  const versionOptions = (data ?? []).flatMap((template) =>
+    (template.versions ?? []).map((version: Record<string, any>) => ({
+      id: version.id,
+      label: `${template.code} - v${version.versionNo} (${statusLabels[version.status] ?? version.status})`
+    }))
+  );
+
+  async function runCompare() {
+    if (!compareLeftId || !compareRightId || compareLeftId === compareRightId) {
+      setCompareError("Vui lòng chọn hai phiên bản khác nhau.");
+      return;
+    }
+    setCompareLoading(true);
+    setCompareError("");
+    setCompareResult(null);
+    try {
+      setCompareResult(await api.compareWorkflowVersions(compareLeftId, compareRightId));
+    } catch (err) {
+      setCompareError(err instanceof Error ? err.message : "Không so sánh được phiên bản.");
+    } finally {
+      setCompareLoading(false);
+    }
+  }
+
   return (
     <section className="panel">
       <div className="panel-head wrap">
@@ -40,6 +69,52 @@ export function WorkflowTemplates({ setPage }: WorkflowPageProps) {
           ]
         }))}
       />
+      <div className="version-compare" data-testid="workflow-version-compare">
+        <div>
+          <h3>So sánh phiên bản</h3>
+          <p>Chọn hai phiên bản để kiểm tra thay đổi về biểu mẫu, bước xử lý và luồng chuyển bước.</p>
+        </div>
+        <div className="compare-controls">
+          <select data-testid="workflow-version-compare-left" value={compareLeftId} onChange={(event) => setCompareLeftId(event.target.value)}>
+            <option value="">Phiên bản A</option>
+            {versionOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <select data-testid="workflow-version-compare-right" value={compareRightId} onChange={(event) => setCompareRightId(event.target.value)}>
+            <option value="">Phiên bản B</option>
+            {versionOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <button
+            className="ghost-button compact"
+            data-testid="workflow-version-compare-run"
+            type="button"
+            disabled={compareLoading || versionOptions.length < 2}
+            onClick={runCompare}
+          >
+            {compareLoading && <Loader2 className="spin" size={16} />}
+            So sánh
+          </button>
+        </div>
+        {compareError && <p className="form-error">{compareError}</p>}
+        {compareResult && (
+          <div className="compare-result" data-testid="workflow-version-compare-result">
+            <span>Trường: {compareResult.summary?.fieldsChanged ? "Có thay đổi" : "Không đổi"}</span>
+            <span>Bước xử lý: {compareResult.summary?.stepsChanged ? "Có thay đổi" : "Không đổi"}</span>
+            <span>Luồng chuyển: {compareResult.summary?.transitionsChanged ? "Có thay đổi" : "Không đổi"}</span>
+            <small>
+              v{compareResult.left?.versionNo} có {compareResult.left?.fields?.length ?? 0} trường / {compareResult.left?.steps?.length ?? 0} bước; v
+              {compareResult.right?.versionNo} có {compareResult.right?.fields?.length ?? 0} trường / {compareResult.right?.steps?.length ?? 0} bước.
+            </small>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

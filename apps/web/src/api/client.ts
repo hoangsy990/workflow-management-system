@@ -232,6 +232,8 @@ export const api = {
   downloadWorkflowAttachment: (id: string) => apiBlobRequest(`/workflow-attachments/${id}/download`),
   workflowTemplates: () => apiRequest<Record<string, any>[]>("/workflow-templates"),
   workflowTemplate: (id: string) => apiRequest<Record<string, any>>(`/workflow-templates/${id}`),
+  compareWorkflowVersions: (leftId: string, rightId: string) =>
+    apiRequest<Record<string, any>>(`/workflow-versions/${leftId}/compare/${rightId}`),
   createWorkflowTemplate: (payload: Record<string, unknown>) =>
     apiRequest<Record<string, any>>("/workflow-templates", { method: "POST", body: JSON.stringify(payload) }),
   workflowInstances: (query = "") => apiRequest<Paginated<Record<string, any>>>(`/workflow-instances${query}`),

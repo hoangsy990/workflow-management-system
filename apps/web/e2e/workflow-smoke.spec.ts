@@ -86,6 +86,9 @@ interface WorkflowTemplateRecord {
   code: string;
   name: string;
   versions?: Array<{
+    id: string;
+    versionNo: number;
+    status?: string;
     fields?: Array<{
       code: string;
       defaultValue?: unknown;
@@ -616,6 +619,15 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   });
   expect(validInstance.status).toBe("IN_PROGRESS");
   await expect(page.locator(`tr[data-testid="workflow-template-row-${created.id}"]`)).toBeVisible();
+  const templatesForCompare = await apiGet<WorkflowTemplateRecord[]>(request, admin, "/workflow-templates");
+  const compareVersions = templatesForCompare.flatMap((template) => template.versions ?? []).filter((version) => version.id);
+  expect(compareVersions.length).toBeGreaterThanOrEqual(2);
+  await page.getByTestId("workflow-version-compare-left").selectOption(compareVersions[0]!.id);
+  await page.getByTestId("workflow-version-compare-right").selectOption(compareVersions[1]!.id);
+  const compareResponse = page.waitForResponse((response) => response.url().includes("/workflow-versions/") && response.url().includes("/compare/"));
+  await page.getByTestId("workflow-version-compare-run").click();
+  await compareResponse;
+  await expect(page.getByTestId("workflow-version-compare-result")).toContainText("Trường");
 });
 
 test("employee creates workflow instance with dynamic form", async ({ page, request }) => {

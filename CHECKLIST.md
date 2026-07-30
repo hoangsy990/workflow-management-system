@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=96`, `PARTIAL=126`, `TODO=38`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `36.9%`, tính trọng số partial `61.2%`.
+**Tiến độ hiện tại:** `DONE=97`, `PARTIAL=125`, `TODO=38`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `37.3%`, tính trọng số partial `61.3%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `WORKFLOW-VERSION-COMPARE-UI` | Bổ sung UI so sánh phiên bản quy trình trên trang Mẫu quy trình: chọn hai phiên bản từ dữ liệu DB thật, gọi API compare, hiển thị thay đổi trường/bước/luồng chuyển và smoke test thao tác compare sau khi tạo template. Chuyển checklist `Compare versions` sang DONE. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted workflow builder/compare smoke 1/1, `pnpm smoke:web` 27/27. |
 | 30/07/2026 | `WORKFLOW-CHOICE-FIELD-OPTIONS` | Bổ sung cấu hình lựa chọn thật cho workflow `SELECT/RADIO`: builder nhập options, dynamic form render dropdown/radio khi có options, backend validate giá trị phải thuộc danh sách và smoke test assert invalid option trả 400, submit hợp lệ vẫn áp default. Trạng thái tổng chưa đổi vì ATTACHMENT/TABLE/user/department select chuyên dụng còn PARTIAL. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted workflow builder smoke 1/1, `pnpm smoke:web` 27/27. |
 | 30/07/2026 | `WORKFLOW-FIELD-DEFAULT-VALIDATION` | Nâng workflow form builder và backend validation: quản trị viên nhập được giá trị mặc định, min/max length cho text và min/max value cho số/tiền; API chỉ nhận rule có cấu trúc, tự áp default khi client bỏ trống field và validate rule khi tạo hồ sơ. Trạng thái tổng chưa đổi vì editable-by-step/visible-by-role còn PARTIAL. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted workflow builder smoke 1/1, `pnpm smoke:web` 27/27. |
 | 30/07/2026 | `WORKFLOW-RETURN-SMOKE` | Bổ sung Playwright smoke riêng cho hành động trả bước hồ sơ PAYMENT: tạo hồ sơ số tiền lớn để đi qua bước quản lý rồi giám đốc trả về người xử lý trước, assert trạng thái hồ sơ, pending approver và lịch sử `RETURN` qua API thật. Không đổi số lượng DONE/PARTIAL/TODO vì chức năng trả bước đã DONE, chunk này tăng độ phủ kiểm thử. | `pnpm lint`, `pnpm test`, `pnpm build`, Docker API/web healthy, targeted return smoke 1/1, `pnpm smoke:web` 27/27. |
@@ -157,7 +158,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Điều kiện rẽ nhánh structured, không eval | `DONE` | Domain condition builder/test/smoke lớn tiền pass; workflow builder có UI điều kiện chuyển bước cơ bản. |
 | Trạng thái hồ sơ đầy đủ | `PARTIAL` | Enum/status có; draft/submitted workflow chưa đủ UI/luồng. |
 | Version workflow không sửa trực tiếp khi có instance | `PARTIAL` | Domain assert/test có cho status; UI tạo version mới/compare còn thiếu. |
-| Compare versions | `PARTIAL` | API compare có; UI chưa có. |
+| Compare versions | `DONE` | API compare có; UI trên trang Mẫu quy trình cho chọn hai phiên bản, hiển thị summary fields/steps/transitions và smoke test pass. |
 | Deadline/SLA bước | `PARTIAL` | Schema deadline fields có, `deadlineAt` được tính khi start step và scheduler gửi sắp quá hạn/quá hạn. Tự động phê duyệt/escalation nâng cao chưa có. |
 
 ## 6. Thông báo
@@ -266,7 +267,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API/UI bổ sung progress, review, redo reset theo setting và overdue. Cần integration tests đầy đủ hơn. |
 | Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có thêm validate form data + smoke API/UI nhiều luồng. Chưa có integration transaction failure tự động. |
 | Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
-| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, dashboard department stats, deadline scheduler, user edit, department edit, role preview, tạo workflow template bằng builder có default/options/validation rule, tạo workflow instance bằng form động, task upload/download/download audit/reply/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, progress, evaluation attachment, redo reset, workflow action attachment, approved notification, approve/reject/request-info/return/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
+| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, dashboard department stats, deadline scheduler, user edit, department edit, role preview, tạo workflow template bằng builder có default/options/validation rule, compare workflow versions, tạo workflow instance bằng form động, task upload/download/download audit/reply/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, progress, evaluation attachment, redo reset, workflow action attachment, approved notification, approve/reject/request-info/return/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
 | Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `PARTIAL` | Windows desktop build và Android arm64 APK build đã pass. Chưa QA cài/chạy trên thiết bị Android, chưa có Edge/iOS/macOS matrix. |
 
 ## 14. Triển khai

@@ -925,6 +925,50 @@ tbody tr:hover {
   font-size: 12px;
 }
 
+.version-compare {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.version-compare h3,
+.version-compare p {
+  margin: 0;
+}
+
+.version-compare p {
+  color: var(--muted);
+}
+
+.compare-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.compare-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--text);
+}
+
+.compare-result span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.compare-result small {
+  color: var(--muted);
+}
+
 .compact-toggle {
   min-height: 40px;
 }
@@ -1585,6 +1629,10 @@ progress {
   }
 
   .condition-row {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-controls {
     grid-template-columns: 1fr;
   }
 
