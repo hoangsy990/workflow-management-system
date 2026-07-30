@@ -400,6 +400,22 @@ legend {
   flex-wrap: wrap;
 }
 
+.toolbar-select {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.toolbar-select select {
+  min-width: 150px;
+}
+
+.toolbar-select.compact-sort select {
+  min-width: 92px;
+}
+
 .view-tabs {
   display: flex;
   gap: 8px;

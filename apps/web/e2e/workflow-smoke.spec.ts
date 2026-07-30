@@ -756,6 +756,41 @@ test("phân trang danh sách công việc trên UI", async ({ page, request }) =
   await expect(page.getByTestId("task-pagination-summary")).toContainText("Trang 1/2");
 });
 
+test("sắp xếp danh sách công việc phía server trên UI", async ({ page, request }) => {
+  const manager = await apiLogin(request, "manager");
+  const label = `sort-${runId}`;
+  const earlyTask = await createSmokeTask(request, manager, label, {
+    startDate: `${dateInput(-29)}T00:00:00.000Z`,
+    dueDate: `${dateInput(-28)}T00:00:00.000Z`,
+    requiresReview: false
+  });
+  const lateTask = await createSmokeTask(request, manager, label, {
+    startDate: `${dateInput(-29)}T00:00:00.000Z`,
+    dueDate: `${dateInput(-27)}T00:00:00.000Z`,
+    requiresReview: false
+  });
+
+  await openAppWithSession(page, manager);
+  await page.getByTestId("nav-tasks").click();
+  await page.getByTestId("task-search-input").fill(`Smoke ${label}`);
+  await page.getByTestId("task-sort-by").selectOption("dueDate");
+  const descResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname.endsWith("/tasks") && url.searchParams.get("sortBy") === "dueDate" && url.searchParams.get("sortOrder") === "desc";
+  });
+  await page.getByTestId("task-sort-order").selectOption("desc");
+  await descResponse;
+  await expect(page.locator("tbody tr").first()).toHaveAttribute("data-testid", `task-row-${lateTask.id}`);
+
+  const ascResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname.endsWith("/tasks") && url.searchParams.get("sortBy") === "dueDate" && url.searchParams.get("sortOrder") === "asc";
+  });
+  await page.getByTestId("task-sort-order").selectOption("asc");
+  await ascResponse;
+  await expect(page.locator("tbody tr").first()).toHaveAttribute("data-testid", `task-row-${earlyTask.id}`);
+});
+
 test("nhân viên cập nhật tiến độ task lên chờ đánh giá trên UI", async ({ page, request }) => {
   const manager = await apiLogin(request, "manager");
   const employee = await apiLogin(request, "employee");

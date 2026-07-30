@@ -154,6 +154,8 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<TaskFilters>(defaultTaskFilters);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortBy, setSortBy] = useState("dueDate");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const users = useAsyncData(() => api.users(), []);
   const departments = useAsyncData(() => api.departments(), []);
   const categories = useAsyncData(() => api.taskCategories(), []);
@@ -174,9 +176,11 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
     if (filters.from) params.set("from", filters.from);
     if (filters.to) params.set("to", filters.to);
     if (filters.overdue) params.set("overdue", "true");
+    if (sortBy) params.set("sortBy", sortBy);
+    params.set("sortOrder", sortOrder);
     if (mode === "mine") params.set("myView", myTaskView);
     return `?${params.toString()}`;
-  }, [currentPage, keyword, status, lockedStatus, filters, mode, myTaskView]);
+  }, [currentPage, keyword, status, lockedStatus, filters, sortBy, sortOrder, mode, myTaskView]);
   const { data, loading, error, reload } = useAsyncData(() => api.tasks(query), [query]);
   const pagination = data?.pagination;
   const userOptions = users.data?.data ?? [];
@@ -208,7 +212,7 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword, status, filters, mode, myTaskView]);
+  }, [keyword, status, filters, sortBy, sortOrder, mode, myTaskView]);
 
   useEffect(() => {
     if (pagination && currentPage > pagination.totalPages) {
@@ -231,6 +235,8 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
     setKeyword("");
     setStatus("");
     setFilters(defaultTaskFilters);
+    setSortBy("dueDate");
+    setSortOrder("asc");
   }
 
   if (loading) return <LoadingBlock />;
@@ -265,6 +271,26 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
                 </option>
               ))}
           </select>
+          <label className="toolbar-select">
+            Sắp xếp
+            <select data-testid="task-sort-by" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+              <option value="dueDate">Hạn hoàn thành</option>
+              <option value="startDate">Ngày bắt đầu</option>
+              <option value="createdAt">Ngày tạo</option>
+              <option value="priority">Ưu tiên</option>
+              <option value="status">Trạng thái</option>
+              <option value="progress">Tiến độ</option>
+              <option value="code">Mã</option>
+              <option value="title">Tên công việc</option>
+            </select>
+          </label>
+          <label className="toolbar-select compact-sort">
+            Chiều
+            <select data-testid="task-sort-order" value={sortOrder} onChange={(event) => setSortOrder(event.target.value as "asc" | "desc")}>
+              <option value="asc">Tăng</option>
+              <option value="desc">Giảm</option>
+            </select>
+          </label>
           <button
             className="ghost-button compact"
             data-testid="task-filter-toggle"

@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=90`, `PARTIAL=131`, `TODO=39`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `34.6%`, tính trọng số partial `59.8%`.
+**Tiến độ hiện tại:** `DONE=91`, `PARTIAL=130`, `TODO=39`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `35.0%`, tính trọng số partial `60.0%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `TASK-LIST-SORT-UI` | Bổ sung sort server-side cho danh sách công việc: backend allow-list `sortBy/sortOrder`, UI chọn field/chiều sort, reset trang khi đổi sort và smoke test tạo 2 task để assert thứ tự hạn tăng/giảm. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted sort smoke 1/1, `pnpm smoke:web` 23/23. |
 | 30/07/2026 | `TASK-LIST-PAGINATION-UI` | Bổ sung phân trang UI cho danh sách công việc: query gửi `page/pageSize`, reset về trang 1 khi đổi search/filter/tab, thanh Trước/Sau + summary lấy từ API thật và smoke test tạo 11 task để kiểm trang 1/2. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted pagination smoke 1/1, targeted my-task smoke 1/1, `pnpm smoke:web` 22/22. |
 | 30/07/2026 | `TASK-KANBAN-CONFIRM` | Thay browser confirm bằng panel xác nhận trong app cho Kanban khi chuyển sang Chờ đánh giá/Hoàn thành/Đã hủy, có loading/error/success, test id ổn định cho column/card và smoke test drop task sang Hoàn thành rồi xác nhận. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted kanban smoke 1/1, `pnpm smoke:web` 21/21. |
 | 30/07/2026 | `TASK-CALENDAR-START-DUE` | Nâng lịch công việc từ danh sách nhóm theo hạn sang grid ngày responsive: API filter `from/to` theo cả `startDate` và `dueDate`, UI hiển thị marker Bắt đầu/Hạn riêng và click marker mở detail task. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted calendar smoke 1/1, `pnpm smoke:web` 20/20. |
@@ -231,7 +232,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Transaction nghiệp vụ quan trọng | `DONE` | Task/workflow chính có. |
 | Idempotent submit/approval | `DONE` | Idempotency key có, smoke pass. |
 | Lỗi API cấu trúc thống nhất | `DONE` | `{ error: { code, message, details } }`. |
-| Pagination/filter/sort server-side | `PARTIAL` | Pagination/filter có; sort tùy chọn UI/API chưa đầy đủ. |
+| Pagination/filter/sort server-side | `DONE` | Task list có pagination, filter và sort server-side bằng allow-list field; UI có search/filter/pagination/sort và smoke test dữ liệu thật. |
 | Không N+1 | `PARTIAL` | Prisma include chính có; cần audit khi mở rộng report. |
 | OpenAPI/Swagger | `DONE` | `/docs`. |
 | Upload file an toàn | `DONE` | Có. |
@@ -255,7 +256,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API/UI bổ sung progress, review, redo reset theo setting và overdue. Cần integration tests đầy đủ hơn. |
 | Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có thêm validate form data + smoke API/UI nhiều luồng. Chưa có integration transaction failure tự động. |
 | Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
-| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, user edit, department edit, role preview, tạo workflow template bằng builder, tạo workflow instance bằng form động, task upload/download/reply, calendar start/due, kanban confirm, pagination, progress, evaluation attachment, redo reset, approve/reject/request-info/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
+| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, user edit, department edit, role preview, tạo workflow template bằng builder, tạo workflow instance bằng form động, task upload/download/reply, calendar start/due, kanban confirm, pagination/sort, progress, evaluation attachment, redo reset, approve/reject/request-info/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
 | Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `PARTIAL` | Windows desktop build và Android arm64 APK build đã pass. Chưa QA cài/chạy trên thiết bị Android, chưa có Edge/iOS/macOS matrix. |
 
 ## 14. Triển khai
@@ -318,7 +319,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Danh sách công việc đầy đủ columns/action/filter/sort/pagination | `PARTIAL` | Có list đủ cột chính, filter nâng cao và pagination UI. Còn thiếu sort UI/API đầy đủ và action hàng nâng cao. |
+| Danh sách công việc đầy đủ columns/action/filter/sort/pagination | `PARTIAL` | Có list đủ cột chính, filter nâng cao, pagination UI và sort server-side. Còn thiếu action hàng nâng cao. |
 | Bộ lọc nâng cao | `TODO` | Backend có nhiều filter; UI filter nâng cao chưa. |
 | Tạo task chia nhóm/tệp/liên kết/cấu hình nâng cao | `PARTIAL` | Form nhóm cơ bản có. |
 | Chi tiết task có khu vực chính/panel/thanh thao tác/timeline | `PARTIAL` | Có overview/progress/comment/file/history. Cần layout detail nâng cao/tabs. |
@@ -453,7 +454,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
-| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, auto progress parent từ child, tạo task qua API, mở detail UI, upload/download attachment, reply comment, calendar start/due, kanban confirm, pagination, cập nhật progress, đánh giá hoàn thành task kèm tệp xác nhận, yêu cầu làm lại reset progress theo setting, approve/reject/request-info/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
+| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, auto progress parent từ child, tạo task qua API, mở detail UI, upload/download attachment, reply comment, calendar start/due, kanban confirm, pagination/sort, cập nhật progress, đánh giá hoàn thành task kèm tệp xác nhận, yêu cầu làm lại reset progress theo setting, approve/reject/request-info/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
 | Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; smoke có tạo template bằng builder động và tạo hồ sơ bằng form động. Canvas designer, responsive/offline matrix và builder nâng cao chưa có. |
 | Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 
@@ -487,7 +488,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission chưa có cấu hình riêng. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk task list pagination UI đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted pagination smoke 1/1, targeted my-task smoke 1/1 và `pnpm smoke:web` 22/22. Responsive còn cần QA sâu. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk task list sort UI đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted sort smoke 1/1 và `pnpm smoke:web` 23/23. Responsive còn cần QA sâu. |
 
 ## Việc ưu tiên tiếp theo
 

@@ -24,6 +24,8 @@ export interface TaskListInput {
   from?: Date;
   to?: Date;
   overdue?: boolean;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
   myView?: "assignee" | "assigner" | "manager" | "follower" | "review" | "overdue" | "done";
 }
 
@@ -153,6 +155,30 @@ function myRelatedTaskWhere(auth: AuthContext): Prisma.TaskWhereInput {
   };
 }
 
+function taskOrderBy(input: Pick<TaskListInput, "sortBy" | "sortOrder">): Prisma.TaskOrderByWithRelationInput[] {
+  const order = input.sortOrder === "asc" ? "asc" : "desc";
+  switch (input.sortBy) {
+    case "code":
+      return [{ code: order }, { createdAt: "desc" }];
+    case "title":
+      return [{ title: order }, { createdAt: "desc" }];
+    case "status":
+      return [{ status: order }, { createdAt: "desc" }];
+    case "priority":
+      return [{ priority: order }, { createdAt: "desc" }];
+    case "startDate":
+      return [{ startDate: order }, { createdAt: "desc" }];
+    case "dueDate":
+      return [{ dueDate: order }, { createdAt: "desc" }];
+    case "progress":
+      return [{ progress: order }, { createdAt: "desc" }];
+    case "createdAt":
+      return [{ createdAt: order }];
+    default:
+      return [{ dueDate: "asc" }, { createdAt: "desc" }];
+  }
+}
+
 function withComputedTaskFields<T extends { status: TaskStatus; dueDate: Date | null }>(task: T) {
   return {
     ...task,
@@ -211,7 +237,7 @@ export async function listTasks(db: PrismaClient, auth: AuthContext, input: Task
       where,
       skip: (input.page - 1) * input.pageSize,
       take: input.pageSize,
-      orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+      orderBy: taskOrderBy(input),
       include: {
         creator: { select: { id: true, fullName: true } },
         assigner: { select: { id: true, fullName: true } },
