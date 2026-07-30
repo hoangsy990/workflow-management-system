@@ -1,4 +1,4 @@
-import { Download, Loader2, Plus, Search, Star, Upload, XCircle } from "lucide-react";
+import { Download, Loader2, Plus, RotateCcw, Search, SlidersHorizontal, Star, Upload, XCircle } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock, MultiCheck } from "../components/common";
@@ -8,6 +8,19 @@ import { cls, formatDate, statusLabels } from "../lib/format";
 type TaskPage = "tasks" | "newTask" | "taskDetail";
 type TaskEvaluationMode = "accept" | "redo";
 type MyTaskView = "assignee" | "assigner" | "manager" | "follower" | "review" | "overdue" | "done";
+type TaskFilters = {
+  code: string;
+  creatorId: string;
+  assigneeId: string;
+  managerId: string;
+  departmentId: string;
+  priority: string;
+  categoryId: string;
+  tagId: string;
+  from: string;
+  to: string;
+  overdue: boolean;
+};
 
 interface TaskPageProps {
   setPage: (page: TaskPage) => void;
@@ -29,6 +42,19 @@ const myTaskTabs: Array<{ key: MyTaskView; label: string; lockedStatus?: string 
   { key: "overdue", label: "Đã quá hạn" },
   { key: "done", label: "Đã hoàn thành", lockedStatus: "DONE" }
 ];
+const defaultTaskFilters: TaskFilters = {
+  code: "",
+  creatorId: "",
+  assigneeId: "",
+  managerId: "",
+  departmentId: "",
+  priority: "",
+  categoryId: "",
+  tagId: "",
+  from: "",
+  to: "",
+  overdue: false
+};
 const maxAttachmentMb = 20;
 const allowedAttachmentTypes = new Set([
   "image/jpeg",
@@ -54,15 +80,36 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState("");
   const [myTaskView, setMyTaskView] = useState<MyTaskView>("assignee");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState<TaskFilters>(defaultTaskFilters);
+  const users = useAsyncData(() => api.users(), []);
+  const departments = useAsyncData(() => api.departments(), []);
+  const categories = useAsyncData(() => api.taskCategories(), []);
+  const tags = useAsyncData(() => api.tags(), []);
   const lockedStatus = mode === "mine" ? myTaskTabs.find((tab) => tab.key === myTaskView)?.lockedStatus : undefined;
   const query = useMemo(() => {
     const params = new URLSearchParams({ pageSize: "50" });
     if (keyword) params.set("keyword", keyword);
     if (status && !lockedStatus) params.set("status", status);
+    if (filters.code) params.set("code", filters.code);
+    if (filters.creatorId) params.set("creatorId", filters.creatorId);
+    if (filters.assigneeId) params.set("assigneeId", filters.assigneeId);
+    if (filters.managerId) params.set("managerId", filters.managerId);
+    if (filters.departmentId) params.set("departmentId", filters.departmentId);
+    if (filters.priority) params.set("priority", filters.priority);
+    if (filters.categoryId) params.set("categoryId", filters.categoryId);
+    if (filters.tagId) params.set("tagId", filters.tagId);
+    if (filters.from) params.set("from", filters.from);
+    if (filters.to) params.set("to", filters.to);
+    if (filters.overdue) params.set("overdue", "true");
     if (mode === "mine") params.set("myView", myTaskView);
     return `?${params.toString()}`;
-  }, [keyword, status, lockedStatus, mode, myTaskView]);
+  }, [keyword, status, lockedStatus, filters, mode, myTaskView]);
   const { data, loading, error, reload } = useAsyncData(() => api.tasks(query), [query]);
+  const userOptions = users.data?.data ?? [];
+  const departmentOptions = departments.data ?? [];
+  const categoryOptions = categories.data ?? [];
+  const tagOptions = tags.data ?? [];
   const tableRows =
     data?.data?.map((task) => ({
       key: task.id,
@@ -91,6 +138,16 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
     if (myTaskTabs.find((tab) => tab.key === nextView)?.lockedStatus) {
       setStatus("");
     }
+  }
+
+  function updateFilter<Key extends keyof TaskFilters>(key: Key, value: TaskFilters[Key]) {
+    setFilters((current) => ({ ...current, [key]: value }));
+  }
+
+  function resetFilters() {
+    setKeyword("");
+    setStatus("");
+    setFilters(defaultTaskFilters);
   }
 
   if (loading) return <LoadingBlock />;
@@ -125,6 +182,16 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
                 </option>
               ))}
           </select>
+          <button
+            className="ghost-button compact"
+            data-testid="task-filter-toggle"
+            type="button"
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((current) => !current)}
+          >
+            <SlidersHorizontal size={16} />
+            Bộ lọc
+          </button>
           <button className="primary-button compact" type="button" onClick={() => setPage("newTask")}>
             <Plus size={16} />
             Tạo công việc
@@ -149,6 +216,145 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
               {tab.label}
             </button>
           ))}
+        </div>
+      )}
+      {filtersOpen && (
+        <div className="filter-panel" data-testid="task-filter-panel">
+          <div className="filter-grid">
+            <label>
+              Mã công việc
+              <input
+                data-testid="task-filter-code"
+                value={filters.code}
+                onChange={(event) => updateFilter("code", event.target.value)}
+                placeholder="TASK-..."
+              />
+            </label>
+            <label>
+              Người tạo
+              <select
+                data-testid="task-filter-creator"
+                value={filters.creatorId}
+                onChange={(event) => updateFilter("creatorId", event.target.value)}
+              >
+                <option value="">Tất cả</option>
+                {userOptions.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.fullName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Người thực hiện
+              <select
+                data-testid="task-filter-assignee"
+                value={filters.assigneeId}
+                onChange={(event) => updateFilter("assigneeId", event.target.value)}
+              >
+                <option value="">Tất cả</option>
+                {userOptions.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.fullName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Người quản lý
+              <select
+                data-testid="task-filter-manager"
+                value={filters.managerId}
+                onChange={(event) => updateFilter("managerId", event.target.value)}
+              >
+                <option value="">Tất cả</option>
+                {userOptions.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.fullName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Phòng ban
+              <select
+                data-testid="task-filter-department"
+                value={filters.departmentId}
+                onChange={(event) => updateFilter("departmentId", event.target.value)}
+              >
+                <option value="">Tất cả</option>
+                {departmentOptions.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Mức ưu tiên
+              <select
+                data-testid="task-filter-priority"
+                value={filters.priority}
+                onChange={(event) => updateFilter("priority", event.target.value)}
+              >
+                <option value="">Tất cả</option>
+                {Object.entries(priorityLabels).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Danh mục
+              <select
+                data-testid="task-filter-category"
+                value={filters.categoryId}
+                onChange={(event) => updateFilter("categoryId", event.target.value)}
+              >
+                <option value="">Tất cả</option>
+                {categoryOptions.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Nhãn
+              <select data-testid="task-filter-tag" value={filters.tagId} onChange={(event) => updateFilter("tagId", event.target.value)}>
+                <option value="">Tất cả</option>
+                {tagOptions.map((tag) => (
+                  <option key={tag.id} value={tag.id}>
+                    {tag.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Hạn từ ngày
+              <input data-testid="task-filter-from" type="date" value={filters.from} onChange={(event) => updateFilter("from", event.target.value)} />
+            </label>
+            <label>
+              Hạn đến ngày
+              <input data-testid="task-filter-to" type="date" value={filters.to} onChange={(event) => updateFilter("to", event.target.value)} />
+            </label>
+            <label className="toggle-line">
+              <input
+                data-testid="task-filter-overdue"
+                type="checkbox"
+                checked={filters.overdue}
+                onChange={(event) => updateFilter("overdue", event.target.checked)}
+              />
+              Công việc quá hạn
+            </label>
+          </div>
+          <div className="form-actions">
+            <button className="ghost-button compact" data-testid="task-filter-reset" type="button" onClick={resetFilters}>
+              <RotateCcw size={16} />
+              Xóa lọc
+            </button>
+          </div>
         </div>
       )}
       <DataTable

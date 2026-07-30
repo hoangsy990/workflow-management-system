@@ -14,6 +14,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `TASK-ADVANCED-FILTERS` | Bổ sung panel lọc công việc nâng cao trên UI: mã, người tạo, người thực hiện, người quản lý, phòng ban, ưu tiên, danh mục, nhãn, khoảng hạn và quá hạn; tất cả nối query server-side. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 15/15. |
 | 30/07/2026 | `MY-TASK-TABS` | Hoàn thiện trang Công việc của tôi với 7 tab bắt buộc, nối filter server-side theo assignee/assigner/manager/follower/review/overdue/done; bổ sung đủ cột list view và smoke test lọc tab. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 14/14. |
 | 30/07/2026 | `TASK-EVALUATION-PANEL` | Thay prompt đánh giá task bằng panel trong app: chọn hoàn thành/làm lại, chấm 1-5 sao, nhập nhận xét/lý do, loading/error rõ ràng và smoke test quản lý xác nhận hoàn thành task. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 13/13. |
 | 30/07/2026 | `WORKFLOW-CONDITION-BUILDER` | Bổ sung UI cấu hình điều kiện chuyển bước trong workflow builder: chọn field, operator, giá trị so sánh, gửi structured condition vào transition và smoke test kiểm tra condition được lưu qua API. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 12/12. |
@@ -109,7 +110,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Kanban view, kéo thả | `PARTIAL` | Có drag/drop status cơ bản. Cần policy UX/confirm đầy đủ và QA desktop. |
 | Calendar view | `PARTIAL` | Có nhóm theo dueDate; chưa hiển thị theo start + due dạng calendar chuẩn. |
 | Công việc của tôi với đủ tabs | `DONE` | Có đủ 7 tab: Tôi thực hiện, Tôi giao, Tôi quản lý, Tôi theo dõi, Chờ tôi đánh giá, Đã quá hạn, Đã hoàn thành; filter phía server và smoke test. |
-| Tìm kiếm/lọc server-side đầy đủ | `PARTIAL` | Backend hỗ trợ nhiều filter. UI mới keyword/status cơ bản. |
+| Tìm kiếm/lọc server-side đầy đủ | `DONE` | UI có keyword, code, status, creator, assignee, manager, department, priority, due range, overdue, category và tag; tất cả nối query API server-side và có smoke test. |
 | Phân trang server-side | `DONE` | API paginate có. UI chưa có điều khiển trang đầy đủ. |
 
 ## 5. Quy trình phê duyệt
@@ -164,7 +165,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Backend validation | `DONE` | Zod. |
 | Backend authorization | `DONE` | Auth guard + permission/policy. |
 | Upload file: giới hạn type/size/safe filename/no internal path leak | `DONE` | API upload kiểm MIME/size/safe name/storageKey. |
-| Rate limit login/API nhạy cảm | `DONE` | Fastify rate limit + login route limit. |
+| Rate limit login/API nhạy cảm | `DONE` | Fastify rate limit có `API_RATE_LIMIT_MAX` cấu hình theo môi trường; login route vẫn giới hạn riêng 5 lần/phút. |
 | Lock/delay sau nhiều lần login sai | `DONE` | `failedLoginAttempts`, `lockedUntil`. |
 | Không log secret | `PARTIAL` | Không chủ động log token/password; cần rà production logger/redaction. |
 | Audit login/task/workflow/permission/config/download/delete file | `PARTIAL` | Nhiều hành động có. Download/delete file/config/import/export chưa phủ hết. |
@@ -471,7 +472,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission chưa có cấu hình riêng. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk my task tabs đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 14/14. Responsive còn cần QA sâu. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk task advanced filters đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 15/15. Responsive còn cần QA sâu. |
 
 ## Việc ưu tiên tiếp theo
 

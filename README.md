@@ -66,6 +66,12 @@ pnpm dev
 
 API: `http://localhost:4000`. Web: `http://localhost:5173`.
 
+## Biến môi trường đáng chú ý
+
+- `API_RATE_LIMIT_MAX`: giới hạn request API chung mỗi phút, mặc định `600`. Route đăng nhập vẫn có giới hạn riêng thấp hơn để chống dò mật khẩu.
+- `MAX_UPLOAD_MB`: dung lượng tối đa mỗi tệp upload.
+- `ACCESS_TOKEN_TTL` và `REFRESH_TOKEN_TTL_DAYS`: thời gian sống access token và refresh token.
+
 ## Build production
 
 ```bash

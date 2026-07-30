@@ -12,9 +12,9 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(12).default("change-me-refresh-secret"),
   ACCESS_TOKEN_TTL: z.string().default("15m"),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  API_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(600),
   UPLOAD_DIR: z.string().default("uploads"),
   MAX_UPLOAD_MB: z.coerce.number().int().positive().default(20)
 });
 
 export const config = envSchema.parse(process.env);
-

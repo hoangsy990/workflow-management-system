@@ -51,6 +51,16 @@ interface TaskRecord {
   title: string;
 }
 
+interface TaskCategoryRecord {
+  id: string;
+  name: string;
+}
+
+interface TagRecord {
+  id: string;
+  name: string;
+}
+
 interface WorkflowTemplateRecord {
   id: string;
   code: string;
@@ -89,6 +99,10 @@ function wait(ms: number) {
 
 function uniqueSlug(label: string) {
   return `${label}-${runId}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function dateInput(daysFromNow: number) {
+  return new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 async function parseApi<T>(response: APIResponse): Promise<T> {
@@ -416,6 +430,69 @@ test("tạo task qua API rồi upload và download tệp trên UI", async ({ pag
   await attachmentButton.click();
   const downloadedFile = await download;
   expect(downloadedFile.suggestedFilename()).toContain(fileName);
+});
+
+test("lọc công việc phía server trên UI", async ({ page, request }) => {
+  const manager = await apiLogin(request, "manager");
+  const users = await apiGet<Paginated<UserRecord>>(request, manager, "/users?pageSize=100");
+  const departments = await apiGet<DepartmentRecord[]>(request, manager, "/departments");
+  const categories = await apiGet<TaskCategoryRecord[]>(request, manager, "/task-categories");
+  const tags = await apiGet<TagRecord[]>(request, manager, "/tags");
+  const assignee = users.data.find((user) => user.email === accounts.employee.email) ?? users.data[0];
+  const department = assignee?.department ?? departments[0];
+  const category = categories[0];
+  const tag = tags[0];
+
+  expect(assignee, "Seed employee is required").toBeTruthy();
+  expect(department, "Seed department is required").toBeTruthy();
+  expect(category, "Seed task category is required").toBeTruthy();
+  expect(tag, "Seed tag is required").toBeTruthy();
+
+  const task = await createSmokeTask(request, manager, "filters", {
+    assigneeIds: [assignee!.id],
+    managerId: manager.user.id,
+    departmentId: department!.id,
+    priority: "URGENT",
+    categoryId: category!.id,
+    tagIds: [tag!.id],
+    startDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    dueDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString()
+  });
+
+  await openAppWithSession(page, manager);
+  await page.getByTestId("nav-tasks").click();
+  await page.getByTestId("task-filter-toggle").click();
+  await expect(page.getByTestId("task-filter-panel")).toBeVisible();
+  await expect(page.getByTestId("task-filter-assignee").locator(`option[value="${assignee!.id}"]`)).toHaveCount(1);
+  await expect(page.getByTestId("task-filter-category").locator(`option[value="${category!.id}"]`)).toHaveCount(1);
+  await expect(page.getByTestId("task-filter-tag").locator(`option[value="${tag!.id}"]`)).toHaveCount(1);
+
+  await page.getByTestId("task-search-input").fill("Smoke filters");
+  await page.getByTestId("task-filter-code").fill(task.code);
+  await page.getByTestId("task-filter-creator").selectOption(manager.user.id);
+  await page.getByTestId("task-filter-assignee").selectOption(assignee!.id);
+  await page.getByTestId("task-filter-manager").selectOption(manager.user.id);
+  await page.getByTestId("task-filter-department").selectOption(department!.id);
+  await page.getByTestId("task-filter-priority").selectOption("URGENT");
+  await page.getByTestId("task-filter-category").selectOption(category!.id);
+  await page.getByTestId("task-filter-from").fill(dateInput(-2));
+  await page.getByTestId("task-filter-to").fill(dateInput(8));
+  const filteredResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname.endsWith("/tasks") &&
+      url.searchParams.get("code") === task.code &&
+      url.searchParams.get("priority") === "URGENT" &&
+      url.searchParams.get("tagId") === tag!.id
+    );
+  });
+  await page.getByTestId("task-filter-tag").selectOption(tag!.id);
+  await filteredResponse;
+
+  await expect(page.locator(`tr[data-testid="task-row-${task.id}"]`)).toBeVisible();
+  await page.getByTestId("task-filter-reset").click();
+  await expect(page.getByTestId("task-search-input")).toHaveValue("");
+  await expect(page.getByTestId("task-filter-code")).toHaveValue("");
 });
 
 test("nhân viên cập nhật tiến độ task lên chờ đánh giá trên UI", async ({ page, request }) => {

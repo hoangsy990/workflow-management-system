@@ -426,6 +426,28 @@ legend {
   color: var(--primary-strong);
 }
 
+.filter-panel {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(170px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.filter-grid .toggle-line {
+  min-height: 42px;
+  align-self: end;
+}
+
 .search-box {
   width: 260px;
   display: flex;
@@ -1340,6 +1362,7 @@ progress {
   .page-grid,
   .detail-grid,
   .form-grid,
+  .filter-grid,
   .permission-layout {
     grid-template-columns: 1fr;
   }

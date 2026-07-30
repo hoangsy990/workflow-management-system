@@ -32,6 +32,7 @@ services:
       WEB_ORIGIN: http://localhost:8080
       JWT_ACCESS_SECRET: change-me-access-secret
       JWT_REFRESH_SECRET: change-me-refresh-secret
+      API_RATE_LIMIT_MAX: 600
       UPLOAD_DIR: uploads
     ports:
       - "4000:4000"
@@ -63,4 +64,3 @@ services:
 volumes:
   postgres_data:
   uploads_data:
-

@@ -39,7 +39,7 @@ export async function createApp() {
     exposedHeaders: ["Content-Disposition"]
   });
   await app.register(rateLimit, {
-    max: 120,
+    max: config.API_RATE_LIMIT_MAX,
     timeWindow: "1 minute"
   });
   await app.register(jwt, {
