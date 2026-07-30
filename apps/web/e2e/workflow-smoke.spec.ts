@@ -162,7 +162,9 @@ async function apiPost<T>(request: APIRequestContext, session: ApiSession, path:
 }
 
 async function openAppWithSession(page: Page, session: ApiSession) {
-  await page.addInitScript((storedSession) => {
+  await page.goto("/");
+  await page.evaluate((storedSession) => {
+    window.sessionStorage.clear();
     window.sessionStorage.setItem(
       "workflow.session",
       JSON.stringify({
@@ -171,11 +173,16 @@ async function openAppWithSession(page: Page, session: ApiSession) {
       })
     );
   }, session);
-  await page.goto("/");
+  await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("nav-dashboard")).toBeVisible();
 }
 
-async function createSmokeTask(request: APIRequestContext, manager: ApiSession, label = "upload") {
+async function createSmokeTask(
+  request: APIRequestContext,
+  manager: ApiSession,
+  label = "upload",
+  overrides: Record<string, unknown> = {}
+) {
   const users = await apiGet<Paginated<UserRecord>>(request, manager, "/users?pageSize=100");
   const departments = await apiGet<DepartmentRecord[]>(request, manager, "/departments");
   const assignee = users.data.find((user) => user.email === accounts.employee.email) ?? users.data[0];
@@ -196,7 +203,8 @@ async function createSmokeTask(request: APIRequestContext, manager: ApiSession, 
     dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
     priority: "NORMAL",
     tagIds: [],
-    requiresReview: true
+    requiresReview: true,
+    ...overrides
   });
 }
 
@@ -240,6 +248,15 @@ async function runWorkflowAction(page: Page, testId: string, comment: string) {
   await expect(page.getByTestId("workflow-action-panel")).toBeVisible();
   await page.getByTestId("workflow-action-comment").fill(comment);
   await page.getByTestId("workflow-action-confirm").click();
+}
+
+async function openTaskFromNav(page: Page, navTestId: string, task: TaskRecord, keyword = task.title) {
+  await page.getByTestId(navTestId).click();
+  await page.getByTestId("task-search-input").fill(keyword);
+  const row = page.locator(`tr[data-testid="task-row-${task.id}"]`);
+  await expect(row).toBeVisible();
+  await row.click();
+  await expect(page.getByText(task.title)).toBeVisible();
 }
 
 test("đăng nhập web bằng tài khoản quản trị", async ({ page }) => {
@@ -380,10 +397,7 @@ test("tạo task qua API rồi upload và download tệp trên UI", async ({ pag
   const fileName = `smoke-${runId}.pdf`;
 
   await openAppWithSession(page, manager);
-  await page.getByTestId("nav-tasks").click();
-  await expect(page.locator(`tr[data-testid="task-row-${task.id}"]`)).toBeVisible();
-  await page.locator(`tr[data-testid="task-row-${task.id}"]`).click();
-  await expect(page.getByText(task.title)).toBeVisible();
+  await openTaskFromNav(page, "nav-tasks", task);
 
   await page.getByTestId("task-comment-input").fill(`Đính kèm kiểm thử ${runId}`);
   await page.getByTestId("task-attachment-input").setInputFiles({
@@ -410,11 +424,7 @@ test("nhân viên cập nhật tiến độ task lên chờ đánh giá trên UI
   const task = await createSmokeTask(request, manager, "progress");
 
   await openAppWithSession(page, employee);
-  await page.getByTestId("nav-myTasks").click();
-  const row = page.locator(`tr[data-testid="task-row-${task.id}"]`);
-  await expect(row).toBeVisible();
-  await row.click();
-  await expect(page.getByText(task.title)).toBeVisible();
+  await openTaskFromNav(page, "nav-myTasks", task);
 
   await page.getByTestId("task-progress-range").evaluate((element, value) => {
     const input = element as HTMLInputElement;
@@ -430,6 +440,55 @@ test("nhân viên cập nhật tiến độ task lên chờ đánh giá trên UI
   await expect(page.getByTestId("task-detail-status")).toContainText("Chờ đánh giá");
 });
 
+test("công việc của tôi có đủ tab và lọc theo dữ liệu liên quan", async ({ page, request }) => {
+  const manager = await apiLogin(request, "manager");
+  const employee = await apiLogin(request, "employee");
+  const reviewTask = await createSmokeTask(request, manager, "my-tabs", {
+    followerIds: [manager.user.id]
+  });
+  const overdueTask = await createSmokeTask(request, manager, "my-tabs-overdue", {
+    followerIds: [manager.user.id],
+    startDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    dueDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  });
+
+  await apiPost<Record<string, any>>(request, employee, `/tasks/${reviewTask.id}/progress`, {
+    progress: 100,
+    note: `Sẵn sàng duyệt từ tab ${runId}`
+  });
+
+  await openAppWithSession(page, manager);
+  await page.getByTestId("nav-myTasks").click();
+  await page.getByTestId("task-search-input").fill(runId);
+
+  for (const tab of ["assignee", "assigner", "manager", "follower", "review", "overdue", "done"]) {
+    await expect(page.getByTestId(`my-task-tab-${tab}`)).toBeVisible();
+  }
+
+  await page.getByTestId("my-task-tab-assigner").click();
+  await expect(page.locator(`tr[data-testid="task-row-${reviewTask.id}"]`)).toBeVisible();
+
+  await page.getByTestId("my-task-tab-manager").click();
+  await expect(page.locator(`tr[data-testid="task-row-${reviewTask.id}"]`)).toBeVisible();
+
+  await page.getByTestId("my-task-tab-follower").click();
+  await expect(page.locator(`tr[data-testid="task-row-${reviewTask.id}"]`)).toBeVisible();
+
+  await page.getByTestId("my-task-tab-review").click();
+  await expect(page.locator(`tr[data-testid="task-row-${reviewTask.id}"]`)).toBeVisible();
+
+  await page.getByTestId("my-task-tab-overdue").click();
+  await expect(page.locator(`tr[data-testid="task-row-${overdueTask.id}"]`)).toBeVisible();
+
+  await apiPost<Record<string, any>>(request, manager, `/tasks/${reviewTask.id}/evaluations`, {
+    accepted: true,
+    rating: 5,
+    comment: `Hoàn thành từ tab ${runId}`
+  });
+  await page.getByTestId("my-task-tab-done").click();
+  await expect(page.locator(`tr[data-testid="task-row-${reviewTask.id}"]`)).toBeVisible();
+});
+
 test("quản lý đánh giá hoàn thành task bằng panel UI", async ({ page, request }) => {
   const manager = await apiLogin(request, "manager");
   const employee = await apiLogin(request, "employee");
@@ -441,16 +500,18 @@ test("quản lý đánh giá hoàn thành task bằng panel UI", async ({ page, 
   });
 
   await openAppWithSession(page, manager);
-  await page.getByTestId("nav-tasks").click();
-  const row = page.locator(`tr[data-testid="task-row-${task.id}"]`);
-  await expect(row).toBeVisible();
-  await row.click();
+  await openTaskFromNav(page, "nav-tasks", task);
   await expect(page.getByTestId("task-detail-status")).toContainText("Chờ đánh giá");
   await page.getByTestId("task-evaluate-accept").click();
   await expect(page.getByTestId("task-evaluation-panel")).toBeVisible();
   await page.getByTestId("task-evaluation-rating-4").click();
   await page.getByTestId("task-evaluation-comment").fill(`Đạt yêu cầu smoke ${runId}`);
+  const evaluationResponse = page.waitForResponse(
+    (response) => response.url().includes(`/tasks/${task.id}/evaluations`) && response.request().method() === "POST"
+  );
   await page.getByTestId("task-evaluation-submit").click();
+  const evaluationResult = await evaluationResponse;
+  expect(evaluationResult.ok(), await evaluationResult.text()).toBeTruthy();
   await expect(page.getByTestId("task-detail-status")).toContainText("Hoàn thành");
 });
 

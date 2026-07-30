@@ -7,12 +7,12 @@ import { cls, formatDate, statusLabels } from "../lib/format";
 
 type TaskPage = "tasks" | "newTask" | "taskDetail";
 type TaskEvaluationMode = "accept" | "redo";
+type MyTaskView = "assignee" | "assigner" | "manager" | "follower" | "review" | "overdue" | "done";
 
 interface TaskPageProps {
   setPage: (page: TaskPage) => void;
   setTaskId: (id: string) => void;
 }
-
 
 const priorityLabels: Record<string, string> = {
   LOW: "Thấp",
@@ -20,6 +20,15 @@ const priorityLabels: Record<string, string> = {
   HIGH: "Cao",
   URGENT: "Khẩn cấp"
 };
+const myTaskTabs: Array<{ key: MyTaskView; label: string; lockedStatus?: string }> = [
+  { key: "assignee", label: "Tôi thực hiện" },
+  { key: "assigner", label: "Tôi giao" },
+  { key: "manager", label: "Tôi quản lý" },
+  { key: "follower", label: "Tôi theo dõi" },
+  { key: "review", label: "Chờ tôi đánh giá", lockedStatus: "PENDING_REVIEW" },
+  { key: "overdue", label: "Đã quá hạn" },
+  { key: "done", label: "Đã hoàn thành", lockedStatus: "DONE" }
+];
 const maxAttachmentMb = 20;
 const allowedAttachmentTypes = new Set([
   "image/jpeg",
@@ -44,14 +53,45 @@ function formatFileSize(bytes?: number) {
 export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "all" | "mine" }) {
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState("");
+  const [myTaskView, setMyTaskView] = useState<MyTaskView>("assignee");
+  const lockedStatus = mode === "mine" ? myTaskTabs.find((tab) => tab.key === myTaskView)?.lockedStatus : undefined;
   const query = useMemo(() => {
     const params = new URLSearchParams({ pageSize: "50" });
     if (keyword) params.set("keyword", keyword);
-    if (status) params.set("status", status);
-    if (mode === "mine") params.set("myView", "assignee");
+    if (status && !lockedStatus) params.set("status", status);
+    if (mode === "mine") params.set("myView", myTaskView);
     return `?${params.toString()}`;
-  }, [keyword, status, mode]);
+  }, [keyword, status, lockedStatus, mode, myTaskView]);
   const { data, loading, error, reload } = useAsyncData(() => api.tasks(query), [query]);
+  const tableRows =
+    data?.data?.map((task) => ({
+      key: task.id,
+      testId: `task-row-${task.id}`,
+      onClick: () => {
+        setTaskId(task.id);
+        setPage("taskDetail");
+      },
+      cells: [
+        task.code,
+        task.title,
+        <span className={cls("status-chip", task.displayStatus)}>{statusLabels[task.displayStatus ?? task.status]}</span>,
+        `${task.progress}%`,
+        task.assignees?.map((item: Record<string, any>) => item.user.fullName).join(", ") ?? "",
+        task.assigner?.fullName ?? "",
+        task.department?.name ?? "",
+        priorityLabels[task.priority] ?? task.priority,
+        formatDate(task.startDate),
+        formatDate(task.dueDate),
+        task.isOverdue ? `Quá hạn ${Math.abs(task.daysRemaining ?? 0)} ngày` : `${task.daysRemaining ?? 0} ngày`
+      ]
+    })) ?? [];
+
+  function selectMyTaskView(nextView: MyTaskView) {
+    setMyTaskView(nextView);
+    if (myTaskTabs.find((tab) => tab.key === nextView)?.lockedStatus) {
+      setStatus("");
+    }
+  }
 
   if (loading) return <LoadingBlock />;
   if (error) return <ErrorBlock message={error} />;
@@ -63,9 +103,19 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
         <div className="toolbar">
           <label className="search-box">
             <Search size={16} />
-            <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Tìm kiếm" />
+            <input
+              data-testid="task-search-input"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="Tìm kiếm"
+            />
           </label>
-          <select value={status} onChange={(event) => setStatus(event.target.value)}>
+          <select
+            value={lockedStatus ?? status}
+            onChange={(event) => setStatus(event.target.value)}
+            disabled={Boolean(lockedStatus)}
+            title={lockedStatus ? "Tab này tự lọc trạng thái phù hợp" : undefined}
+          >
             <option value="">Tất cả trạng thái</option>
             {Object.entries(statusLabels)
               .filter(([key]) => ["DRAFT", "TODO", "IN_PROGRESS", "PAUSED", "PENDING_REVIEW", "DONE", "CANCELLED"].includes(key))
@@ -84,25 +134,38 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
           </button>
         </div>
       </div>
+      {mode === "mine" && (
+        <div className="view-tabs" role="tablist" aria-label="Công việc của tôi">
+          {myTaskTabs.map((tab) => (
+            <button
+              key={tab.key}
+              className={cls("tab-button", tab.key === myTaskView && "active")}
+              data-testid={`my-task-tab-${tab.key}`}
+              type="button"
+              role="tab"
+              aria-selected={tab.key === myTaskView}
+              onClick={() => selectMyTaskView(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
       <DataTable
-        columns={["Mã", "Tên công việc", "Trạng thái", "Tiến độ", "Người thực hiện", "Ưu tiên", "Hạn"]}
-        rows={(data?.data ?? []).map((task) => ({
-          key: task.id,
-          testId: `task-row-${task.id}`,
-          onClick: () => {
-            setTaskId(task.id);
-            setPage("taskDetail");
-          },
-          cells: [
-            task.code,
-            task.title,
-            <span className={cls("status-chip", task.displayStatus)}>{statusLabels[task.displayStatus ?? task.status]}</span>,
-            `${task.progress}%`,
-            task.assignees?.map((item: Record<string, any>) => item.user.fullName).join(", ") ?? "",
-            priorityLabels[task.priority] ?? task.priority,
-            formatDate(task.dueDate)
-          ]
-        }))}
+        columns={[
+          "Mã",
+          "Tên công việc",
+          "Trạng thái",
+          "Tiến độ",
+          "Người thực hiện",
+          "Người giao",
+          "Phòng ban",
+          "Ưu tiên",
+          "Ngày bắt đầu",
+          "Hạn hoàn thành",
+          "Còn/quá hạn"
+        ]}
+        rows={tableRows}
       />
     </section>
   );

@@ -136,6 +136,18 @@ function canEditTask(auth: AuthContext, task: Pick<Task, "creatorId" | "assigner
   );
 }
 
+function myRelatedTaskWhere(auth: AuthContext): Prisma.TaskWhereInput {
+  return {
+    OR: [
+      { creatorId: auth.userId },
+      { assignerId: auth.userId },
+      { managerId: auth.userId },
+      { assignees: { some: { userId: auth.userId } } },
+      { followers: { some: { userId: auth.userId } } }
+    ]
+  };
+}
+
 function withComputedTaskFields<T extends { status: TaskStatus; dueDate: Date | null }>(task: T) {
   return {
     ...task,
@@ -182,10 +194,11 @@ export async function listTasks(db: PrismaClient, auth: AuthContext, input: Task
     });
   }
   if (input.myView === "assignee") filters.push({ assignees: { some: { userId: auth.userId } } });
-  if (input.myView === "assigner") filters.push({ assignerId: auth.userId });
+  if (input.myView === "assigner") filters.push({ OR: [{ assignerId: auth.userId }, { creatorId: auth.userId }] });
   if (input.myView === "manager") filters.push({ managerId: auth.userId });
   if (input.myView === "follower") filters.push({ followers: { some: { userId: auth.userId } } });
   if (input.myView === "review") filters.push({ status: "PENDING_REVIEW", OR: [{ creatorId: auth.userId }, { managerId: auth.userId }] });
+  if (input.myView === "overdue" || input.myView === "done") filters.push(myRelatedTaskWhere(auth));
   if (input.myView === "done") filters.push({ status: "DONE" });
 
   const where: Prisma.TaskWhereInput = { AND: filters };

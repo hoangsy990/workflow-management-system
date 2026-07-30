@@ -400,6 +400,32 @@ legend {
   flex-wrap: wrap;
 }
 
+.view-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 16px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.tab-button {
+  min-height: 36px;
+  white-space: nowrap;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  padding: 8px 12px;
+  font-weight: 700;
+}
+
+.tab-button.active,
+.tab-button:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--line));
+  background: var(--panel-soft);
+  color: var(--primary-strong);
+}
+
 .search-box {
   width: 260px;
   display: flex;
@@ -463,7 +489,7 @@ legend {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 760px;
+  min-width: 1120px;
 }
 
 th,
