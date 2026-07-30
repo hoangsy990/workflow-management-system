@@ -1,10 +1,11 @@
 import { Loader2 } from "lucide-react";
 import { FormEvent, useState } from "react";
-import { api, ApiUser, setStoredSession } from "../api/client";
+import { api, ApiUser, getApiUrl, setApiUrl, setStoredSession } from "../api/client";
 
 export function Login({ onLogin }: { onLogin: (user: ApiUser) => void }) {
   const [email, setEmail] = useState("admin@workflow.local");
   const [password, setPassword] = useState("Admin@123456");
+  const [apiUrl, setApiUrlInput] = useState(getApiUrl());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -13,6 +14,7 @@ export function Login({ onLogin }: { onLogin: (user: ApiUser) => void }) {
     setLoading(true);
     setError("");
     try {
+      setApiUrl(apiUrl);
       const result = await api.login(email, password, "Web");
       setStoredSession({ accessToken: result.accessToken, refreshToken: result.refreshToken });
       onLogin(result.user);
@@ -48,6 +50,16 @@ export function Login({ onLogin }: { onLogin: (user: ApiUser) => void }) {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               type="password"
+              required
+            />
+          </label>
+          <label>
+            Địa chỉ API
+            <input
+              data-testid="login-api-url"
+              value={apiUrl}
+              onChange={(event) => setApiUrlInput(event.target.value)}
+              placeholder="/api/v1 hoặc http://host:8099/api/v1"
               required
             />
           </label>

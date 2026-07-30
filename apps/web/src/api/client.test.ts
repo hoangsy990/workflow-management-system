@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, apiRequest, getStoredSession, setStoredSession } from "./client";
+import { api, apiRequest, getApiUrl, getStoredSession, setApiUrl, setStoredSession } from "./client";
 
 const storage = new Map<string, string>();
 
@@ -15,6 +15,14 @@ beforeEach(() => {
   vi.restoreAllMocks();
 
   Object.defineProperty(globalThis, "sessionStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key)
+    }
+  });
+  Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
     value: {
       getItem: (key: string) => storage.get(key) ?? null,
@@ -38,9 +46,19 @@ describe("apiRequest", () => {
     await expect(apiRequest<{ ok: true }>("/dashboard")).resolves.toEqual({ ok: true });
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("http://localhost:4000/api/v1/auth/refresh");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/v1/auth/refresh");
     expect(new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get("Authorization")).toBe("Bearer fresh-access-token");
     expect(getStoredSession()?.accessToken).toBe("fresh-access-token");
+  });
+
+  it("allows overriding the API URL for native or remote testing", async () => {
+    setApiUrl("http://192.168.10.238:8099/api/v1/");
+    expect(getApiUrl()).toBe("http://192.168.10.238:8099/api/v1");
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ ok: true }));
+    await expect(apiRequest<{ ok: true }>("/health-check")).resolves.toEqual({ ok: true });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("http://192.168.10.238:8099/api/v1/health-check");
   });
 
   it("clears the stored session when refresh token is rejected", async () => {

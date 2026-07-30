@@ -21,6 +21,21 @@ import { uploadRoutes } from "./modules/uploads/upload.routes.js";
 import { workflowRoutes } from "./modules/workflows/workflow.routes.js";
 
 const deadlineScanIntervalMs = 60 * 60 * 1000;
+const allowedCorsOrigins = new Set([
+  config.WEB_ORIGIN,
+  "http://localhost:5173",
+  "http://localhost:8080",
+  "http://localhost:8099"
+]);
+
+function isAllowedCorsOrigin(origin: string | undefined) {
+  if (!origin) return true;
+  return (
+    allowedCorsOrigins.has(origin) ||
+    /^https?:\/\/tauri\.localhost(?::\d+)?$/.test(origin) ||
+    /^tauri:\/\/localhost$/.test(origin)
+  );
+}
 
 export async function createApp() {
   const app = Fastify({
@@ -35,7 +50,7 @@ export async function createApp() {
     contentSecurityPolicy: false
   });
   await app.register(cors, {
-    origin: [config.WEB_ORIGIN, "http://localhost:8080"],
+    origin: (origin, callback) => callback(null, isAllowedCorsOrigin(origin)),
     credentials: false,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Authorization", "Content-Type", "Accept", "Idempotency-Key"],

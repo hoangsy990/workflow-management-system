@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api/v1";
+const defaultApiUrl = import.meta.env.VITE_API_URL ?? "/api/v1";
+const apiUrlKey = "workflow.apiUrl";
 
 export interface ApiSession {
   accessToken: string;
@@ -62,12 +63,45 @@ export function setStoredSession(session: ApiSession | null) {
   sessionStorage.setItem(sessionKey, JSON.stringify(session));
 }
 
+function normalizeApiUrl(value: string) {
+  const trimmed = value.trim();
+  return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+}
+
+export function getDefaultApiUrl() {
+  return normalizeApiUrl(defaultApiUrl);
+}
+
+export function getApiUrl() {
+  try {
+    const stored = localStorage.getItem(apiUrlKey);
+    return normalizeApiUrl(stored || defaultApiUrl);
+  } catch {
+    return normalizeApiUrl(defaultApiUrl);
+  }
+}
+
+export function setApiUrl(value: string) {
+  const normalized = normalizeApiUrl(value || defaultApiUrl);
+  try {
+    if (normalized === getDefaultApiUrl()) {
+      localStorage.removeItem(apiUrlKey);
+    } else {
+      localStorage.setItem(apiUrlKey, normalized);
+    }
+  } catch {
+    // Ignore storage errors; callers still use the build-time default.
+  }
+}
+
 export function apiAssetUrl(value?: string | null) {
   if (!value) return "";
   if (/^(https?:|data:|blob:)/i.test(value)) return value;
   if (!value.startsWith("/")) return value;
+  const apiUrl = getApiUrl();
+  if (apiUrl.startsWith("/")) return value;
   try {
-    return `${new URL(API_URL).origin}${value}`;
+    return `${new URL(apiUrl).origin}${value}`;
   } catch {
     return value;
   }
@@ -107,7 +141,7 @@ async function refreshStoredSession(): Promise<ApiSession | null> {
   }
 
   if (!refreshPromise) {
-    refreshPromise = fetch(`${API_URL}/auth/refresh`, {
+    refreshPromise = fetch(`${getApiUrl()}/auth/refresh`, {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -137,7 +171,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}, ret
   const session = getStoredSession();
   const headers = buildHeaders(options, session);
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(`${getApiUrl()}${path}`, {
     ...options,
     headers
   });
@@ -166,7 +200,7 @@ async function parseBlobResponse(response: Response): Promise<{ blob: Blob; file
 export async function apiBlobRequest(path: string, options: RequestInit = {}, retried = false): Promise<{ blob: Blob; filename: string }> {
   const session = getStoredSession();
   const headers = buildHeaders(options, session);
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(`${getApiUrl()}${path}`, {
     ...options,
     headers
   });

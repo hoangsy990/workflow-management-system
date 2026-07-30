@@ -14,6 +14,7 @@ Checklist triển khai đầy đủ nằm tại [`CHECKLIST.md`](CHECKLIST.md). 
 - Auth: JWT access token + refresh token, RBAC kiểm tra ở backend.
 - API docs: `http://localhost:4000/docs`.
 - Health-check: `http://localhost:4000/health`.
+- Public web test port: `http://localhost:8099` với reverse proxy `/api/v1` tới API container.
 
 ## Tài khoản demo
 
@@ -34,7 +35,7 @@ pnpm db:generate
 docker compose up --build
 ```
 
-Web chạy tại `http://localhost:8080`, API tại `http://localhost:4000`.
+Web chạy tại `http://localhost:8099`, API tại `http://localhost:4000`.
 
 Nếu Docker Desktop đã mở nhưng terminal báo `docker` không tồn tại, hãy kiểm tra Docker CLI đã được thêm vào PATH. Trên Windows, thư mục thường gặp là:
 
@@ -139,6 +140,14 @@ apps/web/src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-rel
 
 Script này tự set `JAVA_HOME`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, `NDK_HOME` theo cài đặt Android Studio mặc định trên Windows. Nếu muốn dùng Tauri build chuẩn cho mọi ABI/AAB, hãy bật Windows Developer Mode để cho phép tạo symbolic link, rồi chạy lại `pnpm --filter @workflow/web android:build`.
 
+Có thể build APK test với API public qua port `8099`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-android-arm64.ps1 -ApiUrl "http://<public-host>:8099/api/v1"
+```
+
+Bản APK arm64 unsigned dùng cho test nội bộ cho phép HTTP cleartext để test qua `8099`. Khi phát hành production phải dùng HTTPS và tắt cleartext.
+
 iOS development/TestFlight/App Store cần macOS, Xcode và chứng chỉ Apple:
 
 ```bash
@@ -175,7 +184,7 @@ pnpm smoke:web
 DATABASE_URL=postgresql://workflow:workflow@localhost:5432/workflow_management?schema=public pnpm db:validate
 ```
 
-`pnpm smoke:web` chạy Playwright trên web `http://localhost:8080` và API `http://localhost:4000/api/v1`, vì vậy hãy chạy `docker compose up -d --build` trước. Docker Compose đã được kiểm tra với API, web và PostgreSQL. Trạng thái hiện tại được ghi lại trong [`CHECKLIST.md`](CHECKLIST.md).
+`pnpm smoke:web` chạy Playwright trên web `http://localhost:8099` và API `http://localhost:4000/api/v1`, vì vậy hãy chạy `docker compose up -d --build` trước. Docker Compose đã được kiểm tra với API, web và PostgreSQL. Trạng thái hiện tại được ghi lại trong [`CHECKLIST.md`](CHECKLIST.md).
 
 ## CI GitHub Actions
 

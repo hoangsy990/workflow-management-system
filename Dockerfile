@@ -10,7 +10,7 @@ RUN pnpm install --frozen-lockfile=false
 COPY . .
 
 FROM base AS build
-ARG VITE_API_URL=http://localhost:4000/api/v1
+ARG VITE_API_URL=/api/v1
 ENV VITE_API_URL=$VITE_API_URL
 RUN pnpm --filter @workflow/api prisma:generate
 RUN pnpm build

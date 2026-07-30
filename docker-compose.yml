@@ -29,7 +29,7 @@ services:
       DATABASE_URL: postgresql://workflow:workflow@postgres:5432/workflow_management?schema=public
       API_HOST: 0.0.0.0
       API_PORT: 4000
-      WEB_ORIGIN: http://localhost:8080
+      WEB_ORIGIN: http://localhost:8099
       JWT_ACCESS_SECRET: change-me-access-secret
       JWT_REFRESH_SECRET: change-me-refresh-secret
       API_RATE_LIMIT_MAX: 600
@@ -53,10 +53,10 @@ services:
       dockerfile: Dockerfile
       target: web
       args:
-        VITE_API_URL: http://localhost:4000/api/v1
+        VITE_API_URL: /api/v1
     container_name: workflow-web
     ports:
-      - "8080:80"
+      - "8099:80"
     depends_on:
       api:
         condition: service_healthy

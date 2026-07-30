@@ -16,6 +16,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `PUBLIC-8099-ANDROID-APK` | Đổi Docker web public port sang `8099`, build web với API relative `/api/v1`, thêm nginx reverse proxy `/api/` tới API container để test từ xa không bị dính `localhost`, mở CORS cho Tauri mobile, thêm cấu hình API URL runtime ở màn đăng nhập và build lại APK Android arm64 unsigned trỏ mặc định `http://192.168.10.238:8099/api/v1`. Script Android nhận `-ApiUrl` và bật cleartext cho bản test HTTP. Trạng thái tổng chưa đổi vì Android vẫn cần QA thiết bị thật/signing/push production. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `curl http://localhost:8099/health`, `curl http://localhost:8099/api/v1/auth/me`, targeted login smoke 1/1, `pnpm smoke:web` 30/30, `scripts/build-android-arm64.ps1 -ApiUrl http://192.168.10.238:8099/api/v1`. |
 | 30/07/2026 | `TASK-SEARCH-DEBOUNCE` | Bổ sung hook `useDebouncedValue` và áp cho ô tìm kiếm từ khóa/mã công việc trong TaskList để giảm gọi API khi gõ liên tục; select/date/filter khác vẫn phản hồi tức thời. Chuyển checklist `Debounce search` sang DONE. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted task filter smoke 1/1, `pnpm smoke:web` 30/30. |
 | 30/07/2026 | `PROFILE-RELATED-WORK` | Bổ sung dữ liệu liên quan trong hồ sơ cá nhân: API `/profile/related` gom công việc liên quan, hồ sơ tôi tạo và hồ sơ chờ tôi phê duyệt theo scope quyền backend; UI profile hiển thị metric + danh sách recent responsive; smoke test tạo task/workflow thật rồi assert API/UI đọc được dữ liệu. Chuyển `User profile đầy đủ` và `Thiết bị đăng nhập/hoạt động gần đây/task/workflow liên quan` sang DONE. | `pnpm lint`, `pnpm test`, `pnpm build` qua Docker build, `docker compose up -d --build`, targeted profile-related smoke 1/1, `pnpm smoke:web` 30/30. |
 | 30/07/2026 | `PROFILE-AVATAR-UPLOAD` | Bổ sung upload avatar thật cho hồ sơ cá nhân: endpoint `/profile/avatar` validate JPG/PNG/WebP và dung lượng, lưu file bằng tên an toàn trong `UPLOAD_DIR/avatars`, DB lưu URL public `/api/v1/avatars/...`, endpoint serve avatar không lộ path nội bộ, UI profile có preview/chọn file/upload/success và smoke test kiểm avatarUrl trong DB. Trạng thái tổng chưa đổi vì profile vẫn còn thiếu tab task/workflow liên quan. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted profile/avatar smoke 1/1, `pnpm smoke:web` 30/30. |
@@ -308,12 +309,12 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Một backend API/database dùng chung | `DONE` | Có. |
 | Web responsive | `PARTIAL` | Có; cần polish sâu mobile. |
 | Windows app chạy bằng Tauri | `PARTIAL` | Đã build `.exe`, MSI và NSIS setup. Chưa QA mở app desktop, auto-update, notification/deep link. |
-| Android/iOS app build | `PARTIAL` | Android Tauri project đã init, Android arm64 unsigned APK đã build. iOS vẫn `WAITING` vì cần macOS/Xcode và signing assets. |
+| Android/iOS app build | `PARTIAL` | Android Tauri project đã init, Android arm64 unsigned APK đã build lại cho test qua API `8099` và có cấu hình API URL runtime ở login. iOS vẫn `WAITING` vì cần macOS/Xcode và signing assets. |
 | Secure token storage native | `TODO` | Web dùng sessionStorage; native secure storage adapter chưa triển khai. |
 | Push notification Android/iOS/PC | `PARTIAL` | Backend device token table/API có; adapter thật chưa. |
 | Offline draft/retry network weak | `PARTIAL` | Task draft + online/offline state có; queue retry an toàn chưa đủ. |
 | Camera/mobile file picker/compression/progress/cancel/retry | `PARTIAL` | Web file picker task có. Native camera/compression/progress/cancel chưa. |
-| Build docs web/Windows/Android/iOS | `PARTIAL` | README có lệnh web/Windows/Android arm64 workaround/iOS macOS note. Vẫn thiếu signing Android, Apple cert, push config phát hành thật. |
+| Build docs web/Windows/Android/iOS | `PARTIAL` | README có lệnh web port `8099`, Windows/Android arm64 workaround, tham số `-ApiUrl` cho APK test và iOS macOS note. Vẫn thiếu signing Android, Apple cert, push config phát hành thật. |
 
 ## 17. UI/UX tổng thể
 
@@ -508,7 +509,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission chưa có cấu hình riêng. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk task list sort UI đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted sort smoke 1/1 và `pnpm smoke:web` 23/23. Responsive còn cần QA sâu. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk public `8099` + Android APK đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted login smoke 1/1, `pnpm smoke:web` 30/30 và build APK arm64 unsigned. Responsive còn cần QA sâu trên thiết bị thật. |
 
 ## Việc ưu tiên tiếp theo
 

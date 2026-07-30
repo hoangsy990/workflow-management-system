@@ -10,7 +10,7 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"]],
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? "http://localhost:8080",
+    baseURL: process.env.E2E_BASE_URL ?? "http://localhost:8099",
     acceptDownloads: true,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
