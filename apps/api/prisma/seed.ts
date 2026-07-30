@@ -497,6 +497,61 @@ async function main() {
       comment: "Thời điểm này phòng đang thiếu nhân sự.",
       idempotencyKey: "seed-leave-rejected-manager"
     });
+
+    const needsInfo = await submitWorkflowInstance(
+      prisma,
+      auth(employees[3]!.id, ["workflow.instance.create"], ["employee"], employees[3]!.fullName),
+      {
+        templateId: paymentTemplateId,
+        formData: {
+          purpose: "Thanh toán chi phí đi lại",
+          amount: 8500000,
+          vendor: "Nhà cung cấp vé xe"
+        },
+        idempotencyKey: "seed-payment-needs-info"
+      }
+    );
+    await actOnWorkflowInstance(prisma, managerAuth, (needsInfo as { id: string }).id, {
+      action: "REQUEST_INFO",
+      comment: "Vui lòng bổ sung hóa đơn và bảng kê chi tiết.",
+      idempotencyKey: "seed-payment-needs-info-manager"
+    });
+  }
+
+  const paymentSeedTemplate = await prisma.workflowTemplate.findUnique({ where: { code: "PAYMENT" } });
+  if (paymentSeedTemplate) {
+    const requester = employees[3]!;
+    const needsInfoScope = `workflow.submit:${paymentSeedTemplate.id}`;
+    const existingNeedsInfoSeed = await prisma.idempotencyKey.findUnique({
+      where: {
+        userId_key_scope: {
+          userId: requester.id,
+          key: "seed-payment-needs-info",
+          scope: needsInfoScope
+        }
+      }
+    });
+
+    if (!existingNeedsInfoSeed) {
+      const needsInfo = await submitWorkflowInstance(
+        prisma,
+        auth(requester.id, ["workflow.instance.create"], ["employee"], requester.fullName),
+        {
+          templateId: paymentSeedTemplate.id,
+          formData: {
+            purpose: "Thanh toán chi phí đi lại",
+            amount: 8500000,
+            vendor: "Nhà cung cấp vé xe"
+          },
+          idempotencyKey: "seed-payment-needs-info"
+        }
+      );
+      await actOnWorkflowInstance(prisma, managerAuth, (needsInfo as { id: string }).id, {
+        action: "REQUEST_INFO",
+        comment: "Vui lòng bổ sung hóa đơn và bảng kê chi tiết.",
+        idempotencyKey: "seed-payment-needs-info-manager"
+      });
+    }
   }
 
   await prisma.systemSetting.upsert({

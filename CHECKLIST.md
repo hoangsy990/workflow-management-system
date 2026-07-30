@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=97`, `PARTIAL=125`, `TODO=38`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `37.3%`, tính trọng số partial `61.3%`.
+**Tiến độ hiện tại:** `DONE=98`, `PARTIAL=124`, `TODO=38`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `37.7%`, tính trọng số partial `61.5%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `SEED-WORKFLOW-NEEDS-INFO` | Bổ sung seed hồ sơ workflow trạng thái `NEEDS_INFO`: tạo payment instance bằng service thật rồi manager `REQUEST_INFO`, đồng thời thêm đoạn idempotent để DB dev hiện tại có thể chạy lại seed và nhận dữ liệu này. Chuyển checklist `Hồ sơ pending/approved/rejected/request info` sang DONE. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm docker:seed`, query DB status có `NEEDS_INFO`, `pnpm smoke:web` 27/27. |
 | 30/07/2026 | `WORKFLOW-VERSION-COMPARE-UI` | Bổ sung UI so sánh phiên bản quy trình trên trang Mẫu quy trình: chọn hai phiên bản từ dữ liệu DB thật, gọi API compare, hiển thị thay đổi trường/bước/luồng chuyển và smoke test thao tác compare sau khi tạo template. Chuyển checklist `Compare versions` sang DONE. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted workflow builder/compare smoke 1/1, `pnpm smoke:web` 27/27. |
 | 30/07/2026 | `WORKFLOW-CHOICE-FIELD-OPTIONS` | Bổ sung cấu hình lựa chọn thật cho workflow `SELECT/RADIO`: builder nhập options, dynamic form render dropdown/radio khi có options, backend validate giá trị phải thuộc danh sách và smoke test assert invalid option trả 400, submit hợp lệ vẫn áp default. Trạng thái tổng chưa đổi vì ATTACHMENT/TABLE/user/department select chuyên dụng còn PARTIAL. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted workflow builder smoke 1/1, `pnpm smoke:web` 27/27. |
 | 30/07/2026 | `WORKFLOW-FIELD-DEFAULT-VALIDATION` | Nâng workflow form builder và backend validation: quản trị viên nhập được giá trị mặc định, min/max length cho text và min/max value cho số/tiền; API chỉ nhận rule có cấu trúc, tự áp default khi client bỏ trống field và validate rule khi tạo hồ sơ. Trạng thái tổng chưa đổi vì editable-by-step/visible-by-role còn PARTIAL. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted workflow builder smoke 1/1, `pnpm smoke:web` 27/27. |
@@ -257,7 +258,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Admin, manager, ít nhất 4 nhân viên, 2 phòng ban | `DONE` | Seed có. |
 | Task nhiều trạng thái | `DONE` | Seed có. |
 | Payment và leave workflows | `DONE` | Seed có. |
-| Hồ sơ pending/approved/rejected/request info | `PARTIAL` | Seed có pending/approved/rejected. Request info có từ smoke runtime, chưa seed chuẩn. |
+| Hồ sơ pending/approved/rejected/request info | `DONE` | Seed có pending, approved, rejected và request-info/`NEEDS_INFO`; request-info được tạo bằng service submit + action `REQUEST_INFO`, đã chạy lại `pnpm docker:seed` và query DB xác nhận. |
 | Demo UI nâng cao >100 records, long names, nhiều comment/subtask/parallel workflow | `TODO` | Chưa có bộ seed stress UI. |
 
 ## 13. Kiểm thử
