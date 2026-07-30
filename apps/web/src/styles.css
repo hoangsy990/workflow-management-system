@@ -954,6 +954,28 @@ tbody tr:hover {
   overflow-wrap: anywhere;
 }
 
+.kanban-wrap {
+  display: grid;
+  gap: 12px;
+}
+
+.kanban-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--primary);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.kanban-confirm p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
 .kanban {
   display: grid;
   grid-template-columns: repeat(6, minmax(220px, 1fr));
@@ -1544,6 +1566,11 @@ progress {
   .kanban {
     grid-template-columns: repeat(6, 82vw);
     min-height: auto;
+  }
+
+  .kanban-confirm {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .calendar-board {

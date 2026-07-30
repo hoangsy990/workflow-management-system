@@ -450,51 +450,100 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
 export function Kanban({ setPage, setTaskId }: TaskPageProps) {
   const { data, loading, error, reload } = useAsyncData(() => api.tasks("?pageSize=100"), []);
   const statuses = ["TODO", "IN_PROGRESS", "PAUSED", "PENDING_REVIEW", "DONE", "CANCELLED"];
+  const [pendingMove, setPendingMove] = useState<{ task: Record<string, any>; status: string } | null>(null);
+  const [kanbanBusy, setKanbanBusy] = useState(false);
+  const [kanbanError, setKanbanError] = useState("");
+  const [kanbanMessage, setKanbanMessage] = useState("");
 
-  async function moveTask(taskId: string, status: string) {
-    const confirmImportant = ["DONE", "CANCELLED"].includes(status)
-      ? window.confirm("Xác nhận chuyển trạng thái quan trọng?")
-      : true;
-    if (!confirmImportant) return;
-    await api.updateTask(taskId, { status });
-    await reload();
+  async function moveTask(task: Record<string, any>, status: string) {
+    if (!task?.id || task.status === status) return;
+    setKanbanBusy(true);
+    setKanbanError("");
+    setKanbanMessage("");
+    try {
+      await api.updateTask(task.id, { status });
+      await reload();
+      setKanbanMessage(`Đã chuyển ${task.code} sang ${statusLabels[status] ?? status}.`);
+    } catch (err) {
+      setKanbanError(err instanceof Error ? err.message : "Không chuyển được trạng thái công việc.");
+    } finally {
+      setKanbanBusy(false);
+      setPendingMove(null);
+    }
+  }
+
+  function requestMove(taskId: string, status: string) {
+    const task = (data?.data ?? []).find((item) => item.id === taskId);
+    if (!task || task.status === status) return;
+    if (["PENDING_REVIEW", "DONE", "CANCELLED"].includes(status)) {
+      setPendingMove({ task, status });
+      setKanbanError("");
+      setKanbanMessage("");
+      return;
+    }
+    void moveTask(task, status);
   }
 
   if (loading) return <LoadingBlock />;
   if (error) return <ErrorBlock message={error} />;
 
   return (
-    <div className="kanban">
-      {statuses.map((status) => (
-        <section
-          key={status}
-          className="kanban-column"
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => void moveTask(event.dataTransfer.getData("taskId"), status)}
-        >
-          <h3>{statusLabels[status]}</h3>
-          {(data?.data ?? [])
-            .filter((task) => task.status === status)
-            .map((task) => (
-              <button
-                key={task.id}
-                className="kanban-card"
-                draggable
-                onDragStart={(event) => event.dataTransfer.setData("taskId", task.id)}
-                onClick={() => {
-                  setTaskId(task.id);
-                  setPage("taskDetail");
-                }}
-                type="button"
-              >
-                <strong>{task.title}</strong>
-                <span>{task.code}</span>
-                <progress value={task.progress} max={100} />
-              </button>
-            ))}
-        </section>
-      ))}
-    </div>
+    <section className="kanban-wrap">
+      {pendingMove && (
+        <div className="kanban-confirm" data-testid="kanban-confirm-panel">
+          <div>
+            <strong>Xác nhận chuyển trạng thái</strong>
+            <p>
+              {pendingMove.task.code} - {pendingMove.task.title} sang {statusLabels[pendingMove.status] ?? pendingMove.status}
+            </p>
+          </div>
+          <div className="form-actions">
+            <button className="ghost-button compact" data-testid="kanban-confirm-cancel" type="button" disabled={kanbanBusy} onClick={() => setPendingMove(null)}>
+              Hủy
+            </button>
+            <button className="primary-button compact" data-testid="kanban-confirm-submit" type="button" disabled={kanbanBusy} onClick={() => void moveTask(pendingMove.task, pendingMove.status)}>
+              {kanbanBusy && <Loader2 className="spin" size={16} />}
+              Xác nhận
+            </button>
+          </div>
+        </div>
+      )}
+      {kanbanError && <p className="form-error" data-testid="kanban-error">{kanbanError}</p>}
+      {kanbanMessage && <p className="success-text" data-testid="kanban-message">{kanbanMessage}</p>}
+      <div className="kanban">
+        {statuses.map((status) => (
+          <section
+            key={status}
+            className="kanban-column"
+            data-testid={`kanban-column-${status}`}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => requestMove(event.dataTransfer.getData("taskId"), status)}
+          >
+            <h3>{statusLabels[status]}</h3>
+            {(data?.data ?? [])
+              .filter((task) => task.status === status)
+              .map((task) => (
+                <button
+                  key={task.id}
+                  className="kanban-card"
+                  data-testid={`kanban-card-${task.id}`}
+                  draggable
+                  onDragStart={(event) => event.dataTransfer.setData("taskId", task.id)}
+                  onClick={() => {
+                    setTaskId(task.id);
+                    setPage("taskDetail");
+                  }}
+                  type="button"
+                >
+                  <strong>{task.title}</strong>
+                  <span>{task.code}</span>
+                  <progress value={task.progress} max={100} />
+                </button>
+              ))}
+          </section>
+        ))}
+      </div>
+    </section>
   );
 }
 

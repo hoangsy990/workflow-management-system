@@ -60,6 +60,7 @@ interface TaskRecord {
 }
 
 interface TaskDetailRecord extends TaskRecord {
+  status?: string;
   progress?: number;
   subTaskProgress?: number | null;
   assigner?: { id: string; fullName: string } | null;
@@ -633,6 +634,35 @@ test("lịch công việc hiển thị ngày bắt đầu và hạn hoàn thành
   await expect(page.getByTestId(`task-calendar-due-${task.id}`)).toContainText("Hạn");
   await page.getByTestId(`task-calendar-due-${task.id}`).click();
   await expect(page.getByRole("heading", { name: task.title })).toBeVisible();
+});
+
+test("kanban xác nhận trước khi chuyển trạng thái quan trọng", async ({ page, request }) => {
+  const manager = await apiLogin(request, "manager");
+  const task = await createSmokeTask(request, manager, "kanban", {
+    startDate: `${dateInput(-29)}T00:00:00.000Z`,
+    dueDate: `${dateInput(-28)}T00:00:00.000Z`
+  });
+
+  await openAppWithSession(page, manager);
+  await page.getByTestId("nav-kanban").click();
+  await expect(page.getByTestId(`kanban-card-${task.id}`)).toBeVisible();
+  const dataTransfer = await page.evaluateHandle((taskId) => {
+    const transfer = new DataTransfer();
+    transfer.setData("taskId", taskId);
+    return transfer;
+  }, task.id);
+  await page.getByTestId("kanban-column-DONE").dispatchEvent("drop", { dataTransfer });
+  await dataTransfer.dispose();
+  await expect(page.getByTestId("kanban-confirm-panel")).toContainText(task.title);
+  const updateResponse = page.waitForResponse(
+    (response) => response.url().includes(`/tasks/${task.id}`) && response.request().method() === "PATCH"
+  );
+  await page.getByTestId("kanban-confirm-submit").click();
+  const updateResult = await updateResponse;
+  expect(updateResult.ok(), await updateResult.text()).toBeTruthy();
+  await expect(page.getByTestId("kanban-message")).toContainText("Hoàn thành");
+  const detail = await apiGet<TaskDetailRecord>(request, manager, `/tasks/${task.id}`);
+  expect(detail.status).toBe("DONE");
 });
 
 test("lọc công việc phía server trên UI", async ({ page, request }) => {
