@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=78`, `PARTIAL=143`, `TODO=39`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `30.0%`, tính trọng số partial `57.5%`.
+**Tiến độ hiện tại:** `DONE=79`, `PARTIAL=142`, `TODO=39`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `30.4%`, tính trọng số partial `57.7%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `WORKFLOW-MIN-RULE-UI` | Hoàn thiện UI cấu hình điều kiện hoàn thành bước phê duyệt song song: chọn `PARALLEL`, `ALL/ANY/MIN_COUNT/MIN_PERCENT`, nhập số lượng/tỷ lệ tối thiểu, validate phía UI và gửi `minCount/minPercent` vào API; smoke test assert cấu hình được lưu. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted workflow builder smoke 1/1, `pnpm smoke:web` 17/17. |
 | 30/07/2026 | `TEAM-MANAGEMENT` | Bổ sung quản lý nhóm làm việc: API `GET/POST/PATCH /teams`, validate phòng ban/thành viên, audit log, seed nhóm mẫu, user create/edit nhận nhiều `teamIds`, UI quản lý nhóm trong trang cơ cấu tổ chức và smoke test tạo/cập nhật thành viên nhóm. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted team smoke 1/1, `pnpm smoke:web` 17/17. |
 | 30/07/2026 | `WORKFLOW-TRANSFER-ACTION` | Bổ sung hành động chuyển xử lý hồ sơ phê duyệt: backend nhận `TRANSFER`, kiểm người nhận, chuyển pending approval trong transaction, tính approval được chuyển như người duyệt thay trong bước tuần tự, ghi changedData/audit/idempotency và UI chọn người nhận xử lý. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted transfer smoke 1/1, `pnpm smoke:web` 16/16. |
 | 30/07/2026 | `TASK-ADVANCED-FILTERS` | Bổ sung panel lọc công việc nâng cao trên UI: mã, người tạo, người thực hiện, người quản lý, phòng ban, ưu tiên, danh mục, nhãn, khoảng hạn và quá hạn; tất cả nối query server-side. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `pnpm smoke:web` 15/15. |
@@ -127,7 +128,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Step types start/handler/approval/review/notification/end | `DONE` | Enum/schema/API có. |
 | Assignee resolver theo user/role/department/manager/head/form field/previous | `DONE` | Service resolver có. |
 | Sequential approval | `DONE` | API/service/test/smoke pass. |
-| Parallel approval all/any/min count/min percent | `PARTIAL` | Domain logic có; UI builder chọn sequential/parallel và ALL/ANY cơ bản. Min count/min percent UI còn thiếu. |
+| Parallel approval all/any/min count/min percent | `DONE` | Service tạo pending approval song song, domain test phủ `MIN_COUNT/MIN_PERCENT`, UI builder chọn `PARALLEL` và đủ `ALL/ANY/MIN_COUNT/MIN_PERCENT`, smoke test assert cấu hình min count được lưu. |
 | Approve/reject/request info/return | `DONE` | API/UI/smoke pass; UI có panel xác nhận trong app thay cho browser prompt. |
 | Forward/chuyển xử lý | `DONE` | Có action `TRANSFER`, chọn người nhận xử lý trên UI, chuyển pending approval trong transaction, gửi notification, lưu changedData/audit/idempotency và smoke test admin duyệt sau chuyển. |
 | Approval action lưu người, thời gian, action, comment, IP | `DONE` | WorkflowApproval có fields và service ghi. |
@@ -476,7 +477,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission chưa có cấu hình riêng. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk team management đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted team smoke 1/1 và `pnpm smoke:web` 17/17. Responsive còn cần QA sâu. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk workflow min rule UI đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted workflow builder smoke 1/1 và `pnpm smoke:web` 17/17. Responsive còn cần QA sâu. |
 
 ## Việc ưu tiên tiếp theo
 

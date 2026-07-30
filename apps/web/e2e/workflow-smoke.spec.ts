@@ -74,6 +74,13 @@ interface WorkflowTemplateRecord {
   code: string;
   name: string;
   versions?: Array<{
+    steps?: Array<{
+      code: string;
+      approvalMode?: string | null;
+      completionRule?: string | null;
+      minCount?: number | null;
+      minPercent?: number | null;
+    }>;
     transitions?: Array<{
       fromStep?: { code: string };
       toStep?: { code: string };
@@ -436,6 +443,9 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   await page.getByTestId("workflow-step-add").click();
   await page.getByTestId("workflow-step-name-1").fill("Xác nhận sau cùng");
   await page.getByTestId("workflow-step-code-1").fill("final_confirm");
+  await page.getByTestId("workflow-step-approval-mode-1").selectOption("PARALLEL");
+  await page.getByTestId("workflow-step-completion-rule-1").selectOption("MIN_COUNT");
+  await page.getByTestId("workflow-step-min-count-1").fill("1");
   await page.getByTestId("workflow-condition-toggle-0").check();
   await page.getByTestId("workflow-condition-field-0").selectOption("amount");
   await page.getByTestId("workflow-condition-operator-0").selectOption("gt");
@@ -445,7 +455,9 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   await page.getByTestId("workflow-template-save").click();
   const created = (await (await createResponse).json()) as WorkflowTemplateRecord;
   const condition = created.versions?.[0]?.transitions?.flatMap((transition) => transition.conditions ?? []).find((item) => item.fieldCode === "amount");
+  const minCountStep = created.versions?.[0]?.steps?.find((step) => step.code === "final_confirm");
   expect(condition).toMatchObject({ fieldCode: "amount", operator: "gt", compareValue: 50000000 });
+  expect(minCountStep).toMatchObject({ approvalMode: "PARALLEL", completionRule: "MIN_COUNT", minCount: 1 });
   await expect(page.locator(`tr[data-testid="workflow-template-row-${created.id}"]`)).toBeVisible();
 });
 

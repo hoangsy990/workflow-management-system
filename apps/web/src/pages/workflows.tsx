@@ -60,6 +60,8 @@ type WorkflowApprovalStepDraft = {
   resolverType: string;
   approvalMode: string;
   completionRule: string;
+  minCount: number;
+  minPercent: number;
   deadlineAmount: number;
   deadlineUnit: string;
   conditionalNext: boolean;
@@ -184,6 +186,8 @@ function newApprovalStep(index: number): WorkflowApprovalStepDraft {
     resolverType: index === 1 ? "REQUESTER_MANAGER" : "PREVIOUS_STEP_ASSIGNEE",
     approvalMode: "SEQUENTIAL",
     completionRule: "ALL",
+    minCount: 1,
+    minPercent: 50,
     deadlineAmount: 1,
     deadlineUnit: "DAY",
     conditionalNext: false,
@@ -318,6 +322,12 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
     if (stepCodes.some((code) => !code)) return "Mã bước không được để trống.";
     if (new Set(fieldCodes).size !== fieldCodes.length) return "Mã trường không được trùng.";
     if (new Set(stepCodes).size !== stepCodes.length) return "Mã bước không được trùng.";
+    const invalidMinRule = approvalSteps.find(
+      (step) =>
+        (step.completionRule === "MIN_COUNT" && (!Number.isInteger(step.minCount) || step.minCount < 1)) ||
+        (step.completionRule === "MIN_PERCENT" && (!Number.isInteger(step.minPercent) || step.minPercent < 1 || step.minPercent > 100))
+    );
+    if (invalidMinRule) return "Điều kiện hoàn thành tối thiểu cần giá trị hợp lệ.";
     const invalidCondition = approvalSteps.slice(0, -1).find((step) => {
       if (!step.conditionalNext) return false;
       return !fieldCodes.includes(normalizeWorkflowCode(step.conditionFieldCode)) || (step.conditionOperator !== "exists" && step.conditionValue.trim() === "");
@@ -379,6 +389,8 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
             orderIndex: step.orderIndex,
             approvalMode: step.approvalMode,
             completionRule: step.completionRule,
+            minCount: step.completionRule === "MIN_COUNT" ? step.minCount : undefined,
+            minPercent: step.completionRule === "MIN_PERCENT" ? step.minPercent : undefined,
             deadlineAmount: step.deadlineAmount || undefined,
             deadlineUnit: step.deadlineUnit,
             assignees: [{ resolverType: step.resolverType, orderIndex: 1 }]
@@ -484,14 +496,35 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
                 </option>
               ))}
             </select>
-            <select value={step.approvalMode} onChange={(event) => updateStep(step.id, { approvalMode: event.target.value })}>
+            <select data-testid={"workflow-step-approval-mode-" + index} value={step.approvalMode} onChange={(event) => updateStep(step.id, { approvalMode: event.target.value })}>
               <option value="SEQUENTIAL">{"Tuần tự"}</option>
               <option value="PARALLEL">{"Đồng thời"}</option>
             </select>
-            <select value={step.completionRule} onChange={(event) => updateStep(step.id, { completionRule: event.target.value })}>
+            <select data-testid={"workflow-step-completion-rule-" + index} value={step.completionRule} onChange={(event) => updateStep(step.id, { completionRule: event.target.value })}>
               <option value="ALL">{"Tất cả"}</option>
               <option value="ANY">{"Một người"}</option>
+              <option value="MIN_COUNT">{"Tối thiểu số lượng"}</option>
+              <option value="MIN_PERCENT">{"Tối thiểu tỷ lệ"}</option>
             </select>
+            {step.completionRule === "MIN_COUNT" && (
+              <input
+                data-testid={"workflow-step-min-count-" + index}
+                type="number"
+                min={1}
+                value={step.minCount}
+                onChange={(event) => updateStep(step.id, { minCount: Number(event.target.value) })}
+              />
+            )}
+            {step.completionRule === "MIN_PERCENT" && (
+              <input
+                data-testid={"workflow-step-min-percent-" + index}
+                type="number"
+                min={1}
+                max={100}
+                value={step.minPercent}
+                onChange={(event) => updateStep(step.id, { minPercent: Number(event.target.value) })}
+              />
+            )}
             <input type="number" min={0} value={step.deadlineAmount} onChange={(event) => updateStep(step.id, { deadlineAmount: Number(event.target.value) })} />
             <select value={step.deadlineUnit} onChange={(event) => updateStep(step.id, { deadlineUnit: event.target.value })}>
               <option value="HOUR">{"Giờ"}</option>
