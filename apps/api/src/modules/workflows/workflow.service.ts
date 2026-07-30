@@ -744,6 +744,7 @@ async function completeStepAndMoveNext(
   tx: Prisma.TransactionClient,
   input: {
     instanceId: string;
+    instanceCode: string;
     instanceStepId: string;
     currentStep: StepWithAssignees;
     requesterId: string;
@@ -759,7 +760,7 @@ async function completeStepAndMoveNext(
 
   const transition = await pickNextTransition(input.transitions, input.currentStep.id, input.formData);
   if (!transition || transition.toStep.type === "END") {
-    return tx.workflowInstance.update({
+    const approved = await tx.workflowInstance.update({
       where: { id: input.instanceId },
       data: {
         status: "APPROVED",
@@ -768,6 +769,18 @@ async function completeStepAndMoveNext(
         version: { increment: 1 }
       }
     });
+    await enqueueNotifications(tx, [
+      {
+        userId: input.requesterId,
+        title: "Hồ sơ đã được duyệt",
+        content: input.instanceCode,
+        type: "WORKFLOW_APPROVED",
+        objectType: "workflow_instance",
+        objectId: input.instanceId,
+        link: `/workflows/instances/${input.instanceId}`
+      }
+    ]);
+    return approved;
   }
 
   await tx.workflowInstance.update({
@@ -1076,6 +1089,7 @@ export async function actOnWorkflowInstance(
         response = completed
           ? await completeStepAndMoveNext(tx, {
               instanceId,
+              instanceCode: instance.code,
               instanceStepId: instanceStep.id,
               currentStep,
               requesterId: instance.requesterId,

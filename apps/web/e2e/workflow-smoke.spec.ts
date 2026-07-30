@@ -1003,6 +1003,8 @@ test("duyệt hồ sơ PAYMENT tuần tự trên UI", async ({ page, request }) 
   await expect(page.getByTestId("workflow-approval-history")).toContainText(fileName);
   const detail = await apiGet<WorkflowInstanceDetailRecord>(request, manager, `/workflow-instances/${instance.id}`);
   expect(detail.approvals?.some((approval) => approval.attachments?.some((attachment) => attachment.originalName === fileName))).toBe(true);
+  const notifications = await apiGet<Paginated<Record<string, any>>>(request, employee, "/notifications?pageSize=20");
+  expect(notifications.data.some((notification) => notification.type === "WORKFLOW_APPROVED" && notification.objectId === instance.id)).toBe(true);
 });
 
 test("từ chối hồ sơ PAYMENT trên UI", async ({ page, request }) => {

@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=92`, `PARTIAL=129`, `TODO=39`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `35.4%`, tính trọng số partial `60.2%`.
+**Tiến độ hiện tại:** `DONE=93`, `PARTIAL=128`, `TODO=39`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `35.8%`, tính trọng số partial `60.4%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `WORKFLOW-APPROVED-NOTIFICATION` | Bổ sung notification `WORKFLOW_APPROVED` khi hồ sơ hoàn tất duyệt: service enqueue cho người tạo hồ sơ với link/object thật và smoke test luồng duyệt PAYMENT assert notification của requester. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted approve notification smoke 1/1, `pnpm smoke:web` 24/24. |
 | 30/07/2026 | `DASHBOARD-DEPARTMENT-STATS` | Bổ sung thống kê công việc theo phòng ban trên dashboard: backend map `departmentId` sang tên phòng ban, UI render widget riêng lấy dữ liệu thật và smoke test tạo task rồi assert phòng ban xuất hiện. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted dashboard department smoke 1/1, `pnpm smoke:web` 24/24. |
 | 30/07/2026 | `WORKFLOW-ACTION-ATTACHMENTS` | Bổ sung tệp đính kèm khi xử lý hồ sơ phê duyệt: thêm bảng/migration `workflow_attachments`, route upload/download riêng, validate quyền pending approver, action nhận `attachmentIds`, gắn file vào `workflow_approvals`, UI chọn/tải file trong panel/lịch sử xử lý và smoke test duyệt PAYMENT kèm PDF. | `pnpm db:generate`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted workflow attachment smoke 1/1, `pnpm smoke:web` 23/23. |
 | 30/07/2026 | `TASK-LIST-SORT-UI` | Bổ sung sort server-side cho danh sách công việc: backend allow-list `sortBy/sortOrder`, UI chọn field/chiều sort, reset trang khi đổi sort và smoke test tạo 2 task để assert thứ tự hạn tăng/giảm. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted sort smoke 1/1, `pnpm smoke:web` 23/23. |
@@ -158,7 +159,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | --- | --- | --- |
 | Notification center trong app | `DONE` | Dashboard/notifications API có. |
 | Task assigned/follower/comment/mention/pending review/redo | `PARTIAL` | Assigned/follower/mention/pending review/redo có; comment thường/sắp hạn/quá hạn scheduler chưa đủ. |
-| Workflow pending/approved/rejected/request info | `PARTIAL` | Pending/rejected/request info có; approved notification cần rà thêm. |
+| Workflow pending/approved/rejected/request info | `DONE` | Pending approval, approved, rejected, request info đều enqueue notification DB thật; smoke test duyệt PAYMENT assert `WORKFLOW_APPROVED` cho requester. |
 | Step due soon/overdue notification | `TODO` | Chưa có scheduler. |
 | Event-driven nội bộ để mở rộng email/Telegram/mobile | `PARTIAL` | `enqueueNotifications` và device tokens có. Adapter ngoài chưa có. |
 
@@ -258,7 +259,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API/UI bổ sung progress, review, redo reset theo setting và overdue. Cần integration tests đầy đủ hơn. |
 | Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có thêm validate form data + smoke API/UI nhiều luồng. Chưa có integration transaction failure tự động. |
 | Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
-| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, dashboard department stats, user edit, department edit, role preview, tạo workflow template bằng builder, tạo workflow instance bằng form động, task upload/download/reply, calendar start/due, kanban confirm, pagination/sort, progress, evaluation attachment, redo reset, workflow action attachment, approve/reject/request-info/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
+| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, dashboard department stats, user edit, department edit, role preview, tạo workflow template bằng builder, tạo workflow instance bằng form động, task upload/download/reply, calendar start/due, kanban confirm, pagination/sort, progress, evaluation attachment, redo reset, workflow action attachment, approved notification, approve/reject/request-info/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
 | Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `PARTIAL` | Windows desktop build và Android arm64 APK build đã pass. Chưa QA cài/chạy trên thiết bị Android, chưa có Edge/iOS/macOS matrix. |
 
 ## 14. Triển khai
@@ -456,7 +457,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
-| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, dashboard department stats, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, auto progress parent từ child, tạo task qua API, mở detail UI, upload/download attachment, reply comment, calendar start/due, kanban confirm, pagination/sort, cập nhật progress, đánh giá hoàn thành task kèm tệp xác nhận, yêu cầu làm lại reset progress theo setting, workflow action attachment, approve/reject/request-info/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
+| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, dashboard department stats, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, auto progress parent từ child, tạo task qua API, mở detail UI, upload/download attachment, reply comment, calendar start/due, kanban confirm, pagination/sort, cập nhật progress, đánh giá hoàn thành task kèm tệp xác nhận, yêu cầu làm lại reset progress theo setting, workflow action attachment, approved notification, approve/reject/request-info/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
 | Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; smoke có tạo template bằng builder động và tạo hồ sơ bằng form động. Canvas designer, responsive/offline matrix và builder nâng cao chưa có. |
 | Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 
