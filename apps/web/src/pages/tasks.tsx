@@ -779,6 +779,7 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
   const [evaluationMode, setEvaluationMode] = useState<TaskEvaluationMode | null>(null);
   const [evaluationRating, setEvaluationRating] = useState(5);
   const [evaluationComment, setEvaluationComment] = useState("");
+  const [evaluationFiles, setEvaluationFiles] = useState<File[]>([]);
   const [evaluationError, setEvaluationError] = useState("");
   const [evaluationMessage, setEvaluationMessage] = useState("");
   const { data, loading, error, reload } = useAsyncData(() => (taskId ? api.task(taskId) : Promise.resolve(null)), [taskId]);
@@ -843,8 +844,22 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
     setEvaluationMode(mode);
     setEvaluationRating(5);
     setEvaluationComment("");
+    setEvaluationFiles([]);
     setEvaluationError("");
     setEvaluationMessage("");
+  }
+
+  function closeEvaluation() {
+    setEvaluationMode(null);
+    setEvaluationComment("");
+    setEvaluationFiles([]);
+    setEvaluationError("");
+  }
+
+  function addEvaluationFiles(files: FileList | null) {
+    const result = collectAllowedAttachmentFiles(files);
+    setEvaluationError(result.error);
+    setEvaluationFiles((current) => [...current, ...result.accepted]);
   }
 
   async function submitEvaluation(event: FormEvent) {
@@ -858,13 +873,17 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
     setEvaluationError("");
     setEvaluationMessage("");
     try {
+      const uploaded: Record<string, any>[] = [];
+      for (const file of evaluationFiles) {
+        uploaded.push(await api.uploadTaskAttachment(taskId, file));
+      }
       await api.evaluateTask(taskId, {
         accepted: evaluationMode === "accept",
         rating: evaluationMode === "accept" ? evaluationRating : undefined,
-        comment: evaluationComment.trim()
+        comment: evaluationComment.trim(),
+        attachmentIds: uploaded.map((attachment) => attachment.id)
       });
-      setEvaluationMode(null);
-      setEvaluationComment("");
+      closeEvaluation();
       setEvaluationMessage("Đã đánh giá công việc thành công.");
       await reload();
     } catch (err) {
@@ -1047,9 +1066,42 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
                 }}
               />
             </label>
+            <label className="file-picker compact-file-picker">
+              <Upload size={16} />
+              Tệp xác nhận
+              <input
+                data-testid="task-evaluation-attachment-input"
+                type="file"
+                multiple
+                accept={attachmentAccept}
+                onChange={(event) => {
+                  addEvaluationFiles(event.target.files);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+            <div className="selected-files" data-testid="task-evaluation-attachment-list">
+              {evaluationFiles.length === 0 ? (
+                <span>{"Chưa chọn tệp xác nhận."}</span>
+              ) : (
+                evaluationFiles.map((file, index) => (
+                  <span key={`${file.name}-${file.lastModified}-${index}`}>
+                    <b>{file.name}</b>
+                    <small>{formatFileSize(file.size)}</small>
+                    <button
+                      type="button"
+                      title="Bỏ tệp"
+                      onClick={() => setEvaluationFiles((current) => current.filter((_, currentIndex) => currentIndex !== index))}
+                    >
+                      <XCircle size={16} />
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
             {evaluationError && <p className="form-error">{evaluationError}</p>}
             <div className="form-actions">
-              <button className="ghost-button" data-testid="task-evaluation-cancel" type="button" disabled={busy} onClick={() => setEvaluationMode(null)}>
+              <button className="ghost-button" data-testid="task-evaluation-cancel" type="button" disabled={busy} onClick={closeEvaluation}>
                 Hủy
               </button>
               <button className={evaluationMode === "redo" ? "danger-button" : "primary-button"} data-testid="task-evaluation-submit" type="submit" disabled={busy}>

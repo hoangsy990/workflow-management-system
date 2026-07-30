@@ -66,6 +66,7 @@ interface TaskDetailRecord extends TaskRecord {
   parentTask?: { id: string; code: string; title: string } | null;
   dependenciesFrom?: Array<{ targetTask?: { id: string; code: string; title: string } | null }>;
   attachments?: Array<{ id: string; originalName: string }>;
+  evaluations?: Array<{ attachmentIds?: string[]; comment?: string | null; rating?: number | null }>;
 }
 
 interface TaskCategoryRecord {
@@ -725,6 +726,7 @@ test("quản lý đánh giá hoàn thành task bằng panel UI", async ({ page, 
   const manager = await apiLogin(request, "manager");
   const employee = await apiLogin(request, "employee");
   const task = await createSmokeTask(request, manager, "evaluation");
+  const fileName = `evaluation-${runId}.pdf`;
 
   await apiPost<Record<string, any>>(request, employee, `/tasks/${task.id}/progress`, {
     progress: 100,
@@ -738,12 +740,26 @@ test("quản lý đánh giá hoàn thành task bằng panel UI", async ({ page, 
   await expect(page.getByTestId("task-evaluation-panel")).toBeVisible();
   await page.getByTestId("task-evaluation-rating-4").click();
   await page.getByTestId("task-evaluation-comment").fill(`Đạt yêu cầu smoke ${runId}`);
+  await page.getByTestId("task-evaluation-attachment-input").setInputFiles({
+    name: fileName,
+    mimeType: "application/pdf",
+    buffer: Buffer.from(`evaluation evidence ${runId}`)
+  });
+  await expect(page.getByTestId("task-evaluation-attachment-list")).toContainText(fileName);
+  const uploadResponse = page.waitForResponse(
+    (response) => response.url().includes(`/tasks/${task.id}/attachments`) && response.request().method() === "POST"
+  );
   const evaluationResponse = page.waitForResponse(
     (response) => response.url().includes(`/tasks/${task.id}/evaluations`) && response.request().method() === "POST"
   );
   await page.getByTestId("task-evaluation-submit").click();
-  const evaluationResult = await evaluationResponse;
+  const [uploadResult, evaluationResult] = await Promise.all([uploadResponse, evaluationResponse]);
+  expect(uploadResult.ok(), await uploadResult.text()).toBeTruthy();
   expect(evaluationResult.ok(), await evaluationResult.text()).toBeTruthy();
+  const detail = await apiGet<TaskDetailRecord>(request, manager, `/tasks/${task.id}`);
+  const evaluationAttachmentIds = new Set(detail.evaluations?.[0]?.attachmentIds ?? []);
+  expect(evaluationAttachmentIds.size).toBeGreaterThan(0);
+  expect(detail.attachments?.some((attachment) => attachment.originalName === fileName && evaluationAttachmentIds.has(attachment.id))).toBe(true);
   await expect(page.getByTestId("task-detail-status")).toContainText("Hoàn thành");
 });
 
