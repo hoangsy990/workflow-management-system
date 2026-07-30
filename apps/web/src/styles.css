@@ -791,6 +791,87 @@ tbody tr:hover {
   font-weight: 700;
 }
 
+.related-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr 1fr;
+  gap: 14px;
+}
+
+.related-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--panel);
+}
+
+.related-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.related-card h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.related-card-head strong {
+  display: inline-grid;
+  min-width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--primary-strong);
+}
+
+.related-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.related-metrics span {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.related-list {
+  display: grid;
+  gap: 10px;
+}
+
+.related-list > div {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--panel-soft);
+}
+
+.related-list > div > div {
+  display: grid;
+  gap: 2px;
+}
+
+.related-list strong,
+.related-list span,
+.related-list small {
+  overflow-wrap: anywhere;
+}
+
+.related-list small {
+  color: var(--muted);
+}
+
 .required-mark,
 .field-error {
   color: var(--danger);
@@ -1688,6 +1769,14 @@ progress {
   .kanban {
     grid-template-columns: repeat(3, minmax(240px, 1fr));
   }
+
+  .related-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .related-card:first-child {
+    grid-column: span 2;
+  }
 }
 
 @media (max-width: 860px) {
@@ -1723,6 +1812,14 @@ progress {
 
   .avatar-upload button {
     grid-column: span 2;
+  }
+
+  .related-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .related-card:first-child {
+    grid-column: auto;
   }
 
   .content {

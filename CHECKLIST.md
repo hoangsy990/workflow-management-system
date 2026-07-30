@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=98`, `PARTIAL=125`, `TODO=37`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `37.7%`, tính trọng số partial `61.7%`.
+**Tiến độ hiện tại:** `DONE=100`, `PARTIAL=123`, `TODO=37`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `38.5%`, tính trọng số partial `62.1%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 30/07/2026 | `PROFILE-RELATED-WORK` | Bổ sung dữ liệu liên quan trong hồ sơ cá nhân: API `/profile/related` gom công việc liên quan, hồ sơ tôi tạo và hồ sơ chờ tôi phê duyệt theo scope quyền backend; UI profile hiển thị metric + danh sách recent responsive; smoke test tạo task/workflow thật rồi assert API/UI đọc được dữ liệu. Chuyển `User profile đầy đủ` và `Thiết bị đăng nhập/hoạt động gần đây/task/workflow liên quan` sang DONE. | `pnpm lint`, `pnpm test`, `pnpm build` qua Docker build, `docker compose up -d --build`, targeted profile-related smoke 1/1, `pnpm smoke:web` 30/30. |
 | 30/07/2026 | `PROFILE-AVATAR-UPLOAD` | Bổ sung upload avatar thật cho hồ sơ cá nhân: endpoint `/profile/avatar` validate JPG/PNG/WebP và dung lượng, lưu file bằng tên an toàn trong `UPLOAD_DIR/avatars`, DB lưu URL public `/api/v1/avatars/...`, endpoint serve avatar không lộ path nội bộ, UI profile có preview/chọn file/upload/success và smoke test kiểm avatarUrl trong DB. Trạng thái tổng chưa đổi vì profile vẫn còn thiếu tab task/workflow liên quan. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted profile/avatar smoke 1/1, `pnpm smoke:web` 30/30. |
 | 30/07/2026 | `PROFILE-ACTIVITY-TIMELINE` | Bổ sung hoạt động gần đây trong hồ sơ cá nhân: API `/profile/activity` chỉ trả audit log của chính người dùng, phân trang server-side; UI profile hiển thị timeline action/entity/time và reload sau khi lưu hồ sơ. Smoke test cập nhật profile rồi assert `user.profile.update` xuất hiện trên timeline. Trạng thái tổng chưa đổi vì profile vẫn thiếu avatar upload và task/workflow liên quan. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted profile activity smoke 1/1, `pnpm smoke:web` 30/30. |
 | 30/07/2026 | `PROFILE-PASSWORD-CHANGE` | Bổ sung đổi mật khẩu cá nhân: API `/profile/password` yêu cầu mật khẩu hiện tại, validate mật khẩu mới, hash bcrypt, reset failed login, thu hồi toàn bộ refresh sessions trong transaction và ghi audit `user.password.change`; UI profile có panel đổi mật khẩu và logout local sau khi đổi thành công. Smoke test tạo user tạm, đổi mật khẩu qua UI, kiểm refresh token cũ bị từ chối, mật khẩu cũ không login được và mật khẩu mới login được. Trạng thái tổng chưa đổi vì profile vẫn thiếu avatar upload, task/workflow liên quan và hoạt động gần đây. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted password smoke 1/1, `pnpm smoke:web` 30/30. |
@@ -98,7 +99,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Module | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Đăng nhập và quản lý tài khoản | `PARTIAL` | Login/refresh/logout/logout-all/users create/edit profile/roles/status, trang hồ sơ cá nhân cơ bản, avatar upload, đổi mật khẩu và panel phiên đăng nhập/thu hồi thiết bị có. Chưa có profile nâng cao/import user. |
+| Đăng nhập và quản lý tài khoản | `PARTIAL` | Login/refresh/logout/logout-all/users create/edit profile/roles/status, hồ sơ cá nhân tự phục vụ có avatar upload/đổi mật khẩu/timeline/task-workflow liên quan và panel phiên đăng nhập/thu hồi thiết bị. Chưa có import user và quản trị phiên của user khác. |
 | Phòng ban và cơ cấu tổ chức | `PARTIAL` | Departments create/edit/detail, parent department, list phân cấp cha-con và quản lý nhóm làm việc có; backend chống vòng lặp parent và validate team member. Company/branch UI, sơ đồ tổ chức kéo thả chưa có. |
 | Vai trò và phân quyền | `PARTIAL` | RBAC tables/API, ma trận quyền, preview phạm vi dữ liệu và cảnh báo cấu hình quyền cơ bản có. Chưa có data scope/field permissions có cấu hình riêng. |
 | Thông báo | `PARTIAL` | Notification center/inbox/device token table và scheduler nhắc hạn có. Chưa có push adapter FCM/APNs/Desktop thật. |
@@ -111,7 +112,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| User fields: mã NV, họ tên, email, phone, password, avatar, title, department, manager, status, created, last login | `PARTIAL` | Schema/API có phần lớn; UI tạo/chỉnh user đã hỗ trợ phone/title/department/manager/status/roles và hiển thị created/last login; trang hồ sơ cá nhân cho tự sửa họ tên/phone/title, upload avatar và đổi mật khẩu; menu tài khoản có panel phiên đăng nhập/thu hồi thiết bị/logout-all. Profile nâng cao chưa hoàn thiện. |
+| User fields: mã NV, họ tên, email, phone, password, avatar, title, department, manager, status, created, last login | `PARTIAL` | Schema/API có phần lớn; UI tạo/chỉnh user đã hỗ trợ phone/title/department/manager/status/roles và hiển thị created/last login; trang hồ sơ cá nhân cho tự sửa họ tên/phone/title, upload avatar, đổi mật khẩu, xem timeline và task/workflow liên quan; menu tài khoản có panel phiên đăng nhập/thu hồi thiết bị/logout-all. Import/export user và quản trị phiên user khác chưa có. |
 | Company, branch, department, team, title, direct manager | `PARTIAL` | Schema có company/branch/team/departments; UI user/department/team đã có chỉnh trực tiếp, parent department và manager. Company/branch UI nâng cao chưa có. |
 | Một người thuộc một phòng ban chính và nhiều nhóm | `DONE` | Schema `team_members`, API `/teams`, user create/edit `teamIds`, UI quản lý nhóm và smoke test tạo/cập nhật thành viên nhóm đã có. |
 | Vai trò mặc định admin/manager/employee/watcher | `DONE` | Seed tạo các vai trò mặc định. |
@@ -406,8 +407,8 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | --- | --- | --- |
 | Sơ đồ tổ chức tree/org/list | `TODO` | Chưa có. |
 | Kéo chuyển phòng ban | `TODO` | Chưa có. |
-| User profile đầy đủ | `PARTIAL` | Đã có trang Hồ sơ cá nhân tự xem/sửa họ tên, phone, chức danh, upload avatar, đổi mật khẩu, xem phòng ban/quản lý/nhóm/vai trò/timestamps và timeline hoạt động gần đây. Chưa có task/workflow liên quan trong profile. |
-| Thiết bị đăng nhập/hoạt động gần đây/task/workflow liên quan | `PARTIAL` | Backend refresh tokens/audit/task/workflow có; menu tài khoản đã có danh sách phiên đăng nhập, thu hồi từng thiết bị và đăng xuất tất cả; profile có timeline hoạt động gần đây. Tab task/workflow liên quan trong profile chưa có. |
+| User profile đầy đủ | `DONE` | Hồ sơ cá nhân đã có tự xem/sửa họ tên, phone, chức danh, upload avatar, đổi mật khẩu, xem phòng ban/quản lý/nhóm/vai trò/timestamps, timeline hoạt động gần đây và task/workflow liên quan từ DB thật. |
+| Thiết bị đăng nhập/hoạt động gần đây/task/workflow liên quan | `DONE` | Menu tài khoản có danh sách phiên đăng nhập, thu hồi từng thiết bị và đăng xuất tất cả; profile có timeline hoạt động gần đây, công việc liên quan, hồ sơ tôi tạo và hồ sơ chờ tôi phê duyệt. |
 | Import user Excel/CSV với preview/transaction/errors | `TODO` | Chưa có. |
 
 ## 26. Ma trận vai trò và phân quyền
@@ -472,7 +473,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Form validation/navigation/permission display | `PARTIAL` | Một số QA browser thủ công; chưa automated. |
-| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, profile self-service/avatar/password change/activity timeline, session device revoke/logout-all, dashboard department stats, deadline scheduler, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, auto progress parent từ child, tạo task qua API, mở detail UI, upload/download attachment/download audit, reply comment/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, cập nhật progress, đánh giá hoàn thành task kèm tệp xác nhận, yêu cầu làm lại reset progress theo setting, workflow action attachment, approved notification, approve/reject/request-info/return/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
+| Create task/progress/approval/reject/upload duplicate action | `PARTIAL` | Playwright smoke đã phủ login, profile self-service/avatar/password change/activity timeline/task-workflow related, session device revoke/logout-all, dashboard department stats, deadline scheduler, user edit, department edit, team create/update, role permission preview, tạo task qua UI kèm assigner/parent/related/attachment, auto progress parent từ child, tạo task qua API, mở detail UI, upload/download attachment/download audit, reply comment/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, cập nhật progress, đánh giá hoàn thành task kèm tệp xác nhận, yêu cầu làm lại reset progress theo setting, workflow action attachment, approved notification, approve/reject/request-info/return/transfer workflow và idempotency key. Còn thiếu double-click UI cụ thể và responsive/offline action tests. |
 | Form builder/workflow designer/draft/dark/responsive/offline | `PARTIAL` | Draft/dark/offline cơ bản; smoke có tạo template bằng builder động, default/options/validation rule và tạo hồ sơ bằng form động. Canvas designer, responsive/offline matrix và builder nâng cao chưa có. |
 | Chrome/Edge/Android/iOS/Windows desktop matrix | `PARTIAL` | Chrome/browser web đã QA nhiều lần, Windows installer và Android arm64 APK build pass. Chưa QA Edge, thiết bị Android thật/emulator, iOS/macOS. |
 

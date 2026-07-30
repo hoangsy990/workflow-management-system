@@ -1,7 +1,10 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import type { AuthContext } from "../../types/fastify.js";
 import { hashPassword, verifyPassword } from "../../security/hash.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { badRequest, conflict, notFound } from "../../http/errors.js";
+import { visibleTaskWhere } from "../tasks/task.service.js";
+import { visibleWorkflowInstanceWhere } from "../workflows/workflow.service.js";
 
 export async function listUsers(db: PrismaClient, input: { page: number; pageSize: number; keyword?: string }) {
   const where: Prisma.UserWhereInput = {
@@ -189,6 +192,130 @@ export async function listOwnActivity(db: PrismaClient, userId: string, input: {
   ]);
 
   return { data, total };
+}
+
+function isProfileTaskOverdue(task: { dueDate: Date | null; status: string }) {
+  return Boolean(task.dueDate && task.dueDate.getTime() < Date.now() && !["DONE", "CANCELLED"].includes(task.status));
+}
+
+export async function getProfileRelated(db: PrismaClient, auth: AuthContext) {
+  const taskScope = await visibleTaskWhere(db, auth);
+  const relatedTaskWhere: Prisma.TaskWhereInput = {
+    AND: [
+      taskScope,
+      {
+        OR: [
+          { creatorId: auth.userId },
+          { assignerId: auth.userId },
+          { managerId: auth.userId },
+          { assignees: { some: { userId: auth.userId } } },
+          { followers: { some: { userId: auth.userId } } }
+        ]
+      }
+    ]
+  };
+  const reviewTaskWhere: Prisma.TaskWhereInput = {
+    AND: [relatedTaskWhere, { status: "PENDING_REVIEW", OR: [{ creatorId: auth.userId }, { managerId: auth.userId }] }]
+  };
+  const overdueTaskWhere: Prisma.TaskWhereInput = {
+    AND: [relatedTaskWhere, { dueDate: { lt: new Date() }, status: { notIn: ["DONE", "CANCELLED"] } }]
+  };
+  const workflowScope = visibleWorkflowInstanceWhere(auth);
+  const createdWorkflowWhere: Prisma.WorkflowInstanceWhereInput = {
+    AND: [workflowScope, { requesterId: auth.userId }]
+  };
+  const pendingWorkflowWhere: Prisma.WorkflowInstanceWhereInput = {
+    AND: [workflowScope, { approvals: { some: { approverId: auth.userId, status: "PENDING" } } }]
+  };
+
+  const [
+    relatedTasks,
+    taskTotal,
+    taskAssignedTotal,
+    taskCreatedTotal,
+    taskManagedTotal,
+    taskFollowingTotal,
+    taskReviewTotal,
+    taskOverdueTotal,
+    createdWorkflowInstances,
+    createdWorkflowTotal,
+    pendingWorkflowInstances,
+    pendingWorkflowTotal
+  ] = await Promise.all([
+    db.task.findMany({
+      where: relatedTaskWhere,
+      take: 6,
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        code: true,
+        title: true,
+        status: true,
+        priority: true,
+        progress: true,
+        startDate: true,
+        dueDate: true,
+        assignees: { include: { user: { select: { id: true, fullName: true, avatarUrl: true } } } },
+        _count: { select: { comments: true, attachments: true } }
+      }
+    }),
+    db.task.count({ where: relatedTaskWhere }),
+    db.task.count({ where: { AND: [relatedTaskWhere, { assignees: { some: { userId: auth.userId } } }] } }),
+    db.task.count({ where: { AND: [relatedTaskWhere, { OR: [{ assignerId: auth.userId }, { creatorId: auth.userId }] }] } }),
+    db.task.count({ where: { AND: [relatedTaskWhere, { managerId: auth.userId }] } }),
+    db.task.count({ where: { AND: [relatedTaskWhere, { followers: { some: { userId: auth.userId } } }] } }),
+    db.task.count({ where: reviewTaskWhere }),
+    db.task.count({ where: overdueTaskWhere }),
+    db.workflowInstance.findMany({
+      where: createdWorkflowWhere,
+      take: 5,
+      orderBy: { createdAt: "desc" },
+      include: {
+        template: { select: { id: true, code: true, name: true } },
+        currentStep: { select: { id: true, name: true, type: true } },
+        approvals: {
+          where: { status: "PENDING" },
+          include: { approver: { select: { id: true, fullName: true } } }
+        }
+      }
+    }),
+    db.workflowInstance.count({ where: createdWorkflowWhere }),
+    db.workflowInstance.findMany({
+      where: pendingWorkflowWhere,
+      take: 5,
+      orderBy: { createdAt: "desc" },
+      include: {
+        template: { select: { id: true, code: true, name: true } },
+        requester: { select: { id: true, fullName: true } },
+        currentStep: { select: { id: true, name: true, type: true } },
+        approvals: {
+          where: { status: "PENDING" },
+          include: { approver: { select: { id: true, fullName: true } } }
+        }
+      }
+    }),
+    db.workflowInstance.count({ where: pendingWorkflowWhere })
+  ]);
+
+  return {
+    tasks: {
+      total: taskTotal,
+      assignedTotal: taskAssignedTotal,
+      createdTotal: taskCreatedTotal,
+      managedTotal: taskManagedTotal,
+      followingTotal: taskFollowingTotal,
+      pendingReviewTotal: taskReviewTotal,
+      overdueTotal: taskOverdueTotal,
+      data: relatedTasks.map((task) => ({
+        ...task,
+        displayStatus: isProfileTaskOverdue(task) ? "OVERDUE" : task.status
+      }))
+    },
+    workflows: {
+      created: { total: createdWorkflowTotal, data: createdWorkflowInstances },
+      pending: { total: pendingWorkflowTotal, data: pendingWorkflowInstances }
+    }
+  };
 }
 
 export async function createUser(

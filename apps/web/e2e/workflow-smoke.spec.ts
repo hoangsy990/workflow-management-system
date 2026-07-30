@@ -416,12 +416,21 @@ test("xem, thu hồi phiên thiết bị và đăng xuất tất cả", async ({
 
 test("người dùng cập nhật hồ sơ cá nhân trên UI", async ({ page, request }) => {
   const manager = await apiLogin(request, "manager");
+  const employee = await apiLogin(request, "employee");
   const nextTitle = `Profile smoke ${runId}`;
   const nextPhone = `091${String(Date.now()).slice(-7)}`;
+  const relatedTask = await createSmokeTask(request, manager, "profile-related", {
+    startDate: new Date(Date.now() - 120_000).toISOString(),
+    dueDate: new Date(Date.now() - 60_000).toISOString()
+  });
+  const relatedWorkflow = await createSmokeWorkflowInstance(request, employee, "profile-related");
 
   await openAppWithSession(page, manager);
   await page.getByTestId("account-profile-open").click();
   await expect(page.getByTestId("profile-form")).toBeVisible();
+  await expect(page.getByTestId("profile-related")).toBeVisible();
+  await expect(page.getByTestId("profile-related-tasks")).toContainText(relatedTask.code);
+  await expect(page.getByTestId("profile-related-pending-workflows")).toContainText(relatedWorkflow.code);
   await page.getByTestId("profile-avatar-file").setInputFiles({
     name: `avatar-${runId}.png`,
     mimeType: "image/png",
@@ -446,6 +455,11 @@ test("người dùng cập nhật hồ sơ cá nhân trên UI", async ({ page, r
   expect(profile.phone).toBe(nextPhone);
   expect(profile.title).toBe(nextTitle);
   expect(profile.avatarUrl).toContain("/api/v1/avatars/");
+
+  const related = await apiGet<Record<string, any>>(request, manager, "/profile/related");
+  expect(related.tasks.total).toBeGreaterThan(0);
+  expect((related.tasks.data as Array<Record<string, any>>).some((task) => task.id === relatedTask.id)).toBe(true);
+  expect((related.workflows.pending.data as Array<Record<string, any>>).some((instance) => instance.id === relatedWorkflow.id)).toBe(true);
 });
 
 test("dashboard hiển thị thống kê công việc theo phòng ban", async ({ page, request }) => {

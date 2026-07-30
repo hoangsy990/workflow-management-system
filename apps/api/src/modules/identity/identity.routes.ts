@@ -9,6 +9,7 @@ import {
   createRole,
   createUser,
   getProfile,
+  getProfileRelated,
   listDepartments,
   listOwnActivity,
   listPermissions,
@@ -124,6 +125,10 @@ export async function identityRoutes(app: FastifyInstance) {
     const query = parseQuery(request, paginationSchema);
     const result = await listOwnActivity(prisma, request.auth!.userId, query);
     return paginate(result.data, query.page, query.pageSize, result.total);
+  });
+
+  app.get("/profile/related", { preHandler: requireAuth }, async (request) => {
+    return getProfileRelated(prisma, request.auth!);
   });
 
   app.get("/users", { preHandler: requirePermission("user.read") }, async (request) => {

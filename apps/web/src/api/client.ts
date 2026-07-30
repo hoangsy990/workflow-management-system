@@ -192,6 +192,7 @@ export const api = {
   changePassword: (payload: Record<string, unknown>) =>
     apiRequest<{ ok: true; revokedSessions: number }>("/profile/password", { method: "POST", body: JSON.stringify(payload) }),
   profileActivity: () => apiRequest<Paginated<Record<string, any>>>("/profile/activity?pageSize=8"),
+  profileRelated: () => apiRequest<Record<string, any>>("/profile/related"),
   uploadProfileAvatar: (file: File) => {
     const form = new FormData();
     form.set("file", file);

@@ -26,6 +26,16 @@ function names(items: Array<Record<string, any>> | undefined, key: "role" | "tea
   return values.length > 5 ? `${visible} +${values.length - 5}` : visible;
 }
 
+function taskAssigneeNames(task: Record<string, any>) {
+  const values = (task.assignees ?? []).map((item: Record<string, any>) => item.user?.fullName).filter(Boolean);
+  return values.length > 0 ? values.join(", ") : "Chưa có";
+}
+
+function pendingApproverNames(instance: Record<string, any>) {
+  const values = (instance.approvals ?? []).map((item: Record<string, any>) => item.approver?.fullName).filter(Boolean);
+  return values.length > 0 ? values.join(", ") : "Chưa có";
+}
+
 export function ProfilePage({
   onProfileUpdated,
   onPasswordChanged
@@ -35,6 +45,7 @@ export function ProfilePage({
 }) {
   const { data, loading, error, reload } = useAsyncData(() => api.profile(), []);
   const activity = useAsyncData(() => api.profileActivity(), []);
+  const related = useAsyncData(() => api.profileRelated(), []);
   const [form, setForm] = useState(profileForm(null));
   const [passwordForm, setPasswordForm] = useState(emptyPasswordForm);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -87,6 +98,7 @@ export function ProfilePage({
       setSaved(true);
       await reload();
       await activity.reload();
+      await related.reload();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Không cập nhật được hồ sơ.");
     } finally {
@@ -115,6 +127,7 @@ export function ProfilePage({
       onProfileUpdated?.(result);
       await reload();
       await activity.reload();
+      await related.reload();
     } catch (err) {
       setAvatarError(err instanceof Error ? err.message : "Không tải được ảnh đại diện.");
     } finally {
@@ -265,6 +278,96 @@ export function ProfilePage({
           {changingPassword ? "Đang đổi..." : "Đổi mật khẩu"}
         </button>
       </form>
+
+      <section className="panel wide" data-testid="profile-related">
+        <div className="panel-head">
+          <div>
+            <h2>Công việc và hồ sơ liên quan</h2>
+            <p>Dữ liệu được lấy theo quyền của tài khoản hiện tại.</p>
+          </div>
+          <button className="ghost-button compact" type="button" disabled={related.loading} onClick={() => void related.reload()}>
+            Làm mới
+          </button>
+        </div>
+        {related.error && <p className="form-error">{related.error}</p>}
+        {related.loading ? (
+          <p>Đang tải...</p>
+        ) : (
+          <div className="related-grid">
+            <article className="related-card" data-testid="profile-related-tasks">
+              <div className="related-card-head">
+                <h3>Công việc liên quan</h3>
+                <strong data-testid="profile-related-task-total">{related.data?.tasks?.total ?? 0}</strong>
+              </div>
+              <div className="related-metrics">
+                <span>Thực hiện: <strong>{related.data?.tasks?.assignedTotal ?? 0}</strong></span>
+                <span>Giao/tạo: <strong>{related.data?.tasks?.createdTotal ?? 0}</strong></span>
+                <span>Quản lý: <strong>{related.data?.tasks?.managedTotal ?? 0}</strong></span>
+                <span>Chờ đánh giá: <strong>{related.data?.tasks?.pendingReviewTotal ?? 0}</strong></span>
+                <span>Quá hạn: <strong>{related.data?.tasks?.overdueTotal ?? 0}</strong></span>
+              </div>
+              <div className="related-list">
+                {(related.data?.tasks?.data ?? []).length === 0 && <p>Chưa có công việc liên quan.</p>}
+                {(related.data?.tasks?.data ?? []).map((task: Record<string, any>) => (
+                  <div key={task.id} data-testid={`profile-related-task-${task.id}`}>
+                    <div>
+                      <strong>{task.code}</strong>
+                      <span>{task.title}</span>
+                    </div>
+                    <small>
+                      {statusLabels[task.displayStatus] ?? task.status} · {task.progress ?? 0}% · {taskAssigneeNames(task)}
+                      {task.dueDate ? ` · Hạn ${formatDate(task.dueDate)}` : ""}
+                    </small>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="related-card" data-testid="profile-related-workflows">
+              <div className="related-card-head">
+                <h3>Hồ sơ tôi tạo</h3>
+                <strong data-testid="profile-related-workflow-created-total">{related.data?.workflows?.created?.total ?? 0}</strong>
+              </div>
+              <div className="related-list">
+                {(related.data?.workflows?.created?.data ?? []).length === 0 && <p>Chưa có hồ sơ đã tạo.</p>}
+                {(related.data?.workflows?.created?.data ?? []).map((instance: Record<string, any>) => (
+                  <div key={instance.id}>
+                    <div>
+                      <strong>{instance.code}</strong>
+                      <span>{instance.template?.name ?? "Quy trình"}</span>
+                    </div>
+                    <small>
+                      {statusLabels[instance.status] ?? instance.status}
+                      {instance.currentStep?.name ? ` · ${instance.currentStep.name}` : ""}
+                    </small>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="related-card" data-testid="profile-related-pending-workflows">
+              <div className="related-card-head">
+                <h3>Chờ tôi phê duyệt</h3>
+                <strong data-testid="profile-related-workflow-pending-total">{related.data?.workflows?.pending?.total ?? 0}</strong>
+              </div>
+              <div className="related-list">
+                {(related.data?.workflows?.pending?.data ?? []).length === 0 && <p>Không có hồ sơ chờ xử lý.</p>}
+                {(related.data?.workflows?.pending?.data ?? []).map((instance: Record<string, any>) => (
+                  <div key={instance.id} data-testid={`profile-related-workflow-${instance.id}`}>
+                    <div>
+                      <strong>{instance.code}</strong>
+                      <span>{instance.template?.name ?? "Quy trình"}</span>
+                    </div>
+                    <small>
+                      {instance.currentStep?.name ?? "Đang xử lý"} · {pendingApproverNames(instance)}
+                    </small>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </div>
+        )}
+      </section>
 
       <section className="panel wide">
         <div className="panel-head">
