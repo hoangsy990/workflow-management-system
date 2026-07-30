@@ -449,6 +449,80 @@ export async function updateTask(
   });
 }
 
+async function recalculateParentTaskProgress(
+  tx: Prisma.TransactionClient,
+  childTask: { parentTaskId: string | null },
+  actorId: string,
+  ipAddress?: string
+) {
+  let parentId = childTask.parentTaskId;
+
+  while (parentId) {
+    const parent = await tx.task.findUnique({
+      where: { id: parentId },
+      select: {
+        id: true,
+        code: true,
+        title: true,
+        status: true,
+        progress: true,
+        parentTaskId: true,
+        requiresReview: true,
+        autoCalculateParentProgress: true
+      }
+    });
+    if (!parent || !parent.autoCalculateParentProgress) {
+      return;
+    }
+
+    const children = await tx.task.findMany({
+      where: { parentTaskId: parent.id, deletedAt: null },
+      select: { progress: true }
+    });
+    if (children.length === 0) {
+      return;
+    }
+
+    const progress = Math.round(children.reduce((sum, child) => sum + child.progress, 0) / children.length);
+    const status = nextStatusAfterProgress({
+      currentStatus: parent.status,
+      progress,
+      requiresReview: parent.requiresReview
+    });
+
+    if (progress !== parent.progress || status !== parent.status) {
+      await tx.task.update({
+        where: { id: parent.id },
+        data: {
+          progress,
+          status,
+          version: { increment: 1 }
+        }
+      });
+      await tx.taskProgressLog.create({
+        data: {
+          taskId: parent.id,
+          userId: actorId,
+          progress,
+          note: "Tự động tính từ tiến độ công việc con.",
+          oldStatus: parent.status,
+          newStatus: status
+        }
+      });
+      await writeAuditLog(tx, {
+        actorId,
+        action: "task.parent_progress.recalculate",
+        entityType: "tasks",
+        entityId: parent.id,
+        ipAddress,
+        metadata: { progress, oldProgress: parent.progress, oldStatus: parent.status, newStatus: status }
+      });
+    }
+
+    parentId = parent.parentTaskId;
+  }
+}
+
 export async function updateTaskProgress(
   db: PrismaClient,
   auth: AuthContext,
@@ -503,6 +577,8 @@ export async function updateTaskProgress(
       ipAddress,
       metadata: { progress: input.progress, oldStatus: task.status, newStatus }
     });
+
+    await recalculateParentTaskProgress(tx, task, auth.userId, ipAddress);
 
     if (newStatus === "PENDING_REVIEW") {
       const reviewers = [task.creatorId, task.managerId].filter(Boolean) as string[];

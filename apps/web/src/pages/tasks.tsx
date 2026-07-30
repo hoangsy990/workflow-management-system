@@ -518,7 +518,8 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
     dueDate: initial.dueDate ?? "",
     categoryId: initial.categoryId ?? "",
     tagIds: initial.tagIds ?? [],
-    requiresReview: initial.requiresReview ?? true
+    requiresReview: initial.requiresReview ?? true,
+    autoCalculateParentProgress: initial.autoCalculateParentProgress ?? false
   });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
@@ -712,6 +713,15 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
             onChange={(value) => update("relatedTaskIds", value.filter((id) => id !== form.parentTaskId))}
           />
         </div>
+        <label className="toggle-line">
+          <input
+            data-testid="task-create-auto-parent-progress"
+            type="checkbox"
+            checked={form.autoCalculateParentProgress}
+            onChange={(event) => update("autoCalculateParentProgress", event.target.checked)}
+          />
+          {"Tự tính tiến độ từ công việc con"}
+        </label>
       </fieldset>
       <fieldset>
         <legend>{"Tệp đính kèm"}</legend>
@@ -938,7 +948,10 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
             {(data.subTasks ?? []).length > 0 && (
               <span>
                 <small>{"Công việc con"}</small>
-                <strong>{data.subTasks.map((task: Record<string, any>) => `${task.code} - ${task.title}`).join(", ")}</strong>
+                <strong>
+                  {data.subTasks.map((task: Record<string, any>) => `${task.code} - ${task.title}`).join(", ")}
+                  {data.subTaskProgress !== null && data.subTaskProgress !== undefined ? ` (${data.subTaskProgress}%)` : ""}
+                </strong>
               </span>
             )}
             {(data.dependenciesFrom ?? []).length > 0 && (

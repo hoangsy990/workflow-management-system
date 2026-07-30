@@ -60,6 +60,8 @@ interface TaskRecord {
 }
 
 interface TaskDetailRecord extends TaskRecord {
+  progress?: number;
+  subTaskProgress?: number | null;
   assigner?: { id: string; fullName: string } | null;
   parentTask?: { id: string; code: string; title: string } | null;
   dependenciesFrom?: Array<{ targetTask?: { id: string; code: string; title: string } | null }>;
@@ -522,7 +524,10 @@ test("tạo task kèm tệp đính kèm ngay trên form UI", async ({ page, requ
   const categories = await apiGet<TaskCategoryRecord[]>(request, manager, "/task-categories");
   const department = departments[0];
   const category = categories[0];
-  const parentTask = await createSmokeTask(request, manager, "parent-link");
+  const parentTask = await createSmokeTask(request, manager, "parent-link", {
+    autoCalculateParentProgress: true,
+    requiresReview: false
+  });
   const relatedTask = await createSmokeTask(request, manager, "related-link");
   const title = `Smoke form attachment ${runId}`;
   const fileName = `create-form-${runId}.pdf`;
@@ -567,6 +572,13 @@ test("tạo task kèm tệp đính kèm ngay trên form UI", async ({ page, requ
   expect(detail.parentTask?.id).toBe(parentTask.id);
   expect(detail.dependenciesFrom?.some((dependency) => dependency.targetTask?.id === relatedTask.id)).toBe(true);
   expect(detail.attachments?.some((attachment) => attachment.originalName === fileName)).toBe(true);
+  await apiPost<TaskRecord>(request, manager, `/tasks/${created.id}/progress`, {
+    progress: 40,
+    note: `Auto parent progress ${runId}`
+  });
+  const parentDetail = await apiGet<TaskDetailRecord>(request, manager, `/tasks/${parentTask.id}`);
+  expect(parentDetail.progress).toBe(40);
+  expect(parentDetail.subTaskProgress).toBe(40);
   await expect(page.getByTestId("task-relations")).toContainText(parentTask.code);
   await expect(page.getByTestId("task-relations")).toContainText(relatedTask.code);
   const attachmentButton = page
