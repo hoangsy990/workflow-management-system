@@ -427,6 +427,7 @@ test("người dùng cập nhật hồ sơ cá nhân trên UI", async ({ page, r
   await page.getByTestId("profile-save").click();
   await expect(page.getByTestId("profile-save-success")).toBeVisible();
   await expect(page.getByTestId("profile-summary")).toContainText(nextTitle);
+  await expect(page.getByTestId("profile-activity")).toContainText("user.profile.update");
 
   const profile = await apiGet<Record<string, any>>(request, manager, "/profile");
   expect(profile.phone).toBe(nextPhone);

@@ -10,6 +10,7 @@ import {
   createUser,
   getProfile,
   listDepartments,
+  listOwnActivity,
   listPermissions,
   listRoles,
   listTeams,
@@ -111,6 +112,12 @@ export async function identityRoutes(app: FastifyInstance) {
   app.post("/profile/password", { preHandler: requireAuth }, async (request) => {
     const body = parseBody(request, changePasswordSchema);
     return changeOwnPassword(prisma, request.auth!.userId, body);
+  });
+
+  app.get("/profile/activity", { preHandler: requireAuth }, async (request) => {
+    const query = parseQuery(request, paginationSchema);
+    const result = await listOwnActivity(prisma, request.auth!.userId, query);
+    return paginate(result.data, query.page, query.pageSize, result.total);
   });
 
   app.get("/users", { preHandler: requirePermission("user.read") }, async (request) => {

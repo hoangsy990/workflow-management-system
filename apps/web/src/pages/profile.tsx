@@ -34,6 +34,7 @@ export function ProfilePage({
   onPasswordChanged?: () => void;
 }) {
   const { data, loading, error, reload } = useAsyncData(() => api.profile(), []);
+  const activity = useAsyncData(() => api.profileActivity(), []);
   const [form, setForm] = useState(profileForm(null));
   const [passwordForm, setPasswordForm] = useState(emptyPasswordForm);
   const [saving, setSaving] = useState(false);
@@ -81,6 +82,7 @@ export function ProfilePage({
       onProfileUpdated?.(profile);
       setSaved(true);
       await reload();
+      await activity.reload();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Không cập nhật được hồ sơ.");
     } finally {
@@ -206,6 +208,33 @@ export function ProfilePage({
           {changingPassword ? "Đang đổi..." : "Đổi mật khẩu"}
         </button>
       </form>
+
+      <section className="panel wide">
+        <div className="panel-head">
+          <div>
+            <h2>Hoạt động gần đây</h2>
+            <p>Nhật ký thao tác của tài khoản hiện tại.</p>
+          </div>
+          <button className="ghost-button compact" type="button" disabled={activity.loading} onClick={() => void activity.reload()}>
+            Làm mới
+          </button>
+        </div>
+        {activity.error && <p className="form-error">{activity.error}</p>}
+        {activity.loading ? (
+          <p>Đang tải...</p>
+        ) : (
+          <div className="timeline" data-testid="profile-activity">
+            {(activity.data?.data ?? []).length === 0 && <p>Chưa có hoạt động.</p>}
+            {(activity.data?.data ?? []).map((item) => (
+              <div key={item.id}>
+                <strong>{item.action}</strong>
+                <span>{item.entityType}</span>
+                <small>{formatDate(item.createdAt)}</small>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </section>
   );
 }

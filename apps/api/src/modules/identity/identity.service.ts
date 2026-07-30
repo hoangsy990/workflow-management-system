@@ -168,6 +168,29 @@ export async function changeOwnPassword(
   });
 }
 
+export async function listOwnActivity(db: PrismaClient, userId: string, input: { page: number; pageSize: number }) {
+  const where: Prisma.ActivityLogWhereInput = { actorId: userId };
+  const [data, total] = await Promise.all([
+    db.activityLog.findMany({
+      where,
+      skip: (input.page - 1) * input.pageSize,
+      take: input.pageSize,
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        action: true,
+        entityType: true,
+        entityId: true,
+        createdAt: true,
+        metadata: true
+      }
+    }),
+    db.activityLog.count({ where })
+  ]);
+
+  return { data, total };
+}
+
 export async function createUser(
   db: PrismaClient,
   actorId: string,

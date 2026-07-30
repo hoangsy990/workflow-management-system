@@ -179,6 +179,7 @@ export const api = {
     apiRequest<Record<string, any>>("/profile", { method: "PATCH", body: JSON.stringify(payload) }),
   changePassword: (payload: Record<string, unknown>) =>
     apiRequest<{ ok: true; revokedSessions: number }>("/profile/password", { method: "POST", body: JSON.stringify(payload) }),
+  profileActivity: () => apiRequest<Paginated<Record<string, any>>>("/profile/activity?pageSize=8"),
   logout: (refreshToken?: string) =>
     apiRequest<{ ok: true }>("/auth/logout", {
       method: "POST",
