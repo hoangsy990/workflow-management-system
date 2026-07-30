@@ -60,6 +60,7 @@ interface TaskRecord {
 }
 
 interface TaskDetailRecord extends TaskRecord {
+  assigner?: { id: string; fullName: string } | null;
   attachments?: Array<{ id: string; originalName: string }>;
 }
 
@@ -531,6 +532,7 @@ test("tạo task kèm tệp đính kèm ngay trên form UI", async ({ page, requ
   await page.getByTestId("task-create-title").fill(title);
   await page.getByTestId("task-create-description").fill("Task created from UI with an attachment.");
   await page.getByTestId("task-create-priority").selectOption("HIGH");
+  await page.getByTestId("task-create-assigner").selectOption(manager.user.id);
   await page.getByTestId("task-create-manager").selectOption(manager.user.id);
   await page.getByTestId("task-create-department").selectOption(department!.id);
   await page.getByTestId("task-create-start-date").fill(dateInput(0));
@@ -551,6 +553,7 @@ test("tạo task kèm tệp đính kèm ngay trên form UI", async ({ page, requ
   await expect(page.getByText(created.code)).toBeVisible();
 
   const detail = await apiGet<TaskDetailRecord>(request, manager, `/tasks/${created.id}`);
+  expect(detail.assigner?.id).toBe(manager.user.id);
   expect(detail.attachments?.some((attachment) => attachment.originalName === fileName)).toBe(true);
   const attachmentButton = page
     .getByRole("button", { name: new RegExp(fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) })

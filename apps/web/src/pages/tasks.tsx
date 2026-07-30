@@ -499,6 +499,7 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
   const [form, setForm] = useState<Record<string, any>>({
     title: initial.title ?? "",
     description: initial.description ?? "",
+    assignerId: initial.assignerId ?? "",
     assigneeIds: initial.assigneeIds ?? [],
     followerIds: initial.followerIds ?? [],
     managerId: initial.managerId ?? "",
@@ -535,6 +536,7 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
     try {
       const task = await api.createTask({
         ...form,
+        assignerId: form.assignerId || undefined,
         managerId: form.managerId || undefined,
         departmentId: form.departmentId || undefined,
         categoryId: form.categoryId || undefined,
@@ -583,6 +585,17 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
       </fieldset>
       <fieldset>
         <legend>Người tham gia</legend>
+        <label>
+          {"Người giao việc"}
+          <select data-testid="task-create-assigner" value={form.assignerId} onChange={(event) => update("assignerId", event.target.value)}>
+            <option value="">{"Mặc định là tôi"}</option>
+            {(users.data?.data ?? []).map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.fullName}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           Người quản lý công việc
           <select data-testid="task-create-manager" value={form.managerId} onChange={(event) => update("managerId", event.target.value)}>
