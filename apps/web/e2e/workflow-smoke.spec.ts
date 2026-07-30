@@ -353,6 +353,22 @@ test("đăng nhập web bằng tài khoản quản trị", async ({ page }) => {
   await expect(page.getByTestId("nav-tasks")).toBeVisible();
 });
 
+test("dashboard hiển thị thống kê công việc theo phòng ban", async ({ page, request }) => {
+  const manager = await apiLogin(request, "manager");
+  const users = await apiGet<Paginated<UserRecord>>(request, manager, "/users?pageSize=100");
+  const departments = await apiGet<DepartmentRecord[]>(request, manager, "/departments");
+  const assignee = users.data.find((user) => user.email === accounts.employee.email) ?? users.data[0];
+  const department = assignee?.department ?? departments[0];
+
+  expect(department, "Seed department is required").toBeTruthy();
+
+  await createSmokeTask(request, manager, "dashboard-department", { departmentId: department!.id });
+  await openAppWithSession(page, manager);
+  await page.getByTestId("nav-dashboard").click();
+
+  await expect(page.getByTestId("dashboard-department-stats")).toContainText(department!.name);
+});
+
 test("admin updates employee profile on UI", async ({ page, request }) => {
   const admin = await apiLogin(request, "admin");
   const users = await apiGet<Paginated<UserRecord>>(request, admin, "/users?pageSize=100");

@@ -87,6 +87,24 @@ export async function dashboardRoutes(app: FastifyInstance) {
         }
       })
     ]);
+    const departmentIds = tasksByDepartment
+      .map((item) => item.departmentId)
+      .filter((id): id is string => Boolean(id));
+    const departments =
+      departmentIds.length > 0
+        ? await prisma.department.findMany({
+            where: { id: { in: departmentIds } },
+            select: { id: true, name: true }
+          })
+        : [];
+    const departmentById = new Map(departments.map((department) => [department.id, department]));
+    const taskDepartmentStats = tasksByDepartment
+      .map((item) => ({
+        departmentId: item.departmentId,
+        department: item.departmentId ? departmentById.get(item.departmentId) ?? null : null,
+        count: item._count
+      }))
+      .sort((a, b) => b.count - a.count);
 
     return {
       cards: {
@@ -99,7 +117,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         myInstances
       },
       tasksByStatus,
-      tasksByDepartment,
+      tasksByDepartment: taskDepartmentStats,
       attentionTasks: attentionTasks.map(withComputedTaskFields),
       recentInstances
     };

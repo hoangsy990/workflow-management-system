@@ -72,6 +72,24 @@ export function Dashboard({ setPage, setTaskId, setInstanceId }: DashboardProps)
 
       <section className="panel">
         <div className="panel-head">
+          <h2>Thống kê phòng ban</h2>
+        </div>
+        <div className="bar-list" data-testid="dashboard-department-stats">
+          {(data?.tasksByDepartment ?? []).length === 0 ? (
+            <p className="empty-text tight">Chưa có công việc theo phòng ban.</p>
+          ) : (
+            (data?.tasksByDepartment ?? []).map((item: Record<string, any>) => (
+              <div key={item.departmentId ?? "none"}>
+                <span>{item.department?.name ?? "Chưa có phòng ban"}</span>
+                <strong>{item.count ?? item._count ?? 0}</strong>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-head">
           <h2>Hồ sơ gần nhất</h2>
         </div>
         <div className="stack-list">
