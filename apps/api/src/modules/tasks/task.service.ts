@@ -737,14 +737,32 @@ export async function addTaskComment(
   }
 
   return db.$transaction(async (tx) => {
+    const task = await tx.task.findUnique({
+      where: { id },
+      select: {
+        code: true,
+        title: true,
+        creatorId: true,
+        assignerId: true,
+        managerId: true,
+        assignees: { select: { userId: true } },
+        followers: { select: { userId: true } }
+      }
+    });
+    if (!task) {
+      throw notFound("Không tìm thấy công việc.");
+    }
+
+    let parentCommentAuthorId: string | null = null;
     if (input.parentCommentId) {
       const parentComment = await tx.taskComment.findFirst({
         where: { id: input.parentCommentId, taskId: id, deletedAt: null },
-        select: { id: true }
+        select: { id: true, authorId: true }
       });
       if (!parentComment) {
         throw badRequest("Bình luận cha không hợp lệ.");
       }
+      parentCommentAuthorId = parentComment.authorId;
     }
 
     if (input.attachmentIds?.length) {
@@ -787,17 +805,39 @@ export async function addTaskComment(
       ipAddress
     });
 
+    const mentionIds = new Set(input.mentions ?? []);
+    const commentRecipients = [
+      task.creatorId,
+      task.assignerId,
+      task.managerId,
+      parentCommentAuthorId,
+      ...task.assignees.map((assignee) => assignee.userId),
+      ...task.followers.map((follower) => follower.userId)
+    ].filter((userId): userId is string => typeof userId === "string" && userId !== auth.userId && !mentionIds.has(userId));
+    const uniqueCommentRecipients = [...new Set(commentRecipients)];
+
     await enqueueNotifications(
       tx,
-      (input.mentions ?? []).map((userId) => ({
-        userId,
-        title: "Bạn được nhắc tên trong bình luận",
-        content: input.content.slice(0, 160),
-        type: "MENTION",
-        objectType: "task",
-        objectId: id,
-        link: `/tasks/${id}`
-      }))
+      [
+        ...uniqueCommentRecipients.map((userId) => ({
+          userId,
+          title: "Có bình luận mới trong công việc",
+          content: `${task.code} - ${task.title}`,
+          type: "TASK_COMMENT_NEW",
+          objectType: "task",
+          objectId: id,
+          link: `/tasks/${id}`
+        })),
+        ...(input.mentions ?? []).map((userId) => ({
+          userId,
+          title: "Bạn được nhắc tên trong bình luận",
+          content: input.content.slice(0, 160),
+          type: "MENTION",
+          objectType: "task",
+          objectId: id,
+          link: `/tasks/${id}`
+        }))
+      ]
     );
 
     return comment;

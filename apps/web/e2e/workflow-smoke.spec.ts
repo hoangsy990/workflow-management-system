@@ -544,6 +544,7 @@ test("employee creates workflow instance with dynamic form", async ({ page, requ
 
 test("tạo task qua API rồi upload và download tệp trên UI", async ({ page, request }) => {
   const manager = await apiLogin(request, "manager");
+  const employee = await apiLogin(request, "employee");
   const task = await createSmokeTask(request, manager);
   const fileName = `smoke-${runId}.pdf`;
   const commentText = `Đính kèm kiểm thử ${runId}`;
@@ -568,6 +569,8 @@ test("tạo task qua API rồi upload và download tệp trên UI", async ({ pag
   const detailWithComment = await apiGet<TaskDetailRecord>(request, manager, `/tasks/${task.id}`);
   const parentComment = detailWithComment.comments?.find((item) => item.content === commentText);
   if (!parentComment) throw new Error("Parent smoke comment was not saved");
+  const employeeNotifications = await apiGet<Paginated<Record<string, any>>>(request, employee, "/notifications?pageSize=20");
+  expect(employeeNotifications.data.some((notification) => notification.type === "TASK_COMMENT_NEW" && notification.objectId === task.id)).toBe(true);
   const replyText = `Trả lời kiểm thử ${runId}`;
   await page.getByTestId(`task-comment-reply-${parentComment.id}`).click();
   await expect(page.getByTestId("task-comment-replying")).toContainText(manager.user.fullName);
