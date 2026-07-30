@@ -156,6 +156,9 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState("dueDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+  const [listActionError, setListActionError] = useState("");
+  const [listActionMessage, setListActionMessage] = useState("");
   const users = useAsyncData(() => api.users(), []);
   const departments = useAsyncData(() => api.departments(), []);
   const categories = useAsyncData(() => api.taskCategories(), []);
@@ -187,14 +190,34 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
   const departmentOptions = departments.data ?? [];
   const categoryOptions = categories.data ?? [];
   const tagOptions = tags.data ?? [];
+  const startableStatuses = new Set(["DRAFT", "TODO", "PAUSED"]);
+
+  function openTask(task: Record<string, any>) {
+    setTaskId(task.id);
+    setPage("taskDetail");
+  }
+
+  async function startTask(task: Record<string, any>, event: { stopPropagation: () => void }) {
+    event.stopPropagation();
+    setStatusUpdatingId(task.id);
+    setListActionError("");
+    setListActionMessage("");
+    try {
+      await api.updateTask(task.id, { status: "IN_PROGRESS" });
+      setListActionMessage(`Đã chuyển ${task.code} sang Đang thực hiện.`);
+      await reload();
+    } catch (err) {
+      setListActionError(err instanceof Error ? err.message : "Không cập nhật được trạng thái công việc.");
+    } finally {
+      setStatusUpdatingId(null);
+    }
+  }
+
   const tableRows =
     data?.data?.map((task) => ({
       key: task.id,
       testId: `task-row-${task.id}`,
-      onClick: () => {
-        setTaskId(task.id);
-        setPage("taskDetail");
-      },
+      onClick: () => openTask(task),
       cells: [
         task.code,
         task.title,
@@ -206,7 +229,31 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
         priorityLabels[task.priority] ?? task.priority,
         formatDate(task.startDate),
         formatDate(task.dueDate),
-        task.isOverdue ? `Quá hạn ${Math.abs(task.daysRemaining ?? 0)} ngày` : `${task.daysRemaining ?? 0} ngày`
+        task.isOverdue ? `Quá hạn ${Math.abs(task.daysRemaining ?? 0)} ngày` : `${task.daysRemaining ?? 0} ngày`,
+        <div className="row-actions">
+          <button
+            className="ghost-button compact"
+            data-testid={`task-row-open-${task.id}`}
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              openTask(task);
+            }}
+          >
+            Mở
+          </button>
+          <button
+            className="primary-button compact"
+            data-testid={`task-row-start-${task.id}`}
+            type="button"
+            disabled={!startableStatuses.has(task.status) || statusUpdatingId === task.id}
+            title={startableStatuses.has(task.status) ? "Chuyển sang Đang thực hiện" : "Chỉ áp dụng cho Bản nháp/Chưa thực hiện/Tạm dừng"}
+            onClick={(event) => void startTask(task, event)}
+          >
+            {statusUpdatingId === task.id && <Loader2 className="spin" size={14} />}
+            {task.status === "PAUSED" ? "Tiếp tục" : "Bắt đầu"}
+          </button>
+        </div>
       ]
     })) ?? [];
 
@@ -478,10 +525,13 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
           "Ưu tiên",
           "Ngày bắt đầu",
           "Hạn hoàn thành",
-          "Còn/quá hạn"
+          "Còn/quá hạn",
+          "Thao tác"
         ]}
         rows={tableRows}
       />
+      {listActionError && <p className="form-error">{listActionError}</p>}
+      {listActionMessage && <p className="success-text" data-testid="task-list-action-message">{listActionMessage}</p>}
       {pagination && (
         <div className="pagination-bar" data-testid="task-pagination">
           <button

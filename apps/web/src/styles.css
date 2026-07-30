@@ -566,6 +566,13 @@ tbody tr:hover {
   font-weight: 700;
 }
 
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .mobile-cards {
   display: none;
 }

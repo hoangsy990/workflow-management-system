@@ -53,12 +53,23 @@ export function DataTable({ columns, rows }: { columns: string[]; rows: DataTabl
       </table>
       <div className="mobile-cards">
         {rows.map((row) => (
-          <button
+          <div
             key={row.key}
             className="mobile-card"
             data-testid={row.testId ? `${row.testId}-mobile` : undefined}
-            type="button"
+            role={row.onClick ? "button" : undefined}
+            tabIndex={row.onClick ? 0 : undefined}
             onClick={row.onClick}
+            onKeyDown={
+              row.onClick
+                ? (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      row.onClick?.();
+                    }
+                  }
+                : undefined
+            }
           >
             {row.cells.map((cell, index) => (
               <span key={`${row.key}-mobile-${columns[index]}`}>
@@ -66,7 +77,7 @@ export function DataTable({ columns, rows }: { columns: string[]; rows: DataTabl
                 <b>{cell}</b>
               </span>
             ))}
-          </button>
+          </div>
         ))}
       </div>
     </div>

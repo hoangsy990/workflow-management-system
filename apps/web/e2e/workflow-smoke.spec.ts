@@ -830,6 +830,29 @@ test("sắp xếp danh sách công việc phía server trên UI", async ({ page,
   await expect(page.locator("tbody tr").first()).toHaveAttribute("data-testid", `task-row-${earlyTask.id}`);
 });
 
+test("danh sách công việc có thao tác nhanh bắt đầu", async ({ page, request }) => {
+  const manager = await apiLogin(request, "manager");
+  const task = await createSmokeTask(request, manager, "list-action", { status: "TODO" });
+
+  await openAppWithSession(page, manager);
+  await page.getByTestId("nav-tasks").click();
+  await page.getByTestId("task-search-input").fill(task.title);
+  const row = page.locator(`tr[data-testid="task-row-${task.id}"]`);
+  await expect(row).toBeVisible();
+
+  const updateResponse = page.waitForResponse(
+    (response) => response.url().includes(`/tasks/${task.id}`) && response.request().method() === "PATCH"
+  );
+  await row.getByTestId(`task-row-start-${task.id}`).click();
+  const result = await updateResponse;
+  expect(result.ok(), await result.text()).toBeTruthy();
+
+  await expect(page.getByTestId("task-list-action-message")).toContainText(task.code);
+  await expect(row).toContainText("Đang thực hiện");
+  const detail = await apiGet<TaskDetailRecord>(request, manager, `/tasks/${task.id}`);
+  expect(detail.status).toBe("IN_PROGRESS");
+});
+
 test("nhân viên cập nhật tiến độ task lên chờ đánh giá trên UI", async ({ page, request }) => {
   const manager = await apiLogin(request, "manager");
   const employee = await apiLogin(request, "employee");
