@@ -59,6 +59,10 @@ interface TaskRecord {
   title: string;
 }
 
+interface TaskDetailRecord extends TaskRecord {
+  attachments?: Array<{ id: string; originalName: string }>;
+}
+
 interface TaskCategoryRecord {
   id: string;
   name: string;
@@ -507,6 +511,51 @@ test("tạo task qua API rồi upload và download tệp trên UI", async ({ pag
   await attachmentButton.click();
   const downloadedFile = await download;
   expect(downloadedFile.suggestedFilename()).toContain(fileName);
+});
+
+test("tạo task kèm tệp đính kèm ngay trên form UI", async ({ page, request }) => {
+  const manager = await apiLogin(request, "manager");
+  const departments = await apiGet<DepartmentRecord[]>(request, manager, "/departments");
+  const categories = await apiGet<TaskCategoryRecord[]>(request, manager, "/task-categories");
+  const department = departments[0];
+  const category = categories[0];
+  const title = `Smoke form attachment ${runId}`;
+  const fileName = `create-form-${runId}.pdf`;
+
+  expect(department, "Seed department is required").toBeTruthy();
+  expect(category, "Seed task category is required").toBeTruthy();
+
+  await openAppWithSession(page, manager);
+  await page.getByTestId("nav-tasks").click();
+  await page.getByTestId("task-create-open").click();
+  await page.getByTestId("task-create-title").fill(title);
+  await page.getByTestId("task-create-description").fill("Task created from UI with an attachment.");
+  await page.getByTestId("task-create-priority").selectOption("HIGH");
+  await page.getByTestId("task-create-manager").selectOption(manager.user.id);
+  await page.getByTestId("task-create-department").selectOption(department!.id);
+  await page.getByTestId("task-create-start-date").fill(dateInput(0));
+  await page.getByTestId("task-create-due-date").fill(dateInput(3));
+  await page.getByTestId("task-create-category").selectOption(category!.id);
+  await page.getByTestId("task-create-attachment-input").setInputFiles({
+    name: fileName,
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n")
+  });
+  await expect(page.getByTestId("task-create-attachment-list")).toContainText(fileName);
+
+  const createResponse = page.waitForResponse((response) => response.url().endsWith("/tasks") && response.request().method() === "POST");
+  const uploadResponse = page.waitForResponse((response) => response.url().includes("/tasks/") && response.url().endsWith("/attachments") && response.request().method() === "POST");
+  await page.getByTestId("task-create-save").click();
+  const created = (await (await createResponse).json()) as TaskRecord;
+  expect((await uploadResponse).ok()).toBe(true);
+  await expect(page.getByText(created.code)).toBeVisible();
+
+  const detail = await apiGet<TaskDetailRecord>(request, manager, `/tasks/${created.id}`);
+  expect(detail.attachments?.some((attachment) => attachment.originalName === fileName)).toBe(true);
+  const attachmentButton = page
+    .getByRole("button", { name: new RegExp(fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) })
+    .first();
+  await expect(attachmentButton).toBeVisible();
 });
 
 test("lọc công việc phía server trên UI", async ({ page, request }) => {

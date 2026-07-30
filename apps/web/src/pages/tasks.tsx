@@ -76,6 +76,26 @@ function formatFileSize(bytes?: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function collectAllowedAttachmentFiles(files: FileList | null) {
+  const accepted: File[] = [];
+  let error = "";
+  if (!files) return { accepted, error };
+
+  for (const file of Array.from(files)) {
+    if (!allowedAttachmentTypes.has(file.type)) {
+      error = `Tệp ${file.name} không đúng định dạng cho phép.`;
+      continue;
+    }
+    if (file.size > maxAttachmentMb * 1024 * 1024) {
+      error = `Tệp ${file.name} vượt quá ${maxAttachmentMb} MB.`;
+      continue;
+    }
+    accepted.push(file);
+  }
+
+  return { accepted, error };
+}
+
 export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "all" | "mine" }) {
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState("");
@@ -192,7 +212,7 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
             <SlidersHorizontal size={16} />
             Bộ lọc
           </button>
-          <button className="primary-button compact" type="button" onClick={() => setPage("newTask")}>
+          <button className="primary-button compact" data-testid="task-create-open" type="button" onClick={() => setPage("newTask")}>
             <Plus size={16} />
             Tạo công việc
           </button>
@@ -490,6 +510,7 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
     tagIds: initial.tagIds ?? [],
     requiresReview: initial.requiresReview ?? true
   });
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -499,6 +520,12 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
 
   function update(key: string, value: unknown) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function addFiles(files: FileList | null) {
+    const result = collectAllowedAttachmentFiles(files);
+    setError(result.error);
+    setSelectedFiles((current) => [...current, ...result.accepted]);
   }
 
   async function submit(event: FormEvent) {
@@ -514,7 +541,11 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
         startDate: form.startDate || undefined,
         dueDate: form.dueDate || undefined
       });
+      for (const file of selectedFiles) {
+        await api.uploadTaskAttachment(task.id, file);
+      }
       localStorage.removeItem(draftKey);
+      setSelectedFiles([]);
       setTaskId(task.id);
       setPage("taskDetail");
     } catch (err) {
@@ -533,15 +564,15 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
         <legend>Thông tin chính</legend>
         <label>
           Tên công việc
-          <input value={form.title} onChange={(event) => update("title", event.target.value)} required minLength={3} />
+          <input data-testid="task-create-title" value={form.title} onChange={(event) => update("title", event.target.value)} required minLength={3} />
         </label>
         <label>
           Mô tả
-          <textarea value={form.description} onChange={(event) => update("description", event.target.value)} rows={5} />
+          <textarea data-testid="task-create-description" value={form.description} onChange={(event) => update("description", event.target.value)} rows={5} />
         </label>
         <label>
           Mức độ ưu tiên
-          <select value={form.priority} onChange={(event) => update("priority", event.target.value)}>
+          <select data-testid="task-create-priority" value={form.priority} onChange={(event) => update("priority", event.target.value)}>
             {Object.entries(priorityLabels).map(([key, label]) => (
               <option key={key} value={key}>
                 {label}
@@ -554,7 +585,7 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
         <legend>Người tham gia</legend>
         <label>
           Người quản lý công việc
-          <select value={form.managerId} onChange={(event) => update("managerId", event.target.value)}>
+          <select data-testid="task-create-manager" value={form.managerId} onChange={(event) => update("managerId", event.target.value)}>
             <option value="">Chọn người quản lý</option>
             {(users.data?.data ?? []).map((user) => (
               <option key={user.id} value={user.id}>
@@ -580,7 +611,7 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
         <legend>Thời gian và phân loại</legend>
         <label>
           Phòng ban phụ trách
-          <select value={form.departmentId} onChange={(event) => update("departmentId", event.target.value)}>
+          <select data-testid="task-create-department" value={form.departmentId} onChange={(event) => update("departmentId", event.target.value)}>
             <option value="">Chọn phòng ban</option>
             {(departments.data ?? []).map((department) => (
               <option key={department.id} value={department.id}>
@@ -591,15 +622,15 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
         </label>
         <label>
           Ngày bắt đầu
-          <input type="date" value={form.startDate} onChange={(event) => update("startDate", event.target.value)} />
+          <input data-testid="task-create-start-date" type="date" value={form.startDate} onChange={(event) => update("startDate", event.target.value)} />
         </label>
         <label>
           Hạn hoàn thành
-          <input type="date" value={form.dueDate} onChange={(event) => update("dueDate", event.target.value)} />
+          <input data-testid="task-create-due-date" type="date" value={form.dueDate} onChange={(event) => update("dueDate", event.target.value)} />
         </label>
         <label>
           Danh mục
-          <select value={form.categoryId} onChange={(event) => update("categoryId", event.target.value)}>
+          <select data-testid="task-create-category" value={form.categoryId} onChange={(event) => update("categoryId", event.target.value)}>
             <option value="">Chọn danh mục</option>
             {(categories.data ?? []).map((category) => (
               <option key={category.id} value={category.id}>
@@ -623,12 +654,42 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
           Cần đánh giá khi hoàn thành
         </label>
       </fieldset>
+      <fieldset>
+        <legend>{"Tệp đính kèm"}</legend>
+        <label>
+          {"Chọn tệp"}
+          <input
+            data-testid="task-create-attachment-input"
+            type="file"
+            multiple
+            accept={attachmentAccept}
+            onChange={(event) => addFiles(event.target.files)}
+          />
+        </label>
+        <div className="selected-files" data-testid="task-create-attachment-list">
+          {selectedFiles.length === 0 ? (
+            <span>{"Chưa chọn tệp."}</span>
+          ) : (
+            selectedFiles.map((file, index) => (
+              <button
+                key={`${file.name}-${file.lastModified}-${index}`}
+                className="file-chip"
+                type="button"
+                onClick={() => setSelectedFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}
+              >
+                <span>{file.name}</span>
+                <small>{formatFileSize(file.size)}</small>
+              </button>
+            ))
+          )}
+        </div>
+      </fieldset>
       {error && <p className="form-error full">{error}</p>}
       <div className="form-actions full">
         <button className="ghost-button" type="button" onClick={() => setPage("tasks")}>
           Hủy
         </button>
-        <button className="primary-button" type="submit" disabled={loading}>
+        <button className="primary-button" data-testid="task-create-save" type="submit" disabled={loading}>
           {loading && <Loader2 className="spin" size={16} />}
           Lưu công việc
         </button>
@@ -669,21 +730,9 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
   }, [data]);
 
   function addFiles(files: FileList | null) {
-    if (!files) return;
-    setLocalError("");
-    const nextFiles: File[] = [];
-    for (const file of Array.from(files)) {
-      if (!allowedAttachmentTypes.has(file.type)) {
-        setLocalError(`Tệp ${file.name} không đúng định dạng cho phép.`);
-        continue;
-      }
-      if (file.size > maxAttachmentMb * 1024 * 1024) {
-        setLocalError(`Tệp ${file.name} vượt quá ${maxAttachmentMb} MB.`);
-        continue;
-      }
-      nextFiles.push(file);
-    }
-    setSelectedFiles((current) => [...current, ...nextFiles]);
+    const result = collectAllowedAttachmentFiles(files);
+    setLocalError(result.error);
+    setSelectedFiles((current) => [...current, ...result.accepted]);
   }
 
   async function downloadAttachment(attachment: Record<string, any>) {
