@@ -36,6 +36,7 @@ export async function listUsers(db: PrismaClient, input: { page: number; pageSiz
         createdAt: true,
         department: { select: { id: true, code: true, name: true } },
         manager: { select: { id: true, fullName: true } },
+        teams: { include: { team: { select: { id: true, code: true, name: true } } } },
         roles: { include: { role: true } }
       }
     }),
@@ -59,6 +60,7 @@ export async function createUser(
     departmentId?: string;
     managerId?: string;
     roleIds?: string[];
+    teamIds?: string[];
   }
 ) {
   const existed = await db.user.findFirst({
@@ -67,6 +69,8 @@ export async function createUser(
   if (existed) {
     throw conflict("Email hoặc mã nhân viên đã tồn tại.");
   }
+
+  await assertExistingTeams(db, input.teamIds);
 
   return db.$transaction(async (tx) => {
     const user = await tx.user.create({
@@ -84,6 +88,14 @@ export async function createUser(
           ? {
               createMany: {
                 data: input.roleIds.map((roleId) => ({ roleId })),
+                skipDuplicates: true
+              }
+            }
+          : undefined,
+        teams: input.teamIds?.length
+          ? {
+              createMany: {
+                data: input.teamIds.map((teamId) => ({ teamId })),
                 skipDuplicates: true
               }
             }
@@ -123,12 +135,15 @@ export async function updateUser(
     managerId?: string | null;
     status?: "ACTIVE" | "INACTIVE" | "LOCKED";
     roleIds?: string[];
+    teamIds?: string[];
   }
 ) {
   const existing = await db.user.findUnique({ where: { id } });
   if (!existing || existing.deletedAt) {
     throw notFound("Không tìm thấy người dùng.");
   }
+
+  await assertExistingTeams(db, input.teamIds);
 
   return db.$transaction(async (tx) => {
     const user = await tx.user.update({
@@ -155,6 +170,14 @@ export async function updateUser(
       await tx.userRole.deleteMany({ where: { userId: id } });
       await tx.userRole.createMany({
         data: input.roleIds.map((roleId) => ({ userId: id, roleId })),
+        skipDuplicates: true
+      });
+    }
+
+    if (input.teamIds) {
+      await tx.teamMember.deleteMany({ where: { userId: id } });
+      await tx.teamMember.createMany({
+        data: input.teamIds.map((teamId) => ({ userId: id, teamId })),
         skipDuplicates: true
       });
     }
@@ -257,6 +280,121 @@ export async function upsertDepartment(
     });
 
     return department;
+  });
+}
+
+async function assertExistingTeams(db: PrismaClient, teamIds: string[] | undefined) {
+  const uniqueTeamIds = [...new Set(teamIds ?? [])];
+  if (uniqueTeamIds.length === 0) return;
+
+  const existingCount = await db.team.count({
+    where: { id: { in: uniqueTeamIds }, deletedAt: null }
+  });
+  if (existingCount !== uniqueTeamIds.length) {
+    throw badRequest("Danh sÃ¡ch nhÃ³m lÃ m viá»‡c khÃ´ng há»£p lá»‡.");
+  }
+}
+
+const teamInclude = {
+  department: { select: { id: true, code: true, name: true } },
+  members: {
+    orderBy: { createdAt: "asc" },
+    include: { user: { select: { id: true, employeeCode: true, fullName: true, email: true, department: { select: { id: true, name: true } } } } }
+  },
+  _count: { select: { members: true } }
+} satisfies Prisma.TeamInclude;
+
+async function assertValidTeamReferences(
+  db: PrismaClient,
+  input: { departmentId?: string | null; memberIds?: string[] }
+) {
+  if (input.departmentId) {
+    const department = await db.department.findFirst({
+      where: { id: input.departmentId, deletedAt: null },
+      select: { id: true }
+    });
+    if (!department) {
+      throw notFound("KhÃ´ng tÃ¬m tháº¥y phÃ²ng ban cá»§a nhÃ³m.");
+    }
+  }
+
+  const memberIds = [...new Set(input.memberIds ?? [])];
+  if (memberIds.length > 0) {
+    const activeCount = await db.user.count({
+      where: { id: { in: memberIds }, status: "ACTIVE", deletedAt: null }
+    });
+    if (activeCount !== memberIds.length) {
+      throw badRequest("Danh sÃ¡ch thÃ nh viÃªn nhÃ³m cÃ³ ngÆ°á»i dÃ¹ng khÃ´ng há»£p lá»‡ hoáº·c khÃ´ng hoáº¡t Ä‘á»™ng.");
+    }
+  }
+}
+
+export async function listTeams(db: PrismaClient) {
+  return db.team.findMany({
+    where: { deletedAt: null },
+    orderBy: [{ departmentId: "asc" }, { name: "asc" }],
+    include: teamInclude
+  });
+}
+
+export async function upsertTeam(
+  db: PrismaClient,
+  actorId: string,
+  input: {
+    id?: string;
+    code: string;
+    name: string;
+    departmentId?: string | null;
+    memberIds?: string[];
+  }
+) {
+  await assertValidTeamReferences(db, input);
+  const memberIds = [...new Set(input.memberIds ?? [])];
+  const codeOwner = await db.team.findUnique({ where: { code: input.code }, select: { id: true, deletedAt: true } });
+  if (codeOwner && codeOwner.id !== input.id) {
+    throw conflict("MÃ£ nhÃ³m lÃ m viá»‡c Ä‘Ã£ tá»“n táº¡i.");
+  }
+  if (input.id) {
+    const existing = await db.team.findUnique({ where: { id: input.id }, select: { id: true, deletedAt: true } });
+    if (!existing || existing.deletedAt) {
+      throw notFound("KhÃ´ng tÃ¬m tháº¥y nhÃ³m lÃ m viá»‡c.");
+    }
+  }
+
+  return db.$transaction(async (tx) => {
+    const team = input.id
+      ? await tx.team.update({
+          where: { id: input.id },
+          data: {
+            code: input.code,
+            name: input.name,
+            departmentId: input.departmentId
+          }
+        })
+      : await tx.team.create({
+          data: {
+            code: input.code,
+            name: input.name,
+            departmentId: input.departmentId
+          }
+        });
+
+    if (input.memberIds) {
+      await tx.teamMember.deleteMany({ where: { teamId: team.id } });
+      await tx.teamMember.createMany({
+        data: memberIds.map((userId) => ({ teamId: team.id, userId })),
+        skipDuplicates: true
+      });
+    }
+
+    await writeAuditLog(tx, {
+      actorId,
+      action: input.id ? "team.update" : "team.create",
+      entityType: "teams",
+      entityId: team.id
+    });
+
+    return tx.team.findUniqueOrThrow({ where: { id: team.id }, include: teamInclude });
   });
 }
 

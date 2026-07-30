@@ -247,6 +247,31 @@ async function main() {
     skipDuplicates: true
   });
 
+  const demoTeams = await Promise.all([
+    prisma.team.upsert({
+      where: { code: "FIN-OPS" },
+      update: { name: "NhÃ³m TÃ i chÃ­nh váº­n hÃ nh", departmentId: financeDepartment.id },
+      create: { code: "FIN-OPS", name: "NhÃ³m TÃ i chÃ­nh váº­n hÃ nh", departmentId: financeDepartment.id }
+    }),
+    prisma.team.upsert({
+      where: { code: "HR-ADMIN" },
+      update: { name: "NhÃ³m NhÃ¢n sá»± hÃ nh chÃ­nh", departmentId: hrDepartment.id },
+      create: { code: "HR-ADMIN", name: "NhÃ³m NhÃ¢n sá»± hÃ nh chÃ­nh", departmentId: hrDepartment.id }
+    })
+  ]);
+
+  await prisma.teamMember.deleteMany({ where: { teamId: { in: demoTeams.map((team) => team.id) } } });
+  await prisma.teamMember.createMany({
+    data: [
+      { teamId: demoTeams[0]!.id, userId: manager.id },
+      { teamId: demoTeams[0]!.id, userId: employees[0]!.id },
+      { teamId: demoTeams[0]!.id, userId: employees[1]!.id },
+      { teamId: demoTeams[1]!.id, userId: employees[2]!.id },
+      { teamId: demoTeams[1]!.id, userId: employees[3]!.id }
+    ],
+    skipDuplicates: true
+  });
+
   const categories = await Promise.all([
     prisma.taskCategory.upsert({
       where: { code: "OPS" },

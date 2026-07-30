@@ -10,10 +10,12 @@ import {
   listDepartments,
   listPermissions,
   listRoles,
+  listTeams,
   listUsers,
   updateRolePermissions,
   updateUser,
-  upsertDepartment
+  upsertDepartment,
+  upsertTeam
 } from "./identity.service.js";
 
 const idParamSchema = z.object({ id: z.string().uuid() });
@@ -32,7 +34,8 @@ const createUserSchema = z.object({
   title: z.string().optional(),
   departmentId: z.string().uuid().optional(),
   managerId: z.string().uuid().optional(),
-  roleIds: z.array(z.string().uuid()).default([])
+  roleIds: z.array(z.string().uuid()).default([]),
+  teamIds: z.array(z.string().uuid()).default([])
 });
 
 const updateUserSchema = createUserSchema
@@ -54,6 +57,14 @@ const departmentSchema = z.object({
   description: z.string().optional(),
   parentId: z.string().uuid().nullable().optional(),
   managerId: z.string().uuid().nullable().optional()
+});
+
+const teamSchema = z.object({
+  id: z.string().uuid().optional(),
+  code: z.string().min(2),
+  name: z.string().min(2),
+  departmentId: z.string().uuid().nullable().optional(),
+  memberIds: z.array(z.string().uuid()).default([])
 });
 
 const roleSchema = z.object({
@@ -108,6 +119,28 @@ export async function identityRoutes(app: FastifyInstance) {
     });
   });
 
+  app.get("/teams", { preHandler: requireAuth }, async () => {
+    return listTeams(prisma);
+  });
+
+  app.post("/teams", { preHandler: requirePermission("department.manage") }, async (request) => {
+    const body = parseBody(request, teamSchema);
+    return upsertTeam(prisma, request.auth!.userId, body);
+  });
+
+  app.patch("/teams/:id", { preHandler: requirePermission("department.manage") }, async (request) => {
+    const params = parseParams(request, idParamSchema);
+    const body = parseBody(request, teamSchema.omit({ id: true }).partial());
+    const current = await prisma.team.findUnique({ where: { id: params.id }, include: { members: true } });
+    return upsertTeam(prisma, request.auth!.userId, {
+      id: params.id,
+      code: body.code ?? current?.code ?? "",
+      name: body.name ?? current?.name ?? "",
+      departmentId: body.departmentId,
+      memberIds: body.memberIds ?? current?.members.map((member) => member.userId) ?? []
+    });
+  });
+
   app.get("/roles", { preHandler: requirePermission("role.read") }, async () => {
     return listRoles(prisma);
   });
@@ -127,4 +160,3 @@ export async function identityRoutes(app: FastifyInstance) {
     return updateRolePermissions(prisma, request.auth!.userId, params.id, body.permissionIds);
   });
 }
-

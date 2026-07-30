@@ -45,6 +45,14 @@ interface DepartmentRecord {
   manager?: { id: string; fullName: string } | null;
 }
 
+interface TeamRecord {
+  id: string;
+  code: string;
+  name: string;
+  department?: { id: string; name: string } | null;
+  members?: Array<{ user: { id: string; fullName: string } }>;
+}
+
 interface TaskRecord {
   id: string;
   code: string;
@@ -353,6 +361,52 @@ test("admin updates department structure on UI", async ({ page, request }) => {
   const refreshed = await apiGet<DepartmentRecord[]>(request, admin, "/departments");
   const updated = refreshed.find((department) => department.id === target!.id);
   expect(updated?.description).toBe(nextDescription);
+});
+
+test("admin creates and updates work team on UI", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  const departments = await apiGet<DepartmentRecord[]>(request, admin, "/departments");
+  const users = await apiGet<Paginated<UserRecord>>(request, admin, "/users?pageSize=100");
+  const department = departments[0];
+  const firstMember = users.data.find((user) => user.email === accounts.manager.email) ?? users.data[0];
+  const secondMember = users.data.find((user) => user.email === accounts.employee.email) ?? users.data[1];
+  const code = `TEAM_${runId.replace(/[^A-Za-z0-9]/g, "_").toUpperCase()}`;
+  const name = `Nhóm smoke ${runId}`;
+  const updatedName = `Nhóm smoke cập nhật ${runId}`;
+
+  expect(department, "Seed department is required").toBeTruthy();
+  expect(firstMember, "First team member is required").toBeTruthy();
+  expect(secondMember, "Second team member is required").toBeTruthy();
+
+  await openAppWithSession(page, admin);
+  await page.getByTestId("nav-departments").click();
+  await page.getByTestId("team-create-code").fill(code);
+  await page.getByTestId("team-create-name").fill(name);
+  await page.getByTestId("team-create-department").selectOption(department!.id);
+  await page.getByTestId("team-create-members").getByLabel(firstMember!.fullName).check();
+
+  const createResponse = page.waitForResponse((response) => response.url().endsWith("/teams") && response.request().method() === "POST");
+  await page.getByTestId("team-create-save").click();
+  const created = (await (await createResponse).json()) as TeamRecord;
+
+  await expect(page.locator(`tr[data-testid="team-row-${created.id}"]`)).toBeVisible();
+  await page.locator(`tr[data-testid="team-row-${created.id}"]`).click();
+  await page.getByTestId("team-edit-name").fill(updatedName);
+  await page.getByTestId("team-edit-members").getByLabel(secondMember!.fullName).check();
+
+  page.once("dialog", async (dialog) => {
+    await dialog.accept();
+  });
+  const updateResponse = page.waitForResponse((response) => response.url().includes(`/teams/${created.id}`) && response.request().method() === "PATCH");
+  await page.getByTestId("team-edit-save").click();
+  await updateResponse;
+
+  const refreshed = await apiGet<TeamRecord[]>(request, admin, "/teams");
+  const updated = refreshed.find((team) => team.id === created.id);
+  expect(updated?.name).toBe(updatedName);
+  expect(updated?.department?.id).toBe(department!.id);
+  expect(updated?.members?.some((member) => member.user.id === firstMember!.id)).toBe(true);
+  expect(updated?.members?.some((member) => member.user.id === secondMember!.id)).toBe(true);
 });
 
 test("admin reviews role permission preview on UI", async ({ page, request }) => {

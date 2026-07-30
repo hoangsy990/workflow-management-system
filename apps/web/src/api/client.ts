@@ -192,6 +192,11 @@ export const api = {
     apiRequest<Record<string, any>>("/departments", { method: "POST", body: JSON.stringify(payload) }),
   updateDepartment: (id: string, payload: Record<string, unknown>) =>
     apiRequest<Record<string, any>>(`/departments/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  teams: () => apiRequest<Record<string, any>[]>("/teams"),
+  saveTeam: (payload: Record<string, unknown>) =>
+    apiRequest<Record<string, any>>("/teams", { method: "POST", body: JSON.stringify(payload) }),
+  updateTeam: (id: string, payload: Record<string, unknown>) =>
+    apiRequest<Record<string, any>>(`/teams/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   roles: () => apiRequest<Record<string, any>[]>("/roles"),
   permissions: () => apiRequest<Record<string, any>[]>("/permissions"),
   updateRolePermissions: (id: string, permissionIds: string[]) =>

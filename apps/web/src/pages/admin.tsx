@@ -113,11 +113,16 @@ const emptyUserForm = {
   title: "",
   departmentId: "",
   managerId: "",
-  roleIds: [] as string[]
+  roleIds: [] as string[],
+  teamIds: [] as string[]
 };
 
 function extractUserRoleIds(user?: Record<string, any>) {
   return (user?.roles ?? []).map((item: Record<string, any>) => item.role.id);
+}
+
+function extractUserTeamIds(user?: Record<string, any>) {
+  return (user?.teams ?? []).map((item: Record<string, any>) => item.team.id);
 }
 
 function buildUserEditForm(user: Record<string, any>) {
@@ -128,7 +133,8 @@ function buildUserEditForm(user: Record<string, any>) {
     departmentId: user.department?.id ?? "",
     managerId: user.manager?.id ?? "",
     status: user.status ?? "ACTIVE",
-    roleIds: extractUserRoleIds(user)
+    roleIds: extractUserRoleIds(user),
+    teamIds: extractUserTeamIds(user)
   };
 }
 
@@ -136,6 +142,7 @@ export function UsersPage() {
   const { data, loading, error, reload } = useAsyncData(() => api.users(), []);
   const departments = useAsyncData(() => api.departments(), []);
   const roles = useAsyncData(() => api.roles(), []);
+  const teams = useAsyncData(() => api.teams(), []);
   const [form, setForm] = useState<Record<string, any>>({ ...emptyUserForm });
   const [selectedId, setSelectedId] = useState("");
   const [editForm, setEditForm] = useState<Record<string, any> | null>(null);
@@ -197,7 +204,8 @@ export function UsersPage() {
         departmentId: editForm.departmentId || null,
         managerId: editForm.managerId || null,
         status: editForm.status,
-        roleIds: editForm.roleIds
+        roleIds: editForm.roleIds,
+        teamIds: editForm.teamIds
       });
       await reload();
     } catch (err) {
@@ -244,6 +252,12 @@ export function UsersPage() {
           value={form.roleIds}
           onChange={(value) => setForm({ ...form, roleIds: value })}
         />
+        <MultiCheck
+          label="NhÃ³m lÃ m viá»‡c"
+          items={teams.data ?? []}
+          value={form.teamIds}
+          onChange={(value) => setForm({ ...form, teamIds: value })}
+        />
         {createError && <p className="form-error">{createError}</p>}
         <button className="primary-button" type="submit" disabled={saving}>
           {saving && <Loader2 className="spin" size={16} />}
@@ -256,7 +270,7 @@ export function UsersPage() {
           <h2>{"Danh sách người dùng"}</h2>
         </div>
         <DataTable
-          columns={["Mã", "Họ tên", "Email", "Phòng ban", "Quản lý", "Vai trò", "Trạng thái"]}
+          columns={["Mã", "Họ tên", "Email", "Phòng ban", "Quản lý", "Vai trò", "Nhóm", "Trạng thái"]}
           rows={users.map((user) => ({
             key: user.id,
             testId: `user-row-${user.id}`,
@@ -268,6 +282,7 @@ export function UsersPage() {
               user.department?.name,
               user.manager?.fullName,
               user.roles?.map((item: Record<string, any>) => item.role.name).join(", "),
+              user.teams?.map((item: Record<string, any>) => item.team.name).join(", "),
               statusLabels[user.status] ?? user.status
             ]
           }))}
@@ -347,6 +362,12 @@ export function UsersPage() {
               value={editForm.roleIds}
               onChange={(value) => setEditForm({ ...editForm, roleIds: value })}
             />
+            <MultiCheck
+              label="Nhóm làm việc"
+              items={teams.data ?? []}
+              value={editForm.teamIds}
+              onChange={(value) => setEditForm({ ...editForm, teamIds: value })}
+            />
             <div className="stack-list">
               <span>
                 {"Tạo ngày "}
@@ -382,6 +403,13 @@ const emptyDepartmentForm = {
   managerId: ""
 };
 
+const emptyTeamForm = {
+  code: "",
+  name: "",
+  departmentId: "",
+  memberIds: [] as string[]
+};
+
 function buildDepartmentEditForm(department: Record<string, any>) {
   return {
     code: department.code ?? "",
@@ -389,6 +417,15 @@ function buildDepartmentEditForm(department: Record<string, any>) {
     description: department.description ?? "",
     parentId: department.parent?.id ?? department.parentId ?? "",
     managerId: department.manager?.id ?? department.managerId ?? ""
+  };
+}
+
+function buildTeamEditForm(team: Record<string, any>) {
+  return {
+    code: team.code ?? "",
+    name: team.name ?? "",
+    departmentId: team.department?.id ?? team.departmentId ?? "",
+    memberIds: (team.members ?? []).map((member: Record<string, any>) => member.user.id)
   };
 }
 
@@ -440,18 +477,28 @@ function collectDepartmentDescendantIds(departments: Record<string, any>[], pare
 export function DepartmentsPage() {
   const { data, loading, error, reload } = useAsyncData(() => api.departments(), []);
   const users = useAsyncData(() => api.users(), []);
+  const teamData = useAsyncData(() => api.teams(), []);
   const [form, setForm] = useState({ ...emptyDepartmentForm });
+  const [teamForm, setTeamForm] = useState({ ...emptyTeamForm });
   const [selectedId, setSelectedId] = useState("");
+  const [selectedTeamId, setSelectedTeamId] = useState("");
   const [editForm, setEditForm] = useState<Record<string, any> | null>(null);
+  const [teamEditForm, setTeamEditForm] = useState<Record<string, any> | null>(null);
   const [saving, setSaving] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [teamSaving, setTeamSaving] = useState(false);
+  const [teamUpdating, setTeamUpdating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [updateError, setUpdateError] = useState("");
+  const [teamCreateError, setTeamCreateError] = useState("");
+  const [teamUpdateError, setTeamUpdateError] = useState("");
 
   const departments = useMemo(() => data ?? [], [data]);
   const usersList = useMemo(() => users.data?.data ?? [], [users.data]);
+  const teamsList = useMemo(() => teamData.data ?? [], [teamData.data]);
   const departmentRows = useMemo(() => flattenDepartments(departments), [departments]);
   const selectedDepartment = useMemo(() => departments.find((department) => department.id === selectedId), [departments, selectedId]);
+  const selectedTeam = useMemo(() => teamsList.find((team) => team.id === selectedTeamId), [teamsList, selectedTeamId]);
   const descendantIds = useMemo(() => (selectedId ? collectDepartmentDescendantIds(departments, selectedId) : new Set<string>()), [departments, selectedId]);
   const parentOptions = useMemo(
     () => departments.filter((department) => department.id !== selectedId && !descendantIds.has(department.id)),
@@ -471,6 +518,20 @@ export function DepartmentsPage() {
       setUpdateError("");
     }
   }, [selectedDepartment]);
+
+  useEffect(() => {
+    const firstTeam = teamsList[0];
+    if (!selectedTeamId && firstTeam) {
+      setSelectedTeamId(firstTeam.id);
+    }
+  }, [selectedTeamId, teamsList]);
+
+  useEffect(() => {
+    if (selectedTeam) {
+      setTeamEditForm(buildTeamEditForm(selectedTeam));
+      setTeamUpdateError("");
+    }
+  }, [selectedTeam]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -512,6 +573,47 @@ export function DepartmentsPage() {
       setUpdateError(err instanceof Error ? err.message : "Không cập nhật được phòng ban.");
     } finally {
       setUpdating(false);
+    }
+  }
+
+  async function submitTeam(event: FormEvent) {
+    event.preventDefault();
+    setTeamSaving(true);
+    setTeamCreateError("");
+    try {
+      const created = await api.saveTeam({
+        ...teamForm,
+        departmentId: teamForm.departmentId || undefined
+      });
+      setSelectedTeamId(created.id);
+      setTeamForm({ ...emptyTeamForm });
+      await teamData.reload();
+      await reload();
+    } catch (err) {
+      setTeamCreateError(err instanceof Error ? err.message : "KhÃ´ng táº¡o Ä‘Æ°á»£c nhÃ³m lÃ m viá»‡c.");
+    } finally {
+      setTeamSaving(false);
+    }
+  }
+
+  async function saveSelectedTeam(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedTeam || !teamEditForm || teamUpdating) return;
+    if (!window.confirm("XÃ¡c nháº­n cáº­p nháº­t nhÃ³m lÃ m viá»‡c nÃ y?")) return;
+    setTeamUpdating(true);
+    setTeamUpdateError("");
+    try {
+      await api.updateTeam(selectedTeam.id, {
+        code: teamEditForm.code,
+        name: teamEditForm.name,
+        departmentId: teamEditForm.departmentId || null,
+        memberIds: teamEditForm.memberIds
+      });
+      await teamData.reload();
+    } catch (err) {
+      setTeamUpdateError(err instanceof Error ? err.message : "KhÃ´ng cáº­p nháº­t Ä‘Æ°á»£c nhÃ³m lÃ m viá»‡c.");
+    } finally {
+      setTeamUpdating(false);
     }
   }
 
@@ -638,6 +740,113 @@ export function DepartmentsPage() {
               </button>
               <button className="primary-button" data-testid="department-edit-save" type="submit" disabled={updating}>
                 {updating && <Loader2 className="spin" size={16} />}
+                {"Lưu thay đổi"}
+              </button>
+            </div>
+          </>
+        )}
+      </form>
+
+      <form className="panel form-stack" data-testid="team-create-form" onSubmit={submitTeam}>
+        <div className="panel-head">
+          <h2>{"Tạo nhóm làm việc"}</h2>
+        </div>
+        <input data-testid="team-create-code" placeholder="Mã nhóm" value={teamForm.code} onChange={(event) => setTeamForm({ ...teamForm, code: event.target.value })} required />
+        <input data-testid="team-create-name" placeholder="Tên nhóm" value={teamForm.name} onChange={(event) => setTeamForm({ ...teamForm, name: event.target.value })} required />
+        <select data-testid="team-create-department" value={teamForm.departmentId} onChange={(event) => setTeamForm({ ...teamForm, departmentId: event.target.value })}>
+          <option value="">{"Không gắn phòng ban"}</option>
+          {departments.map((department) => (
+            <option key={department.id} value={department.id}>
+              {department.name}
+            </option>
+          ))}
+        </select>
+        <div data-testid="team-create-members">
+          <MultiCheck
+            label="Thành viên"
+            items={usersList}
+            value={teamForm.memberIds}
+            onChange={(value) => setTeamForm({ ...teamForm, memberIds: value })}
+          />
+        </div>
+        {teamCreateError && <p className="form-error">{teamCreateError}</p>}
+        <button className="primary-button" data-testid="team-create-save" type="submit" disabled={teamSaving}>
+          {teamSaving && <Loader2 className="spin" size={16} />}
+          {"Lưu nhóm"}
+        </button>
+      </form>
+
+      <section className="panel wide">
+        <div className="panel-head wrap">
+          <div>
+            <h2>{"Nhóm làm việc"}</h2>
+            <p>{"Quản lý nhóm liên phòng ban và thành viên tham gia."}</p>
+          </div>
+          <span className="status-chip">{teamsList.length} {"nhóm"}</span>
+        </div>
+        {teamData.error && <p className="form-error">{teamData.error}</p>}
+        <DataTable
+          columns={["Mã", "Tên nhóm", "Phòng ban", "Thành viên"]}
+          rows={teamsList.map((team) => ({
+            key: team.id,
+            testId: "team-row-" + team.id,
+            onClick: () => setSelectedTeamId(team.id),
+            cells: [
+              team.code,
+              team.name,
+              team.department?.name ?? "",
+              team.members?.map((member: Record<string, any>) => member.user.fullName).join(", ")
+            ]
+          }))}
+        />
+      </section>
+
+      <form className="panel form-stack" data-testid="team-edit-form" onSubmit={saveSelectedTeam}>
+        <div className="panel-head wrap">
+          <div>
+            <h2>{"Chi tiết nhóm"}</h2>
+            {selectedTeam && <p>{selectedTeam.code}</p>}
+          </div>
+          {selectedTeam && <span className="status-chip">{selectedTeam._count?.members ?? 0} {"thành viên"}</span>}
+        </div>
+        {!selectedTeam || !teamEditForm ? (
+          <p className="empty-text">{"Chọn nhóm trong danh sách để chỉnh sửa."}</p>
+        ) : (
+          <>
+            <label>
+              {"Mã nhóm"}
+              <input data-testid="team-edit-code" value={teamEditForm.code} onChange={(event) => setTeamEditForm({ ...teamEditForm, code: event.target.value })} required />
+            </label>
+            <label>
+              {"Tên nhóm"}
+              <input data-testid="team-edit-name" value={teamEditForm.name} onChange={(event) => setTeamEditForm({ ...teamEditForm, name: event.target.value })} required />
+            </label>
+            <label>
+              {"Phòng ban phụ trách"}
+              <select data-testid="team-edit-department" value={teamEditForm.departmentId} onChange={(event) => setTeamEditForm({ ...teamEditForm, departmentId: event.target.value })}>
+                <option value="">{"Không gắn phòng ban"}</option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div data-testid="team-edit-members">
+              <MultiCheck
+                label="Thành viên"
+                items={usersList}
+                value={teamEditForm.memberIds}
+                onChange={(value) => setTeamEditForm({ ...teamEditForm, memberIds: value })}
+              />
+            </div>
+            {teamUpdateError && <p className="form-error">{teamUpdateError}</p>}
+            <div className="form-actions">
+              <button className="ghost-button" type="button" onClick={() => setTeamEditForm(buildTeamEditForm(selectedTeam))}>
+                {"Khôi phục"}
+              </button>
+              <button className="primary-button" data-testid="team-edit-save" type="submit" disabled={teamUpdating}>
+                {teamUpdating && <Loader2 className="spin" size={16} />}
                 {"Lưu thay đổi"}
               </button>
             </div>
