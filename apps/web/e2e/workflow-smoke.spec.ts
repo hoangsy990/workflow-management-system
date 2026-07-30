@@ -728,6 +728,34 @@ test("lọc công việc phía server trên UI", async ({ page, request }) => {
   await expect(page.getByTestId("task-filter-code")).toHaveValue("");
 });
 
+test("phân trang danh sách công việc trên UI", async ({ page, request }) => {
+  const manager = await apiLogin(request, "manager");
+  const label = `pagination-${runId}`;
+  const firstTask = await createSmokeTask(request, manager, label, {
+    startDate: `${dateInput(-29)}T00:00:00.000Z`,
+    dueDate: `${dateInput(-27)}T00:00:00.000Z`,
+    requiresReview: false
+  });
+  for (let index = 0; index < 10; index += 1) {
+    await createSmokeTask(request, manager, label, {
+      startDate: `${dateInput(-29)}T00:00:00.000Z`,
+      dueDate: `${dateInput(-28)}T00:00:00.000Z`,
+      requiresReview: false
+    });
+  }
+
+  await openAppWithSession(page, manager);
+  await page.getByTestId("nav-tasks").click();
+  await page.getByTestId("task-search-input").fill(`Smoke ${label}`);
+  await expect(page.getByTestId("task-pagination-summary")).toContainText("Trang 1/2");
+  await expect(page.getByTestId("task-pagination-next")).toBeEnabled();
+  await page.getByTestId("task-pagination-next").click();
+  await expect(page.getByTestId("task-pagination-summary")).toContainText("Trang 2/2");
+  await expect(page.locator(`tr[data-testid="task-row-${firstTask.id}"]`)).toBeVisible();
+  await page.getByTestId("task-pagination-prev").click();
+  await expect(page.getByTestId("task-pagination-summary")).toContainText("Trang 1/2");
+});
+
 test("nhân viên cập nhật tiến độ task lên chờ đánh giá trên UI", async ({ page, request }) => {
   const manager = await apiLogin(request, "manager");
   const employee = await apiLogin(request, "employee");
@@ -769,7 +797,7 @@ test("công việc của tôi có đủ tab và lọc theo dữ liệu liên qua
 
   await openAppWithSession(page, manager);
   await page.getByTestId("nav-myTasks").click();
-  await page.getByTestId("task-search-input").fill(runId);
+  await page.getByTestId("task-search-input").fill(reviewTask.title);
 
   for (const tab of ["assignee", "assigner", "manager", "follower", "review", "overdue", "done"]) {
     await expect(page.getByTestId(`my-task-tab-${tab}`)).toBeVisible();
@@ -788,6 +816,7 @@ test("công việc của tôi có đủ tab và lọc theo dữ liệu liên qua
   await expect(page.locator(`tr[data-testid="task-row-${reviewTask.id}"]`)).toBeVisible();
 
   await page.getByTestId("my-task-tab-overdue").click();
+  await page.getByTestId("task-search-input").fill(overdueTask.title);
   await expect(page.locator(`tr[data-testid="task-row-${overdueTask.id}"]`)).toBeVisible();
 
   await apiPost<Record<string, any>>(request, manager, `/tasks/${reviewTask.id}/evaluations`, {
@@ -796,6 +825,7 @@ test("công việc của tôi có đủ tab và lọc theo dữ liệu liên qua
     comment: `Hoàn thành từ tab ${runId}`
   });
   await page.getByTestId("my-task-tab-done").click();
+  await page.getByTestId("task-search-input").fill(reviewTask.title);
   await expect(page.locator(`tr[data-testid="task-row-${reviewTask.id}"]`)).toBeVisible();
 });
 

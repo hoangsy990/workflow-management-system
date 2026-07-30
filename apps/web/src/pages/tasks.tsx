@@ -55,6 +55,7 @@ const defaultTaskFilters: TaskFilters = {
   to: "",
   overdue: false
 };
+const taskListPageSize = 10;
 const maxAttachmentMb = 20;
 const allowedAttachmentTypes = new Set([
   "image/jpeg",
@@ -152,13 +153,14 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
   const [myTaskView, setMyTaskView] = useState<MyTaskView>("assignee");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<TaskFilters>(defaultTaskFilters);
+  const [currentPage, setCurrentPage] = useState(1);
   const users = useAsyncData(() => api.users(), []);
   const departments = useAsyncData(() => api.departments(), []);
   const categories = useAsyncData(() => api.taskCategories(), []);
   const tags = useAsyncData(() => api.tags(), []);
   const lockedStatus = mode === "mine" ? myTaskTabs.find((tab) => tab.key === myTaskView)?.lockedStatus : undefined;
   const query = useMemo(() => {
-    const params = new URLSearchParams({ pageSize: "50" });
+    const params = new URLSearchParams({ page: String(currentPage), pageSize: String(taskListPageSize) });
     if (keyword) params.set("keyword", keyword);
     if (status && !lockedStatus) params.set("status", status);
     if (filters.code) params.set("code", filters.code);
@@ -174,8 +176,9 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
     if (filters.overdue) params.set("overdue", "true");
     if (mode === "mine") params.set("myView", myTaskView);
     return `?${params.toString()}`;
-  }, [keyword, status, lockedStatus, filters, mode, myTaskView]);
+  }, [currentPage, keyword, status, lockedStatus, filters, mode, myTaskView]);
   const { data, loading, error, reload } = useAsyncData(() => api.tasks(query), [query]);
+  const pagination = data?.pagination;
   const userOptions = users.data?.data ?? [];
   const departmentOptions = departments.data ?? [];
   const categoryOptions = categories.data ?? [];
@@ -202,6 +205,16 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
         task.isOverdue ? `Quá hạn ${Math.abs(task.daysRemaining ?? 0)} ngày` : `${task.daysRemaining ?? 0} ngày`
       ]
     })) ?? [];
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [keyword, status, filters, mode, myTaskView]);
+
+  useEffect(() => {
+    if (pagination && currentPage > pagination.totalPages) {
+      setCurrentPage(pagination.totalPages);
+    }
+  }, [currentPage, pagination]);
 
   function selectMyTaskView(nextView: MyTaskView) {
     setMyTaskView(nextView);
@@ -443,6 +456,31 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
         ]}
         rows={tableRows}
       />
+      {pagination && (
+        <div className="pagination-bar" data-testid="task-pagination">
+          <button
+            className="ghost-button compact"
+            data-testid="task-pagination-prev"
+            type="button"
+            disabled={loading || pagination.page <= 1}
+            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+          >
+            Trước
+          </button>
+          <span data-testid="task-pagination-summary">
+            Trang {pagination.page}/{pagination.totalPages} - {pagination.total} công việc
+          </span>
+          <button
+            className="ghost-button compact"
+            data-testid="task-pagination-next"
+            type="button"
+            disabled={loading || pagination.page >= pagination.totalPages}
+            onClick={() => setCurrentPage((page) => page + 1)}
+          >
+            Sau
+          </button>
+        </div>
+      )}
     </section>
   );
 }

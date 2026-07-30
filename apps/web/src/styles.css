@@ -536,6 +536,20 @@ tbody tr:hover {
   background: var(--panel-soft);
 }
 
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.pagination-bar span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .mobile-cards {
   display: none;
 }
