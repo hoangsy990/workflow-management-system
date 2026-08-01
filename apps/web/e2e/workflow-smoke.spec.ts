@@ -684,6 +684,21 @@ test("báo cáo lọc phía server theo phòng ban, trạng thái, ưu tiên và
   await expect(page.getByTestId("report-filter-count")).toContainText("5 bộ lọc");
   await expect(page.getByTestId("report-task-priority-chart")).toContainText("Khẩn cấp");
   await expect(page.getByTestId(`report-task-row-${task.id}`)).toBeVisible();
+
+  const drilldownResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname.endsWith("/reports/drilldown") &&
+      url.searchParams.get("entity") === "tasks" &&
+      url.searchParams.get("bucket") === "priority" &&
+      url.searchParams.get("value") === "URGENT"
+    );
+  });
+  await page.getByTestId("report-drilldown-task-priority-URGENT").click();
+  const drilldown = await drilldownResponse;
+  expect(drilldown.ok(), await drilldown.text()).toBeTruthy();
+  await expect(page.getByTestId("report-drilldown-panel")).toContainText("Chi tiết");
+  await expect(page.getByTestId(`report-drilldown-task-row-${task.id}`)).toBeVisible();
 });
 
 test("scheduler gửi thông báo task và bước phê duyệt sắp hạn/quá hạn", async ({ request }) => {

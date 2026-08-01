@@ -1,5 +1,5 @@
 import { RotateCcw, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock } from "../components/common";
 import { useAsyncData } from "../hooks/useAsyncData";
@@ -29,6 +29,12 @@ const priorityLabels: Record<string, string> = {
   HIGH: "Cao",
   URGENT: "Khẩn cấp"
 };
+type ReportDrilldown = {
+  entity: "tasks" | "workflows";
+  bucket: "taskStatus" | "priority" | "department" | "workflowStatus" | "template";
+  value: string;
+  title: string;
+};
 
 function chartWidth(count: number, max: number) {
   if (count <= 0 || max <= 0) return "0%";
@@ -47,11 +53,24 @@ function buildReportQuery(filters: typeof emptyReportFilters) {
   return value ? `?${value}` : "";
 }
 
+function buildDrilldownQuery(baseQuery: string, drilldown: ReportDrilldown | null) {
+  if (!drilldown) return "";
+  const params = new URLSearchParams(baseQuery.startsWith("?") ? baseQuery.slice(1) : baseQuery);
+  params.set("entity", drilldown.entity);
+  params.set("bucket", drilldown.bucket);
+  params.set("value", drilldown.value);
+  params.set("pageSize", "20");
+  return `?${params.toString()}`;
+}
+
 export function ReportsPage({ setPage, setTaskId, setInstanceId }: ReportsPageProps) {
   const [filters, setFilters] = useState(emptyReportFilters);
+  const [drilldown, setDrilldown] = useState<ReportDrilldown | null>(null);
   const departments = useAsyncData(() => api.departments(), []);
   const query = useMemo(() => buildReportQuery(filters), [filters]);
   const { data, loading, error } = useAsyncData(() => api.reportsSummary(query), [query]);
+  const drilldownQuery = useMemo(() => buildDrilldownQuery(query, drilldown), [query, drilldown]);
+  const drilldownResult = useAsyncData(() => (drilldown ? api.reportsDrilldown(drilldownQuery) : Promise.resolve(null)), [drilldownQuery]);
   const tasks = data?.tasks ?? {};
   const workflows = data?.workflows ?? {};
   const maxTaskStatus = Math.max(0, ...(tasks.byStatus ?? []).map((item: Record<string, any>) => Number(item._count ?? 0)));
@@ -59,6 +78,10 @@ export function ReportsPage({ setPage, setTaskId, setInstanceId }: ReportsPagePr
   const maxWorkflowStatus = Math.max(0, ...(workflows.byStatus ?? []).map((item: Record<string, any>) => Number(item._count ?? 0)));
   const maxWorkflowTemplate = Math.max(0, ...(workflows.byTemplate ?? []).map((item: Record<string, any>) => Number(item.count ?? 0)));
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
+
+  useEffect(() => {
+    setDrilldown(null);
+  }, [query]);
 
   if (loading) return <LoadingBlock />;
   if (error) return <ErrorBlock message={error} />;
@@ -193,15 +216,24 @@ export function ReportsPage({ setPage, setTaskId, setInstanceId }: ReportsPagePr
           {(tasks.byStatus ?? []).length === 0 ? (
             <p className="empty-text tight">Chưa có công việc trong bộ lọc này.</p>
           ) : (
-            (tasks.byStatus ?? []).map((item: Record<string, any>) => (
-              <div className="bar-row" key={item.status}>
-                <span>{statusLabels[item.status] ?? item.status}</span>
+            (tasks.byStatus ?? []).map((item: Record<string, any>) => {
+              const label = statusLabels[item.status] ?? item.status;
+              return (
+              <button
+                className="bar-row report-drilldown-button"
+                data-testid={`report-drilldown-task-status-${item.status}`}
+                key={item.status}
+                type="button"
+                onClick={() => setDrilldown({ entity: "tasks", bucket: "taskStatus", value: item.status, title: `Công việc: ${label}` })}
+              >
+                <span>{label}</span>
                 <strong>{item._count}</strong>
                 <span className="bar-meter" aria-hidden="true">
                   <i style={{ width: chartWidth(Number(item._count ?? 0), maxTaskStatus) }} />
                 </span>
-              </div>
-            ))
+              </button>
+              );
+            })
           )}
         </div>
       </section>
@@ -214,15 +246,24 @@ export function ReportsPage({ setPage, setTaskId, setInstanceId }: ReportsPagePr
           {(tasks.byPriority ?? []).length === 0 ? (
             <p className="empty-text tight">Chưa có công việc trong bộ lọc này.</p>
           ) : (
-            (tasks.byPriority ?? []).map((item: Record<string, any>) => (
-              <div className="bar-row" key={item.priority}>
-                <span>{priorityLabels[item.priority] ?? item.priority}</span>
+            (tasks.byPriority ?? []).map((item: Record<string, any>) => {
+              const label = priorityLabels[item.priority] ?? item.priority;
+              return (
+              <button
+                className="bar-row report-drilldown-button"
+                data-testid={`report-drilldown-task-priority-${item.priority}`}
+                key={item.priority}
+                type="button"
+                onClick={() => setDrilldown({ entity: "tasks", bucket: "priority", value: item.priority, title: `Công việc ưu tiên ${label}` })}
+              >
+                <span>{label}</span>
                 <strong>{item._count}</strong>
                 <span className="bar-meter" aria-hidden="true">
                   <i style={{ width: chartWidth(Number(item._count ?? 0), maxTaskPriority) }} />
                 </span>
-              </div>
-            ))
+              </button>
+              );
+            })
           )}
         </div>
       </section>
@@ -235,15 +276,24 @@ export function ReportsPage({ setPage, setTaskId, setInstanceId }: ReportsPagePr
           {(workflows.byStatus ?? []).length === 0 ? (
             <p className="empty-text tight">Chưa có hồ sơ trong bộ lọc này.</p>
           ) : (
-            (workflows.byStatus ?? []).map((item: Record<string, any>) => (
-              <div className="bar-row" key={item.status}>
-                <span>{statusLabels[item.status] ?? item.status}</span>
+            (workflows.byStatus ?? []).map((item: Record<string, any>) => {
+              const label = statusLabels[item.status] ?? item.status;
+              return (
+              <button
+                className="bar-row report-drilldown-button"
+                data-testid={`report-drilldown-workflow-status-${item.status}`}
+                key={item.status}
+                type="button"
+                onClick={() => setDrilldown({ entity: "workflows", bucket: "workflowStatus", value: item.status, title: `Hồ sơ: ${label}` })}
+              >
+                <span>{label}</span>
                 <strong>{item._count}</strong>
                 <span className="bar-meter" aria-hidden="true">
                   <i style={{ width: chartWidth(Number(item._count ?? 0), maxWorkflowStatus) }} />
                 </span>
-              </div>
-            ))
+              </button>
+              );
+            })
           )}
         </div>
       </section>
@@ -256,18 +306,91 @@ export function ReportsPage({ setPage, setTaskId, setInstanceId }: ReportsPagePr
           {(workflows.byTemplate ?? []).length === 0 ? (
             <p className="empty-text tight">Chưa có hồ sơ trong bộ lọc này.</p>
           ) : (
-            (workflows.byTemplate ?? []).map((item: Record<string, any>) => (
-              <div className="bar-row" key={item.templateId}>
-                <span>{item.template?.name ?? "Không rõ mẫu"}</span>
+            (workflows.byTemplate ?? []).map((item: Record<string, any>) => {
+              const label = item.template?.name ?? "Không rõ mẫu";
+              return (
+              <button
+                className="bar-row report-drilldown-button"
+                data-testid={`report-drilldown-workflow-template-${item.templateId}`}
+                key={item.templateId}
+                type="button"
+                onClick={() => setDrilldown({ entity: "workflows", bucket: "template", value: item.templateId, title: `Hồ sơ mẫu ${label}` })}
+              >
+                <span>{label}</span>
                 <strong>{item.count}</strong>
                 <span className="bar-meter" aria-hidden="true">
                   <i style={{ width: chartWidth(Number(item.count ?? 0), maxWorkflowTemplate) }} />
                 </span>
-              </div>
-            ))
+              </button>
+              );
+            })
           )}
         </div>
       </section>
+
+      {drilldown && (
+        <section className="panel wide" data-testid="report-drilldown-panel">
+          <div className="panel-head wrap">
+            <div>
+              <h2>Chi tiết: {drilldown.title}</h2>
+              <p>
+                {drilldownResult.data?.pagination?.total ?? 0} dòng phù hợp với bộ lọc báo cáo hiện tại.
+              </p>
+            </div>
+            <button className="ghost-button compact" type="button" data-testid="report-drilldown-close" onClick={() => setDrilldown(null)}>
+              Đóng
+            </button>
+          </div>
+          {drilldownResult.loading ? (
+            <LoadingBlock />
+          ) : drilldownResult.error ? (
+            <p className="form-error" role="alert">
+              {drilldownResult.error}
+            </p>
+          ) : drilldown.entity === "tasks" ? (
+            <DataTable
+              columns={["Mã", "Tên công việc", "Trạng thái", "Ưu tiên", "Phòng ban", "Tiến độ", "Hạn"]}
+              rows={(drilldownResult.data?.data ?? []).map((task: Record<string, any>) => ({
+                key: task.id,
+                testId: `report-drilldown-task-row-${task.id}`,
+                onClick: () => {
+                  setTaskId(task.id);
+                  setPage("taskDetail");
+                },
+                cells: [
+                  task.code,
+                  task.title,
+                  statusLabels[task.status] ?? task.status,
+                  priorityLabels[task.priority] ?? task.priority,
+                  task.department?.name ?? "",
+                  `${task.progress}%`,
+                  formatDate(task.dueDate)
+                ]
+              }))}
+            />
+          ) : (
+            <DataTable
+              columns={["Mã hồ sơ", "Mẫu quy trình", "Trạng thái", "Người tạo", "Bước hiện tại", "Ngày tạo"]}
+              rows={(drilldownResult.data?.data ?? []).map((instance: Record<string, any>) => ({
+                key: instance.id,
+                testId: `report-drilldown-workflow-row-${instance.id}`,
+                onClick: () => {
+                  setInstanceId(instance.id);
+                  setPage("instanceDetail");
+                },
+                cells: [
+                  instance.code,
+                  instance.template?.name ?? "",
+                  statusLabels[instance.status] ?? instance.status,
+                  instance.requester?.fullName ?? "",
+                  instance.currentStep?.name ?? "",
+                  formatDate(instance.createdAt)
+                ]
+              }))}
+            />
+          )}
+        </section>
+      )}
 
       <section className="panel wide">
         <div className="panel-head">

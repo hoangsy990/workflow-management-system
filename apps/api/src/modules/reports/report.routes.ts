@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { Prisma, TaskPriority, TaskStatus, WorkflowInstanceStatus } from "@prisma/client";
 import { z } from "zod";
+import { badRequest } from "../../http/errors.js";
 import { prisma } from "../../prisma.js";
 import { parseQuery } from "../../http/validation.js";
 import { requireAuth } from "../auth/auth.guard.js";
@@ -14,6 +15,13 @@ const reportQuerySchema = z.object({
   workflowStatus: z.nativeEnum(WorkflowInstanceStatus).optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional()
+});
+const reportDrilldownQuerySchema = reportQuerySchema.extend({
+  entity: z.enum(["tasks", "workflows"]),
+  bucket: z.enum(["taskStatus", "priority", "department", "workflowStatus", "template"]),
+  value: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(20)
 });
 
 function endOfDay(date: Date) {
@@ -100,6 +108,45 @@ async function attachWorkflowTemplateNames(stats: Array<{ templateId: string; _c
       count: item._count
     }))
     .sort((a, b) => b.count - a.count);
+}
+
+function isTaskStatus(value: string | undefined): value is TaskStatus {
+  return Boolean(value && Object.values(TaskStatus).includes(value as TaskStatus));
+}
+
+function isTaskPriority(value: string | undefined): value is TaskPriority {
+  return Boolean(value && Object.values(TaskPriority).includes(value as TaskPriority));
+}
+
+function isWorkflowStatus(value: string | undefined): value is WorkflowInstanceStatus {
+  return Boolean(value && Object.values(WorkflowInstanceStatus).includes(value as WorkflowInstanceStatus));
+}
+
+function taskDrilldownFilter(query: z.infer<typeof reportDrilldownQuerySchema>): Prisma.TaskWhereInput {
+  if (query.bucket === "taskStatus") {
+    if (!isTaskStatus(query.value)) throw badRequest("Bucket trạng thái công việc không hợp lệ.");
+    return { status: query.value };
+  }
+  if (query.bucket === "priority") {
+    if (!isTaskPriority(query.value)) throw badRequest("Bucket ưu tiên công việc không hợp lệ.");
+    return { priority: query.value };
+  }
+  if (query.bucket === "department") {
+    return { departmentId: query.value === "none" ? null : query.value };
+  }
+  throw badRequest("Bucket drill-down không áp dụng cho công việc.");
+}
+
+function workflowDrilldownFilter(query: z.infer<typeof reportDrilldownQuerySchema>): Prisma.WorkflowInstanceWhereInput {
+  if (query.bucket === "workflowStatus") {
+    if (!isWorkflowStatus(query.value)) throw badRequest("Bucket trạng thái hồ sơ không hợp lệ.");
+    return { status: query.value };
+  }
+  if (query.bucket === "template") {
+    if (!query.value) throw badRequest("Bucket mẫu quy trình không hợp lệ.");
+    return { templateId: query.value };
+  }
+  throw badRequest("Bucket drill-down không áp dụng cho hồ sơ quy trình.");
 }
 
 export async function reportRoutes(app: FastifyInstance) {
@@ -204,6 +251,75 @@ export async function reportRoutes(app: FastifyInstance) {
         byStatus: instancesByStatus,
         byTemplate: await attachWorkflowTemplateNames(instancesByTemplate),
         recent: recentInstances
+      }
+    };
+  });
+
+  app.get("/reports/drilldown", { preHandler: requireAuth }, async (request) => {
+    const auth = request.auth!;
+    const query = parseQuery(request, reportDrilldownQuerySchema);
+
+    if (query.entity === "tasks") {
+      const where: Prisma.TaskWhereInput = {
+        AND: [await visibleTaskWhere(prisma, auth), taskReportFilters(query), taskDrilldownFilter(query)]
+      };
+      const [data, total] = await Promise.all([
+        prisma.task.findMany({
+          where,
+          skip: (query.page - 1) * query.pageSize,
+          take: query.pageSize,
+          orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+          include: {
+            department: { select: { id: true, code: true, name: true } },
+            assignees: {
+              take: 3,
+              include: { user: { select: { id: true, fullName: true } } }
+            }
+          }
+        }),
+        prisma.task.count({ where })
+      ]);
+      return {
+        entity: "tasks",
+        bucket: query.bucket,
+        value: query.value,
+        data,
+        pagination: {
+          page: query.page,
+          pageSize: query.pageSize,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / query.pageSize))
+        }
+      };
+    }
+
+    const where: Prisma.WorkflowInstanceWhereInput = {
+      AND: [visibleWorkflowInstanceWhere(auth), workflowReportFilters(query), workflowDrilldownFilter(query)]
+    };
+    const [data, total] = await Promise.all([
+      prisma.workflowInstance.findMany({
+        where,
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+        orderBy: { createdAt: "desc" },
+        include: {
+          template: { select: { id: true, code: true, name: true } },
+          requester: { select: { id: true, fullName: true, department: { select: { id: true, name: true } } } },
+          currentStep: { select: { id: true, name: true, type: true } }
+        }
+      }),
+      prisma.workflowInstance.count({ where })
+    ]);
+    return {
+      entity: "workflows",
+      bucket: query.bucket,
+      value: query.value,
+      data,
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / query.pageSize))
       }
     };
   });

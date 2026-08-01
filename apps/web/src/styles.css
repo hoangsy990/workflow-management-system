@@ -2032,6 +2032,7 @@ progress {
 .comment-list > div,
 .timeline > div,
 .bar-list > div,
+.bar-list > button,
 .stack-list button {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -2095,6 +2096,23 @@ progress {
 .bar-list > div {
   display: flex;
   justify-content: space-between;
+}
+
+.bar-list > button {
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+.report-drilldown-button {
+  width: 100%;
+  cursor: pointer;
+}
+
+.report-drilldown-button:hover,
+.report-drilldown-button:focus-visible {
+  border-color: var(--primary);
+  background: var(--panel-soft);
 }
 
 .chart-list .bar-row {
