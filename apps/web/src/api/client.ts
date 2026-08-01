@@ -37,7 +37,9 @@ export interface ApiErrorShape {
 }
 
 const sessionKey = "workflow.session";
+const cachedApiTtlMs = 60_000;
 let refreshPromise: Promise<ApiSession | null> | null = null;
+const apiCache = new Map<string, { expiresAt: number; value?: unknown; promise?: Promise<unknown> }>();
 
 class ApiRequestError extends Error {
   constructor(
@@ -56,6 +58,10 @@ export function getStoredSession(): ApiSession | null {
 }
 
 export function setStoredSession(session: ApiSession | null) {
+  const current = getStoredSession();
+  if (current?.refreshToken !== session?.refreshToken) {
+    clearApiCache();
+  }
   if (!session) {
     sessionStorage.removeItem(sessionKey);
     return;
@@ -84,13 +90,29 @@ export function getApiUrl() {
 export function setApiUrl(value: string) {
   const normalized = normalizeApiUrl(value || defaultApiUrl);
   try {
+    const previous = getApiUrl();
     if (normalized === getDefaultApiUrl()) {
       localStorage.removeItem(apiUrlKey);
     } else {
       localStorage.setItem(apiUrlKey, normalized);
     }
+    if (previous !== normalized) {
+      clearApiCache();
+    }
   } catch {
     // Ignore storage errors; callers still use the build-time default.
+  }
+}
+
+export function clearApiCache(prefix?: string) {
+  if (!prefix) {
+    apiCache.clear();
+    return;
+  }
+  for (const key of apiCache.keys()) {
+    if (key.includes(`|${prefix}`)) {
+      apiCache.delete(key);
+    }
   }
 }
 
@@ -184,6 +206,28 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}, ret
   return parseResponse<T>(response);
 }
 
+async function cachedApiRequest<T>(path: string, ttlMs = cachedApiTtlMs): Promise<T> {
+  const key = `${getApiUrl()}|${path}`;
+  const now = Date.now();
+  const cached = apiCache.get(key);
+  if (cached && cached.expiresAt > now) {
+    if (cached.promise) return cached.promise as Promise<T>;
+    return cached.value as T;
+  }
+
+  const promise = apiRequest<T>(path)
+    .then((value) => {
+      apiCache.set(key, { expiresAt: Date.now() + ttlMs, value });
+      return value;
+    })
+    .catch((error) => {
+      apiCache.delete(key);
+      throw error;
+    });
+  apiCache.set(key, { expiresAt: now + ttlMs, promise });
+  return promise;
+}
+
 async function parseBlobResponse(response: Response): Promise<{ blob: Blob; filename: string }> {
   if (!response.ok) {
     await parseResponse<never>(response);
@@ -243,27 +287,51 @@ export const api = {
   dashboard: () => apiRequest<Record<string, any>>("/dashboard"),
   notifications: () => apiRequest<Paginated<Record<string, any>> & { unread: number }>("/notifications?pageSize=8"),
   readNotification: (id: string) => apiRequest<{ ok: true }>(`/notifications/${id}/read`, { method: "POST" }),
-  users: () => apiRequest<Paginated<Record<string, any>>>("/users?pageSize=100"),
-  createUser: (payload: Record<string, unknown>) =>
-    apiRequest<Record<string, any>>("/users", { method: "POST", body: JSON.stringify(payload) }),
-  updateUser: (id: string, payload: Record<string, unknown>) =>
-    apiRequest<Record<string, any>>(`/users/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
-  departments: () => apiRequest<Record<string, any>[]>("/departments"),
-  saveDepartment: (payload: Record<string, unknown>) =>
-    apiRequest<Record<string, any>>("/departments", { method: "POST", body: JSON.stringify(payload) }),
-  updateDepartment: (id: string, payload: Record<string, unknown>) =>
-    apiRequest<Record<string, any>>(`/departments/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
-  teams: () => apiRequest<Record<string, any>[]>("/teams"),
-  saveTeam: (payload: Record<string, unknown>) =>
-    apiRequest<Record<string, any>>("/teams", { method: "POST", body: JSON.stringify(payload) }),
-  updateTeam: (id: string, payload: Record<string, unknown>) =>
-    apiRequest<Record<string, any>>(`/teams/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
-  roles: () => apiRequest<Record<string, any>[]>("/roles"),
-  permissions: () => apiRequest<Record<string, any>[]>("/permissions"),
-  updateRolePermissions: (id: string, permissionIds: string[]) =>
-    apiRequest<Record<string, any>>(`/roles/${id}/permissions`, { method: "PUT", body: JSON.stringify({ permissionIds }) }),
-  taskCategories: () => apiRequest<Record<string, any>[]>("/task-categories"),
-  tags: () => apiRequest<Record<string, any>[]>("/tags"),
+  users: () => cachedApiRequest<Paginated<Record<string, any>>>("/users?pageSize=100"),
+  createUser: async (payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>("/users", { method: "POST", body: JSON.stringify(payload) });
+    clearApiCache("/users");
+    return result;
+  },
+  updateUser: async (id: string, payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>(`/users/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+    clearApiCache("/users");
+    return result;
+  },
+  departments: () => cachedApiRequest<Record<string, any>[]>("/departments"),
+  saveDepartment: async (payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>("/departments", { method: "POST", body: JSON.stringify(payload) });
+    clearApiCache("/departments");
+    clearApiCache("/users");
+    return result;
+  },
+  updateDepartment: async (id: string, payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>(`/departments/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+    clearApiCache("/departments");
+    clearApiCache("/users");
+    return result;
+  },
+  teams: () => cachedApiRequest<Record<string, any>[]>("/teams"),
+  saveTeam: async (payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>("/teams", { method: "POST", body: JSON.stringify(payload) });
+    clearApiCache("/teams");
+    return result;
+  },
+  updateTeam: async (id: string, payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>(`/teams/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+    clearApiCache("/teams");
+    return result;
+  },
+  roles: () => cachedApiRequest<Record<string, any>[]>("/roles"),
+  permissions: () => cachedApiRequest<Record<string, any>[]>("/permissions"),
+  updateRolePermissions: async (id: string, permissionIds: string[]) => {
+    const result = await apiRequest<Record<string, any>>(`/roles/${id}/permissions`, { method: "PUT", body: JSON.stringify({ permissionIds }) });
+    clearApiCache("/roles");
+    clearApiCache("/permissions");
+    return result;
+  },
+  taskCategories: () => cachedApiRequest<Record<string, any>[]>("/task-categories"),
+  tags: () => cachedApiRequest<Record<string, any>[]>("/tags"),
   tasks: (query = "") => apiRequest<Paginated<Record<string, any>>>(`/tasks${query}`),
   task: (id: string) => apiRequest<Record<string, any>>(`/tasks/${id}`),
   createTask: (payload: Record<string, unknown>) =>

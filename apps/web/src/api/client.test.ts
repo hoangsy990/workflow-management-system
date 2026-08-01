@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, apiRequest, getApiUrl, getStoredSession, setApiUrl, setStoredSession } from "./client";
+import { api, apiRequest, clearApiCache, getApiUrl, getStoredSession, setApiUrl, setStoredSession } from "./client";
 
 const storage = new Map<string, string>();
 
@@ -12,6 +12,7 @@ function jsonResponse(body: unknown, status = 200) {
 
 beforeEach(() => {
   storage.clear();
+  clearApiCache();
   vi.restoreAllMocks();
 
   Object.defineProperty(globalThis, "sessionStorage", {
@@ -94,5 +95,30 @@ describe("apiRequest", () => {
     expect(result.filename).toBe("bao-cao.pdf");
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get("Authorization")).toBe("Bearer fresh-access-token");
+  });
+
+  it("caches reference data requests in memory", async () => {
+    const categories = [{ id: "cat-1", name: "Dự án" }];
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(categories));
+
+    await expect(api.taskCategories()).resolves.toEqual(categories);
+    await expect(api.taskCategories()).resolves.toEqual(categories);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/task-categories");
+  });
+
+  it("invalidates cached departments after a department mutation", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse([{ id: "dep-1", name: "Kinh doanh" }]))
+      .mockResolvedValueOnce(jsonResponse({ id: "dep-2", name: "Vận hành" }))
+      .mockResolvedValueOnce(jsonResponse([{ id: "dep-1", name: "Kinh doanh" }, { id: "dep-2", name: "Vận hành" }]));
+
+    await expect(api.departments()).resolves.toHaveLength(1);
+    await expect(api.saveDepartment({ name: "Vận hành" })).resolves.toMatchObject({ id: "dep-2" });
+    await expect(api.departments()).resolves.toHaveLength(2);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
