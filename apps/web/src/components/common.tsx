@@ -1,4 +1,4 @@
-import { Loader2, XCircle } from "lucide-react";
+import { XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
 interface DataTableRow {
@@ -10,9 +10,22 @@ interface DataTableRow {
 
 export function LoadingBlock() {
   return (
-    <div className="state-panel">
-      <Loader2 className="spin" size={22} />
-      <span>Đang tải dữ liệu...</span>
+    <div className="state-panel loading-skeleton" aria-busy="true" aria-live="polite" data-testid="loading-skeleton">
+      <span className="sr-only">Đang tải dữ liệu...</span>
+      <div className="skeleton-line skeleton-title" />
+      <div className="skeleton-grid" aria-hidden="true">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={`skeleton-card-${index}`} className="skeleton-card">
+            <span className="skeleton-line" />
+            <span className="skeleton-line short" />
+          </div>
+        ))}
+      </div>
+      <div className="skeleton-list" aria-hidden="true">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <span key={`skeleton-row-${index}`} className="skeleton-line" />
+        ))}
+      </div>
     </div>
   );
 }

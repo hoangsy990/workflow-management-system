@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=103`, `PARTIAL=123`, `TODO=34`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `39.6%`, tính trọng số partial `63.3%`.
+**Tiến độ hiện tại:** `DONE=104`, `PARTIAL=123`, `TODO=33`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `40.0%`, tính trọng số partial `63.7%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `SKELETON-LOADING` | Nâng `LoadingBlock` dùng chung thành skeleton loading responsive có shimmer, `aria-busy`, nội dung screen-reader và layout card/list để các trang dashboard/task/workflow/admin/profile không chỉ hiện spinner rỗng khi tải dữ liệu. Chuyển checklist `Skeleton loading` sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/web test`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web`, `pnpm smoke:web` 30/30, `docker builder prune -af`; Docker images `1.124GB`, volumes `77.65MB`, build cache `0B`. |
 | 01/08/2026 | `REFERENCE-DATA-CACHE` | Thêm cache in-memory TTL ngắn cho dữ liệu nền frontend (`users`, `departments`, `teams`, `roles`, `permissions`, `taskCategories`, `tags`), tự clear khi đổi API URL, đổi/clear session hoặc mutate user/department/team/role; bổ sung test cache và invalidation. Chuyển checklist `Cache danh mục` sang DONE. | `pnpm --filter @workflow/web test`, `pnpm --filter @workflow/web lint`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web`, `pnpm smoke:web` 30/30, `docker builder prune -af`; Docker images `1.124GB`, volumes `77.36MB`, build cache `0B`. |
 | 01/08/2026 | `DOCKER-SIZE-CLEANUP` | Dọn Docker build cache trên máy dev từ `14.22GB` xuống `0B`, tối ưu Dockerfile để image API chỉ mang dependency production của `@workflow/api`, giữ Prisma CLI trong dependency production cho migrate deploy, không gọi `pnpm` trong runtime, thêm `.dockerignore` cho cache/test artifacts, thêm script `pnpm docker:clean`/`pnpm docker:compact` và chỉnh Kanban lấy 100 task mới nhất theo `createdAt desc` đúng giới hạn API để không mất card mới khi DB tích lũy nhiều smoke data. Chuyển checklist `Docker resource cleanup command` sang DONE. | `pnpm install --lockfile-only`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, API/web health pass, targeted Kanban smoke 1/1, `pnpm smoke:web` 30/30, `docker builder prune -af`. Docker đang dùng: images `1.124GB`, volumes `77.05MB`, build cache `0B`, API writable `49.2kB`; file `docker_data.vhdx` còn `19.13GB` và cần `pnpm docker:compact` trong PowerShell Admin để compact vật lý. |
 | 30/07/2026 | `PUBLIC-8099-ANDROID-APK` | Đổi Docker web public port sang `8099`, build web với API relative `/api/v1`, thêm nginx reverse proxy `/api/` tới API container để test từ xa không bị dính `localhost`, mở CORS cho Tauri mobile, thêm cấu hình API URL runtime ở màn đăng nhập và build lại APK Android arm64 unsigned trỏ mặc định `http://192.168.10.238:8099/api/v1`. Script Android nhận `-ApiUrl` và bật cleartext cho bản test HTTP. Trạng thái tổng chưa đổi vì Android vẫn cần QA thiết bị thật/signing/push production. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `curl http://localhost:8099/health`, `curl http://localhost:8099/api/v1/auth/me`, targeted login smoke 1/1, `pnpm smoke:web` 30/30, `scripts/build-android-arm64.ps1 -ApiUrl http://192.168.10.238:8099/api/v1`. |
@@ -470,7 +471,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Lazy load tab | `PARTIAL` | Page render theo state; chưa code splitting. |
 | Cache danh mục | `DONE` | Frontend có cache in-memory TTL ngắn cho dữ liệu nền dùng lại ở form/filter/admin; tự invalidation khi đổi API URL/session hoặc mutate user/department/team/role, có unit test. |
 | Upload/import/export không treo UI, progress task dài | `PARTIAL` | Loading/busy có; upload progress/cancel chưa. |
-| Skeleton loading | `TODO` | Chưa có skeleton, chỉ loading block. |
+| Skeleton loading | `DONE` | `LoadingBlock` dùng chung đã chuyển thành skeleton card/list responsive có shimmer và accessibility state, áp dụng cho dashboard/task/workflow/admin/profile qua component chung. |
 | Workflow designer 100 nodes mượt | `TODO` | Chưa có designer. |
 
 ## 31. Kiểm thử UI và trải nghiệm
@@ -512,7 +513,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission chưa có cấu hình riêng. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk reference data cache đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web` và `pnpm smoke:web` 30/30. Responsive vẫn cần QA sâu trên thiết bị thật/Edge/iOS. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk skeleton loading đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web` và `pnpm smoke:web` 30/30. Responsive vẫn cần QA sâu trên thiết bị thật/Edge/iOS. |
 
 ## Việc ưu tiên tiếp theo
 
