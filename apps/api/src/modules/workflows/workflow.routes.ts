@@ -180,7 +180,7 @@ export async function workflowRoutes(app: FastifyInstance) {
 
   app.get("/workflow-templates/:id", { preHandler: requireAuth }, async (request) => {
     const params = parseParams(request, idParamSchema);
-    return getWorkflowTemplate(prisma, params.id);
+    return getWorkflowTemplate(prisma, request.auth!, params.id);
   });
 
   app.patch("/workflow-versions/:id/status", { preHandler: requireAuth }, async (request) => {

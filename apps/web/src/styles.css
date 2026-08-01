@@ -1439,6 +1439,24 @@ tbody tr:hover {
   font-size: 12px;
 }
 
+.workflow-field-visibility {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.workflow-field-role-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.workflow-field-role-options .toggle-line {
+  min-height: 28px;
+}
+
 .version-compare {
   display: grid;
   gap: 12px;

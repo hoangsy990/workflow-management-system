@@ -112,6 +112,7 @@ interface WorkflowTemplateRecord {
       code: string;
       defaultValue?: unknown;
       validation?: Record<string, unknown> | null;
+      visibleToRoles?: string[] | null;
     }>;
     steps?: Array<{
       code: string;
@@ -138,7 +139,9 @@ interface WorkflowInstanceRecord {
 }
 
 interface WorkflowInstanceDetailRecord extends WorkflowInstanceRecord {
+  formData?: Record<string, unknown>;
   workflowVersion?: {
+    fields?: Array<{ code: string }>;
     steps?: Array<{ id: string; code: string; name: string }>;
     transitions?: Array<{ id: string; fromStepId: string; toStepId: string }>;
   };
@@ -1320,6 +1323,8 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   await page.getByTestId("workflow-field-type-2").selectOption("SELECT");
   await page.getByTestId("workflow-field-default-2").fill("Noi bo");
   await page.getByTestId("workflow-field-options-2").fill("Noi bo, Khach hang");
+  await expect(page.getByTestId("workflow-field-visible-role-2-manager")).toBeVisible();
+  await page.getByTestId("workflow-field-visible-role-2-manager").check();
   await page.getByTestId("workflow-step-add").click();
   await page.getByTestId("workflow-step-name-1").fill("Xác nhận sau cùng");
   await page.getByTestId("workflow-step-code-1").fill("final_confirm");
@@ -1353,9 +1358,9 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   expect(minCountStep).toMatchObject({ approvalMode: "PARALLEL", completionRule: "MIN_COUNT", minCount: 1 });
   expect(purposeField).toMatchObject({ defaultValue: defaultPurpose, validation: { minLength: 5, maxLength: 90 } });
   expect(amountField).toMatchObject({ validation: { min: 1000000, max: 100000000 } });
-  expect(noteField).toMatchObject({ defaultValue: "Noi bo", validation: { options: ["Noi bo", "Khach hang"] } });
+  expect(noteField).toMatchObject({ defaultValue: "Noi bo", validation: { options: ["Noi bo", "Khach hang"] }, visibleToRoles: ["manager"] });
   const invalidOption = await request.post(`${apiUrl}/workflow-instances`, {
-    headers: authHeaders(employee),
+    headers: authHeaders(admin),
     data: {
       templateId: created.id,
       formData: { amount: 2_500_000, smoke_note: "Ngoai danh sach" },
@@ -1365,10 +1370,15 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   expect(invalidOption.status()).toBe(400);
   const validInstance = await apiPost<WorkflowInstanceRecord>(request, employee, "/workflow-instances", {
     templateId: created.id,
-    formData: { amount: 2_500_000, smoke_note: "Khach hang" },
+    formData: { amount: 2_500_000, smoke_note: "Ngoai danh sach" },
     idempotencyKey: uniqueSlug("valid-option")
   });
   expect(validInstance.status).toBe("IN_PROGRESS");
+  const employeeTemplateDetail = await apiGet<WorkflowTemplateRecord>(request, employee, `/workflow-templates/${created.id}`);
+  expect(employeeTemplateDetail.versions?.[0]?.fields?.some((field) => field.code === "smoke_note")).toBe(false);
+  const employeeInstanceDetail = await apiGet<WorkflowInstanceDetailRecord>(request, employee, `/workflow-instances/${validInstance.id}`);
+  expect(employeeInstanceDetail.workflowVersion?.fields?.some((field) => field.code === "smoke_note")).toBe(false);
+  expect(employeeInstanceDetail.formData?.smoke_note).toBeUndefined();
   await expect(page.locator(`tr[data-testid="workflow-template-row-${created.id}"]`)).toBeVisible();
   const templatesForCompare = await apiGet<WorkflowTemplateRecord[]>(request, admin, "/workflow-templates");
   const compareVersions = templatesForCompare.flatMap((template) => template.versions ?? []).filter((version) => version.id);

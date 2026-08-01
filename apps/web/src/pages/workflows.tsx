@@ -1,5 +1,5 @@
 import { CheckCircle2, CircleDot, Clock3, Download, GitBranch, Loader2, Monitor, Plus, RotateCcw, Smartphone, Trash2, Upload, XCircle } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock } from "../components/common";
 import { useAsyncData } from "../hooks/useAsyncData";
@@ -132,6 +132,7 @@ type WorkflowFieldDraft = {
   minValue: string;
   maxValue: string;
   optionText: string;
+  visibleRoleCodes: string[];
 };
 
 type WorkflowApprovalStepDraft = {
@@ -162,7 +163,18 @@ type WorkflowFormField = {
   placeholder?: string | null;
   validation?: WorkflowValidationRules | null;
   displayOrder?: number;
+  editableBySteps?: unknown;
+  visibleToRoles?: string[] | null;
 };
+
+type RoleSummary = {
+  id?: string;
+  code: string;
+  name: string;
+};
+
+const emptyWorkflowFields: WorkflowFormField[] = [];
+const emptyWorkflowRoles: Array<{ code?: string }> = [];
 
 type WorkflowValidationRules = {
   minLength?: number;
@@ -352,7 +364,8 @@ function newWorkflowField(index: number): WorkflowFieldDraft {
       maxLength: "",
       minValue: "",
       maxValue: "",
-      optionText: ""
+      optionText: "",
+      visibleRoleCodes: []
     };
   }
   if (index === 2) {
@@ -368,7 +381,8 @@ function newWorkflowField(index: number): WorkflowFieldDraft {
       maxLength: "",
       minValue: "",
       maxValue: "",
-      optionText: ""
+      optionText: "",
+      visibleRoleCodes: []
     };
   }
   return {
@@ -383,7 +397,8 @@ function newWorkflowField(index: number): WorkflowFieldDraft {
     maxLength: "",
     minValue: "",
     maxValue: "",
-    optionText: ""
+    optionText: "",
+    visibleRoleCodes: []
   };
 }
 
@@ -441,6 +456,29 @@ function parseWorkflowOptions(value: string) {
 
 function workflowFieldOptions(field: { validation?: WorkflowValidationRules | null }) {
   return Array.isArray(field.validation?.options) ? field.validation.options.filter((option) => option.trim() !== "") : [];
+}
+
+function workflowVisibleRoleCodes(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "") : [];
+}
+
+function workflowUserRoleCodes(roles: Array<{ code?: string } | string> | undefined) {
+  return (roles ?? [])
+    .map((role) => (typeof role === "string" ? role : role.code))
+    .filter((code): code is string => typeof code === "string" && code.trim() !== "");
+}
+
+function workflowFieldVisibleForRoles(field: Pick<WorkflowFormField, "visibleToRoles">, roles: Array<{ code?: string } | string> | undefined) {
+  const allowedRoleCodes = workflowVisibleRoleCodes(field.visibleToRoles);
+  if (allowedRoleCodes.length === 0) {
+    return true;
+  }
+  const userRoleCodes = workflowUserRoleCodes(roles);
+  return allowedRoleCodes.some((roleCode) => userRoleCodes.includes(roleCode));
+}
+
+function filterWorkflowFieldsByRoles(fields: WorkflowFormField[], roles: Array<{ code?: string } | string> | undefined) {
+  return fields.filter((field) => workflowFieldVisibleForRoles(field, roles));
 }
 
 function parseOptionalWorkflowNumber(value: string) {
@@ -881,6 +919,7 @@ function applyWorkflowStepDefaults(step: WorkflowApprovalStepDraft, defaults: Re
 
 export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
   const workflowSettings = useAsyncData<Record<string, any>[]>(() => api.settings().catch(() => []), []);
+  const roles = useAsyncData<RoleSummary[]>(() => api.roles() as Promise<RoleSummary[]>, []);
   const [form, setForm] = useState({
     code: "",
     name: "",
@@ -894,6 +933,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const defaults = workflowBuilderDefaults(workflowSettings.data);
+  const roleNameByCode = useMemo(() => new Map((roles.data ?? []).map((role) => [role.code, role.name])), [roles.data]);
 
   useEffect(() => {
     if (workflowDefaultsApplied || !workflowSettings.data) return;
@@ -913,6 +953,21 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
 
   function updateField(id: string, patch: Partial<WorkflowFieldDraft>) {
     setFields((current) => current.map((field) => (field.id === id ? { ...field, ...patch } : field)));
+  }
+
+  function toggleFieldVisibleRole(id: string, roleCode: string, checked: boolean) {
+    setFields((current) =>
+      current.map((field) => {
+        if (field.id !== id) return field;
+        const visibleRoleCodes = new Set(field.visibleRoleCodes);
+        if (checked) {
+          visibleRoleCodes.add(roleCode);
+        } else {
+          visibleRoleCodes.delete(roleCode);
+        }
+        return { ...field, visibleRoleCodes: [...visibleRoleCodes] };
+      })
+    );
   }
 
   function updateStep(id: string, patch: Partial<WorkflowApprovalStepDraft>) {
@@ -967,6 +1022,10 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
       requiredLabel: field.isRequired ? "Bắt buộc" : "Không bắt buộc",
       defaultLabel: defaultResult.error ? `Mặc định lỗi: ${defaultResult.error}` : workflowPreviewValue(defaultResult.value),
       validationLabel: workflowFieldValidationPreview(field),
+      roleLabel:
+        field.visibleRoleCodes.length > 0
+          ? field.visibleRoleCodes.map((roleCode) => roleNameByCode.get(roleCode) ?? roleCode).join(", ")
+          : "Tất cả vai trò",
       placeholder: field.placeholder.trim()
     };
   });
@@ -1041,6 +1100,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
             defaultValue: defaultResult.value,
             placeholder: field.placeholder.trim() || undefined,
             validation: validationResult.validation,
+            visibleToRoles: field.visibleRoleCodes.length > 0 ? field.visibleRoleCodes : undefined,
             displayOrder: index + 1
           };
         }),
@@ -1183,6 +1243,25 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
                   onChange={(event) => updateField(field.id, { maxValue: event.target.value })}
                 />
               </label>
+              <div className="workflow-field-visibility" data-testid={"workflow-field-visible-roles-" + index}>
+                <span>{"Vai trò được xem trường"}</span>
+                <div className="workflow-field-role-options">
+                  {roles.loading && <small>{"Đang tải vai trò..."}</small>}
+                  {!roles.loading &&
+                    (roles.data ?? []).map((role) => (
+                      <label className="toggle-line compact-toggle" key={role.code}>
+                        <input
+                          data-testid={`workflow-field-visible-role-${index}-${role.code}`}
+                          type="checkbox"
+                          checked={field.visibleRoleCodes.includes(role.code)}
+                          onChange={(event) => toggleFieldVisibleRole(field.id, role.code, event.target.checked)}
+                        />
+                        {role.name}
+                      </label>
+                    ))}
+                </div>
+                <small>{"Để trống nghĩa là tất cả vai trò được xem."}</small>
+              </div>
             </div>
             <button className="icon-button" type="button" title="Xóa trường" disabled={fields.length <= 1} onClick={() => setFields((current) => current.filter((item) => item.id !== field.id))}>
               <Trash2 size={16} />
@@ -1371,6 +1450,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
                   {field.placeholder && <small>Gợi ý: {field.placeholder}</small>}
                   {field.defaultLabel && <small>Mặc định: {field.defaultLabel}</small>}
                   <small>{field.validationLabel}</small>
+                  <small>Vai trò xem: {field.roleLabel}</small>
                 </article>
               ))}
             </div>
@@ -1531,22 +1611,25 @@ function WorkflowDynamicField({
 
 export function NewWorkflowInstance({ setPage, setInstanceId }: WorkflowPageProps) {
   const templates = useAsyncData(() => api.workflowTemplates(), []);
+  const me = useAsyncData(() => api.me(), []);
   const [templateId, setTemplateId] = useState("");
   const templateDetail = useAsyncData<WorkflowTemplateDetail | null>(
     () => (templateId ? (api.workflowTemplate(templateId) as Promise<WorkflowTemplateDetail>) : Promise.resolve(null)),
     [templateId]
   );
   const selectedVersion = activeWorkflowVersion(templateDetail.data);
-  const fields = selectedVersion?.fields ?? [];
+  const fields = selectedVersion?.fields ?? emptyWorkflowFields;
+  const currentRoles = me.data?.roles ?? emptyWorkflowRoles;
+  const visibleFields = useMemo(() => filterWorkflowFieldsByRoles(fields, currentRoles), [fields, currentRoles]);
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setValues(fields.length > 0 ? buildInitialWorkflowValues(fields) : {});
+    setValues(visibleFields.length > 0 ? buildInitialWorkflowValues(visibleFields) : {});
     setFieldErrors({});
-  }, [selectedVersion?.id]);
+  }, [selectedVersion?.id, visibleFields]);
 
   function updateValue(code: string, value: unknown) {
     setValues((current) => ({ ...current, [code]: value }));
@@ -1564,7 +1647,7 @@ export function NewWorkflowInstance({ setPage, setInstanceId }: WorkflowPageProp
       setError("Vui lòng chọn mẫu quy trình.");
       return;
     }
-    const nextFieldErrors = validateWorkflowValues(fields, values);
+    const nextFieldErrors = validateWorkflowValues(visibleFields, values);
     setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length > 0) {
       setError("Vui lòng kiểm tra lại các trường bắt buộc hoặc sai định dạng.");
@@ -1575,7 +1658,7 @@ export function NewWorkflowInstance({ setPage, setInstanceId }: WorkflowPageProp
     try {
       const instance = await api.submitWorkflowInstance({
         templateId,
-        formData: serializeWorkflowValues(fields, values),
+        formData: serializeWorkflowValues(visibleFields, values),
         idempotencyKey: crypto.randomUUID()
       });
       setInstanceId(instance.id);
@@ -1610,7 +1693,7 @@ export function NewWorkflowInstance({ setPage, setInstanceId }: WorkflowPageProp
           <legend>
             Biểu mẫu phiên bản {selectedVersion.versionNo}
           </legend>
-          {fields.map((field) => (
+          {visibleFields.map((field) => (
             <WorkflowDynamicField key={field.id ?? field.code} field={field} value={values[field.code]} error={fieldErrors[field.code]} onChange={(value) => updateValue(field.code, value)} />
           ))}
         </fieldset>
@@ -1635,6 +1718,7 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
     [instanceId]
   );
   const users = useAsyncData(() => api.users(), []);
+  const me = useAsyncData(() => api.me(), []);
   const [busy, setBusy] = useState(false);
   const [pendingAction, setPendingAction] = useState<WorkflowActionType | null>(null);
   const [actionComment, setActionComment] = useState("");
@@ -1722,7 +1806,10 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
   if (error) return <ErrorBlock message={error} />;
   if (!data) return <ErrorBlock message="Không tìm thấy hồ sơ." />;
 
-  const detailFields = ((data.workflowVersion?.fields ?? []) as WorkflowFormField[]).filter((field) => field.type !== "HEADING");
+  const detailFields = filterWorkflowFieldsByRoles(
+    (data.workflowVersion?.fields ?? emptyWorkflowFields) as WorkflowFormField[],
+    me.data?.roles ?? emptyWorkflowRoles
+  ).filter((field) => field.type !== "HEADING");
   const formData = (data.formData ?? {}) as Record<string, unknown>;
   const workflowTracker = buildWorkflowTracker(data);
   const completedTrackerSteps = workflowTracker.filter((node) => node.state === "done").length;

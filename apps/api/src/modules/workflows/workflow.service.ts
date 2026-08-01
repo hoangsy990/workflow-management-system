@@ -158,6 +158,23 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+function stringList(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "") : [];
+}
+
+function workflowFieldVisibleToAuth(field: { visibleToRoles?: Prisma.JsonValue | null }, auth: AuthContext) {
+  if (hasPermission(auth, "workflow.template.manage")) {
+    return true;
+  }
+
+  const allowedRoleCodes = stringList(field.visibleToRoles);
+  if (allowedRoleCodes.length === 0) {
+    return true;
+  }
+
+  return allowedRoleCodes.some((roleCode) => auth.roles.includes(roleCode));
+}
+
 function collectEffectiveApprovedIds(
   approvals: Array<{ id: string; approverId: string; status: ApprovalStatus; changedData: Prisma.JsonValue | null }>,
   actualApprovedIds: string[]
@@ -350,7 +367,7 @@ export async function listWorkflowTemplates(db: PrismaClient) {
   });
 }
 
-export async function getWorkflowTemplate(db: PrismaClient, id: string) {
+export async function getWorkflowTemplate(db: PrismaClient, auth: AuthContext, id: string) {
   const template = await db.workflowTemplate.findUnique({
     where: { id },
     include: {
@@ -371,7 +388,13 @@ export async function getWorkflowTemplate(db: PrismaClient, id: string) {
     throw notFound("Không tìm thấy mẫu quy trình.");
   }
 
-  return template;
+  return {
+    ...template,
+    versions: template.versions.map((version) => ({
+      ...version,
+      fields: version.fields.filter((field) => workflowFieldVisibleToAuth(field, auth))
+    }))
+  };
 }
 
 export async function createWorkflowTemplate(
@@ -610,8 +633,11 @@ export async function submitWorkflowInstance(
     throw badRequest("Mẫu quy trình chưa có phiên bản đang hoạt động.");
   }
 
-  const formData = applyWorkflowDefaultValues(version.fields, input.formData);
-  const formErrors = validateWorkflowFormData(version.fields, formData);
+  const visibleFields = version.fields.filter((field) => workflowFieldVisibleToAuth(field, auth));
+  const visibleFieldCodes = new Set(visibleFields.map((field) => field.code));
+  const inputFormData = Object.fromEntries(Object.entries(input.formData).filter(([code]) => visibleFieldCodes.has(code)));
+  const formData = applyWorkflowDefaultValues(visibleFields, inputFormData);
+  const formErrors = validateWorkflowFormData(visibleFields, formData);
   if (formErrors.length > 0) {
     throw badRequest(formErrors[0]!);
   }
@@ -634,7 +660,7 @@ export async function submitWorkflowInstance(
         submittedAt: new Date(),
         values: {
           createMany: {
-            data: version.fields.map((field) => ({
+            data: visibleFields.map((field) => ({
               fieldId: field.id,
               fieldCode: field.code,
               value: (formData[field.code] ?? null) as Prisma.InputJsonValue
@@ -761,7 +787,25 @@ export async function getWorkflowInstance(db: PrismaClient, auth: AuthContext, i
     throw forbidden("Bạn không có quyền xem hồ sơ này.");
   }
 
-  return instance;
+  const visibleFields = instance.workflowVersion.fields.filter((field) => workflowFieldVisibleToAuth(field, auth));
+  const visibleFieldIds = new Set(visibleFields.map((field) => field.id));
+  const visibleFieldCodes = new Set(visibleFields.map((field) => field.code));
+  const formData = Object.fromEntries(Object.entries(asRecord(instance.formData)).filter(([code]) => visibleFieldCodes.has(code)));
+
+  return {
+    ...instance,
+    formData: formData as Prisma.JsonValue,
+    workflowVersion: {
+      ...instance.workflowVersion,
+      fields: visibleFields
+    },
+    values: instance.values.filter((value) => {
+      if (value.fieldId && visibleFieldIds.has(value.fieldId)) {
+        return true;
+      }
+      return visibleFieldCodes.has(value.fieldCode);
+    })
+  };
 }
 
 async function completeStepAndMoveNext(
