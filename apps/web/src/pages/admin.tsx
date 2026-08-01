@@ -1443,6 +1443,13 @@ function settingValue(data: Record<string, any>[] | null, key: string, fallback:
   return fallback;
 }
 
+function settingBooleanValue(data: Record<string, any>[] | null, key: string, fallback: boolean) {
+  const raw = data?.find((setting) => setting.key === key)?.value;
+  if (typeof raw === "boolean") return raw;
+  if (typeof raw === "string") return raw.trim().toLowerCase() === "true";
+  return fallback;
+}
+
 function parseSettingValue(value: string) {
   const trimmed = value.trim();
   if (trimmed === "true") return true;
@@ -1473,6 +1480,7 @@ const defaultFileUploadMimeTypes = [
 export function SettingsPage() {
   const { data, loading, error, reload } = useAsyncData(() => api.settings(), []);
   const [form, setForm] = useState({ key: "task.redo.reset_progress", value: "false", description: "" });
+  const [taskConfigForm, setTaskConfigForm] = useState({ redoResetProgress: false });
   const [autoCodeForm, setAutoCodeForm] = useState({
     taskPrefix: "TASK",
     taskPadding: "4",
@@ -1494,6 +1502,9 @@ export function SettingsPage() {
       taskPadding: settingValue(data, "auto_code.task.padding", "4"),
       workflowPrefix: settingValue(data, "auto_code.workflow_instance.prefix", "WF"),
       workflowPadding: settingValue(data, "auto_code.workflow_instance.padding", "4")
+    });
+    setTaskConfigForm({
+      redoResetProgress: settingBooleanValue(data, "task.redo.reset_progress", false)
     });
     const rawMimeTypes = data.find((setting) => setting.key === "file.upload.allowed_mime_types")?.value;
     setFileConfigForm({
@@ -1517,6 +1528,26 @@ export function SettingsPage() {
       await reload();
     } catch (err) {
       setSettingError(err instanceof Error ? err.message : "Không lưu được cấu hình.");
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function saveTaskConfig(event: FormEvent) {
+    event.preventDefault();
+    setSaving("task-config");
+    setSettingMessage("");
+    setSettingError("");
+    try {
+      await api.saveSetting({
+        key: "task.redo.reset_progress",
+        value: taskConfigForm.redoResetProgress,
+        description: "Có đặt lại tiến độ khi yêu cầu thực hiện lại hay không."
+      });
+      setSettingMessage("Đã lưu cấu hình công việc.");
+      await reload();
+    } catch (err) {
+      setSettingError(err instanceof Error ? err.message : "Không lưu được cấu hình công việc.");
     } finally {
       setSaving("");
     }
@@ -1628,6 +1659,25 @@ export function SettingsPage() {
         <button className="primary-button" data-testid="settings-generic-save" type="submit" disabled={saving === "generic"}>
           {saving === "generic" && <Loader2 className="spin" size={16} />}
           Lưu cấu hình
+        </button>
+      </form>
+
+      <form className="panel form-stack" onSubmit={saveTaskConfig}>
+        <div className="panel-head">
+          <h2>Cấu hình công việc</h2>
+        </div>
+        <label className="toggle-line">
+          <input
+            data-testid="settings-task-redo-reset"
+            type="checkbox"
+            checked={taskConfigForm.redoResetProgress}
+            onChange={(event) => setTaskConfigForm({ redoResetProgress: event.target.checked })}
+          />
+          Đặt tiến độ về 0 khi yêu cầu làm lại
+        </label>
+        <button className="primary-button" data-testid="settings-task-config-save" type="submit" disabled={saving === "task-config"}>
+          {saving === "task-config" && <Loader2 className="spin" size={16} />}
+          Lưu cấu hình công việc
         </button>
       </form>
 

@@ -1536,13 +1536,13 @@ test("yêu cầu làm lại reset tiến độ theo cấu hình", async ({ page,
   const manager = await apiLogin(request, "manager");
   const employee = await apiLogin(request, "employee");
 
-  await apiPut<Record<string, any>>(request, admin, "/system-settings", {
-    key: "task.redo.reset_progress",
-    value: true,
-    description: "Reset progress on redo during smoke test"
-  });
-
   try {
+    await openAppWithSession(page, admin);
+    await page.getByTestId("nav-settings").click();
+    await page.getByTestId("settings-task-redo-reset").check();
+    await page.getByTestId("settings-task-config-save").click();
+    await expect(page.getByTestId("settings-message")).toContainText("công việc");
+
     const task = await createSmokeTask(request, manager, "redo-reset");
     await apiPost<Record<string, any>>(request, employee, `/tasks/${task.id}/progress`, {
       progress: 100,

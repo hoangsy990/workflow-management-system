@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=118`, `PARTIAL=115`, `TODO=27`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `45.4%`, tính trọng số partial `67.5%`.
+**Tiến độ hiện tại:** `DONE=119`, `PARTIAL=114`, `TODO=27`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `45.8%`, tính trọng số partial `67.7%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `TASK-SETTINGS-PANEL` | Bổ sung panel `Cấu hình công việc` trong trang Cấu hình cho setting `task.redo.reset_progress`, dùng checkbox/tải/lưu riêng thay vì key-value thô; smoke redo-reset bật setting qua UI panel mới rồi restore bằng API. Chuyển checklist `Cấu hình công việc` sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm build`, `pnpm test`, `docker compose up -d --build web`, `pnpm smoke:web` 39/39, `docker builder prune -af`; Docker images `1.124GB`, volumes `81.25MB`, build cache `0B`. |
 | 01/08/2026 | `TASK-ADVANCED-FILTER-CHECKLIST` | Rà soát lại trạng thái checklist cho `Bộ lọc nâng cao`: backend `/tasks` và UI đã có keyword, code, status, creator, assignee, manager, department, priority, date range, overdue, category, tag, sort, reset và mobile filter sheet; smoke đã phủ filter server-side. Chuyển checklist stale `Bộ lọc nâng cao` sang DONE. | Đối chiếu `task.routes.ts`, `tasks.tsx`, smoke `lọc công việc phía server trên UI`; `pnpm smoke:web` 39/39 đã pass ở chunk trước cùng trạng thái code. |
 | 01/08/2026 | `SEED-USER-STRESS` | Bổ sung seed idempotent 3 phòng ban nhiều cấp (`STRESS-L1/L2/L3`) và 105 user stress role employee, trong đó có user tên/chức danh rất dài, đặt `createdAt` năm 2020 để không chen lên đầu danh sách mặc định. Chuyển checklist `User tên dài, phòng ban nhiều cấp, >100 records` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm build`, `docker compose up -d --build api`, `pnpm docker:seed`, query PostgreSQL xác nhận `stress_users=105`, `longest_name=108`, `stress_departments=3`, `leaf_parent_ok=1`, `pnpm lint`, `pnpm test`, `pnpm smoke:web` 39/39, `docker builder prune -af`; Docker images `1.124GB`, volumes `81.09MB`, build cache `0B`. |
 | 01/08/2026 | `SEED-TASK-STRESS` | Bổ sung seed idempotent cho task stress có tên dài, 4 assignee, 3 tag, trạng thái quá hạn, progress 20 và 8 comment/reply/mention để QA list/card/detail mobile và layout nội dung dài. Chuyển checklist `Task tên dài, nhiều assignee, nhiều tags, quá hạn, nhiều comment` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm build`, `docker compose up -d --build api`, `pnpm docker:seed`, query PostgreSQL xác nhận `assignees=4`, `tags=3`, `comments=8`, `overdue=t`, `pnpm lint`, `pnpm test`, `docker builder prune -af`; Docker images `1.124GB`, volumes `80.77MB`, build cache `0B`. |
@@ -407,7 +408,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | --- | --- | --- |
 | Cấu hình chung | `PARTIAL` | Key/value settings có. |
 | Mã tự động | `DONE` | Task và workflow instance code đọc prefix/padding từ `system_settings`, có seed default, UI panel Cấu hình và smoke test tạo dữ liệu thật theo cấu hình. |
-| Cấu hình công việc | `PARTIAL` | Setting redo reset đã được enforce trong service; UI cấu hình vẫn dạng key/value, chưa có nhóm cấu hình công việc chuyên biệt. |
+| Cấu hình công việc | `DONE` | Setting redo reset được enforce trong service và có panel riêng `Cấu hình công việc` trong Settings để bật/tắt bằng checkbox, smoke redo-reset dùng UI panel này. |
 | Cấu hình quy trình | `TODO` | Chưa có UI nhóm. |
 | Ngày làm việc/ngày nghỉ/SLA | `TODO` | Chưa có. |
 | Cấu hình tệp | `DONE` | Upload task/workflow đọc size/MIME từ `system_settings`, có default seed, API `/upload-config`, UI task dùng cấu hình thật để validate/accept và trang Cấu hình có panel `Tệp upload` kèm smoke test. |
