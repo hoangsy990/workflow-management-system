@@ -599,11 +599,23 @@ test("dashboard hiển thị thống kê công việc theo phòng ban", async ({
 
   expect(department, "Seed department is required").toBeTruthy();
 
-  await createSmokeTask(request, manager, "dashboard-department", { departmentId: department!.id });
+  await createSmokeTask(request, manager, "dashboard-department", {
+    departmentId: department!.id,
+    startDate: `${dateInput(0)}T02:00:00.000Z`,
+    dueDate: `${dateInput(2)}T09:00:00.000Z`
+  });
   await openAppWithSession(page, manager);
   await page.getByTestId("nav-dashboard").click();
 
   await expect(page.getByTestId("dashboard-department-stats")).toContainText(department!.name);
+  await expect(page.getByTestId("dashboard-status-chart").locator(".bar-meter").first()).toBeVisible();
+
+  await page.getByTestId("dashboard-filter-department").selectOption(department!.id);
+  await page.getByTestId("dashboard-filter-from").fill(dateInput(-1));
+  await page.getByTestId("dashboard-filter-to").fill(dateInput(5));
+
+  await expect(page.getByTestId("dashboard-department-stats")).toContainText(department!.name);
+  await expect(page.getByTestId("dashboard-status-chart").locator(".bar-meter").first()).toBeVisible();
 });
 
 test("scheduler gửi thông báo task và bước phê duyệt sắp hạn/quá hạn", async ({ request }) => {

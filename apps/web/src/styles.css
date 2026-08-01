@@ -675,6 +675,11 @@ legend {
   align-items: end;
 }
 
+.dashboard-filters {
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  margin-top: 4px;
+}
+
 .filter-grid .toggle-line {
   min-height: 42px;
   align-self: end;
@@ -1702,6 +1707,33 @@ progress {
 .bar-list > div {
   display: flex;
   justify-content: space-between;
+}
+
+.chart-list .bar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.chart-list .bar-row > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bar-meter {
+  grid-column: 1 / -1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--panel-soft);
+}
+
+.bar-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
 }
 
 .comment-list p,

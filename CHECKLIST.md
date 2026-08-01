@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=119`, `PARTIAL=114`, `TODO=27`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `45.8%`, tính trọng số partial `67.7%`.
+**Tiến độ hiện tại:** `DONE=120`, `PARTIAL=114`, `TODO=26`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `46.2%`, tính trọng số partial `68.1%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `DASHBOARD-CHART-FILTERS` | Bổ sung bộ lọc dashboard theo phòng ban/khoảng ngày chạy phía server trên API `/dashboard`, áp cùng scope quyền backend cho card/count/groupBy/task cần chú ý; UI có panel lọc, reset, biểu đồ thanh tỷ lệ cho thống kê trạng thái/phòng ban và smoke test lọc dashboard bằng dữ liệu thật. Chuyển checklist `Biểu đồ và bộ lọc` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build api web`, targeted dashboard smoke 1/1, `pnpm smoke:web` 39/39, `docker builder prune -af`; Docker images `1.124GB`, volumes `81.47MB`, build cache `0B`. |
 | 01/08/2026 | `TASK-SETTINGS-PANEL` | Bổ sung panel `Cấu hình công việc` trong trang Cấu hình cho setting `task.redo.reset_progress`, dùng checkbox/tải/lưu riêng thay vì key-value thô; smoke redo-reset bật setting qua UI panel mới rồi restore bằng API. Chuyển checklist `Cấu hình công việc` sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm build`, `pnpm test`, `docker compose up -d --build web`, `pnpm smoke:web` 39/39, `docker builder prune -af`; Docker images `1.124GB`, volumes `81.25MB`, build cache `0B`. |
 | 01/08/2026 | `TASK-ADVANCED-FILTER-CHECKLIST` | Rà soát lại trạng thái checklist cho `Bộ lọc nâng cao`: backend `/tasks` và UI đã có keyword, code, status, creator, assignee, manager, department, priority, date range, overdue, category, tag, sort, reset và mobile filter sheet; smoke đã phủ filter server-side. Chuyển checklist stale `Bộ lọc nâng cao` sang DONE. | Đối chiếu `task.routes.ts`, `tasks.tsx`, smoke `lọc công việc phía server trên UI`; `pnpm smoke:web` 39/39 đã pass ở chunk trước cùng trạng thái code. |
 | 01/08/2026 | `SEED-USER-STRESS` | Bổ sung seed idempotent 3 phòng ban nhiều cấp (`STRESS-L1/L2/L3`) và 105 user stress role employee, trong đó có user tên/chức danh rất dài, đặt `createdAt` năm 2020 để không chen lên đầu danh sách mặc định. Chuyển checklist `User tên dài, phòng ban nhiều cấp, >100 records` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm build`, `docker compose up -d --build api`, `pnpm docker:seed`, query PostgreSQL xác nhận `stress_users=105`, `longest_name=108`, `stress_departments=3`, `leaf_parent_ok=1`, `pnpm lint`, `pnpm test`, `pnpm smoke:web` 39/39, `docker builder prune -af`; Docker images `1.124GB`, volumes `81.09MB`, build cache `0B`. |
@@ -353,7 +354,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Dashboard cá nhân | `PARTIAL` | Có dashboard chung theo quyền; chưa phân layout riêng sâu. |
 | Dashboard quản lý | `PARTIAL` | Scope dữ liệu có một phần; chưa layout quản lý riêng. |
 | Dashboard quản trị | `PARTIAL` | Admin thấy toàn hệ thống; chưa widget quản trị riêng. |
-| Biểu đồ và bộ lọc | `TODO` | Chưa có biểu đồ/bộ lọc dashboard nâng cao. |
+| Biểu đồ và bộ lọc | `DONE` | Dashboard có filter server-side theo phòng ban/khoảng ngày và biểu đồ thanh tỷ lệ cho thống kê trạng thái/phòng ban từ DB thật. |
 
 ## 19. UI quản lý công việc nâng cao
 
