@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=116`, `PARTIAL=115`, `TODO=29`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `44.6%`, tính trọng số partial `66.7%`.
+**Tiến độ hiện tại:** `DONE=117`, `PARTIAL=115`, `TODO=28`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `45.0%`, tính trọng số partial `67.1%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `SEED-USER-STRESS` | Bổ sung seed idempotent 3 phòng ban nhiều cấp (`STRESS-L1/L2/L3`) và 105 user stress role employee, trong đó có user tên/chức danh rất dài, đặt `createdAt` năm 2020 để không chen lên đầu danh sách mặc định. Chuyển checklist `User tên dài, phòng ban nhiều cấp, >100 records` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm build`, `docker compose up -d --build api`, `pnpm docker:seed`, query PostgreSQL xác nhận `stress_users=105`, `longest_name=108`, `stress_departments=3`, `leaf_parent_ok=1`, `pnpm lint`, `pnpm test`, `pnpm smoke:web` 39/39, `docker builder prune -af`; Docker images `1.124GB`, volumes `81.09MB`, build cache `0B`. |
 | 01/08/2026 | `SEED-TASK-STRESS` | Bổ sung seed idempotent cho task stress có tên dài, 4 assignee, 3 tag, trạng thái quá hạn, progress 20 và 8 comment/reply/mention để QA list/card/detail mobile và layout nội dung dài. Chuyển checklist `Task tên dài, nhiều assignee, nhiều tags, quá hạn, nhiều comment` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm build`, `docker compose up -d --build api`, `pnpm docker:seed`, query PostgreSQL xác nhận `assignees=4`, `tags=3`, `comments=8`, `overdue=t`, `pnpm lint`, `pnpm test`, `docker builder prune -af`; Docker images `1.124GB`, volumes `80.77MB`, build cache `0B`. |
 | 01/08/2026 | `SEED-TASK-SUBTASKS` | Bổ sung seed idempotent cho dữ liệu demo task cha/con: một task cha bật tự tính tiến độ và hai task con có progress 50/100 để parent tự ra 75%. Chuyển checklist `Task con` trong seed stress sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm build`, `docker compose up -d --build api`, `pnpm docker:seed`, query PostgreSQL xác nhận parent progress `75` và `child_count=2`, `pnpm lint`, `pnpm test`, `docker builder prune -af`; Docker images `1.124GB`, volumes `80.74MB`, build cache `0B`. |
 | 01/08/2026 | `UPLOAD-FILE-SETTINGS` | Chuyển cấu hình upload task/workflow sang đọc `system_settings` (`file.upload.max_mb`, `file.upload.allowed_mime_types`), thêm API `/upload-config`, seed default, cache invalidation khi lưu setting, panel `Tệp upload` trong trang Cấu hình và task upload UI dùng `accept`/validate từ API. Chuyển checklist `Cấu hình tệp` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, smoke web 39/39 gồm test cấu hình upload mới, `pnpm lint`, `pnpm test`, `pnpm build`, `docker builder prune -af`; Docker images `1.124GB`, volumes `80.69MB`, build cache `0B`. |
@@ -502,7 +503,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Task tên dài, nhiều assignee, nhiều tags, quá hạn, nhiều comment | `DONE` | Seed idempotent tạo task stress có tiêu đề dài, 4 người thực hiện, 3 nhãn, hạn đã qua, progress 20 và 8 comment/reply/mention để QA layout. |
 | Task con | `DONE` | Seed idempotent tạo task cha `Demo task cha: Chuẩn bị họp giao ban` và hai task con 50/100%, parent bật auto progress nên tự ra 75%. |
 | Workflow form dài/bảng nhiều dòng/nhiều nhánh/parallel | `PARTIAL` | Branch có ở backend và builder điều kiện cơ bản; form dài/parallel seed chưa. |
-| User tên dài, phòng ban nhiều cấp, >100 records | `TODO` | Chưa có. |
+| User tên dài, phòng ban nhiều cấp, >100 records | `DONE` | Seed idempotent có 3 phòng ban nhiều cấp `STRESS-L1/L2/L3` và 105 user stress cũ ngày, gồm một user tên/chức danh rất dài để QA bảng/thẻ mobile/menu chọn nhân sự. |
 
 ## 33. Quy trình phát triển UI
 

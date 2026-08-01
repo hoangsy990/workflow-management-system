@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Department } from "@prisma/client";
 import { hashPassword } from "../src/security/hash.js";
 import { addTaskComment, createTask, updateTaskProgress, evaluateTask } from "../src/modules/tasks/task.service.js";
 import { actOnWorkflowInstance, createWorkflowTemplate, submitWorkflowInstance } from "../src/modules/workflows/workflow.service.js";
@@ -244,6 +244,57 @@ async function main() {
       { userId: manager.id, roleId: roles.get("manager")!.id },
       ...employees.map((employee) => ({ userId: employee.id, roleId: roles.get("employee")!.id }))
     ],
+    skipDuplicates: true
+  });
+
+  const stressDepartments: Department[] = [];
+  const stressRootDepartment = await prisma.department.upsert({
+    where: { code: "STRESS-L1" },
+    update: { name: "Khối kiểm thử dữ liệu dài", branchId: branch.id, parentId: null },
+    create: { code: "STRESS-L1", name: "Khối kiểm thử dữ liệu dài", branchId: branch.id }
+  });
+  stressDepartments.push(stressRootDepartment);
+  const stressChildDepartment = await prisma.department.upsert({
+    where: { code: "STRESS-L2" },
+    update: { name: "Phòng kiểm thử nhiều cấp", branchId: branch.id, parentId: stressRootDepartment.id },
+    create: { code: "STRESS-L2", name: "Phòng kiểm thử nhiều cấp", branchId: branch.id, parentId: stressRootDepartment.id }
+  });
+  stressDepartments.push(stressChildDepartment);
+  const stressLeafDepartment = await prisma.department.upsert({
+    where: { code: "STRESS-L3" },
+    update: { name: "Nhóm dữ liệu lớn và tên rất dài", branchId: branch.id, parentId: stressChildDepartment.id },
+    create: { code: "STRESS-L3", name: "Nhóm dữ liệu lớn và tên rất dài", branchId: branch.id, parentId: stressChildDepartment.id }
+  });
+  stressDepartments.push(stressLeafDepartment);
+
+  const stressPasswordHash = await hashPassword(password.employee);
+  const stressUsers = await Promise.all(
+    Array.from({ length: 105 }, (_, index) => {
+      const ordinal = String(index + 1).padStart(3, "0");
+      const createdAt = new Date(Date.UTC(2020, 0, index + 1));
+      const departmentId = stressDepartments[index % stressDepartments.length]!.id;
+      return prisma.user.upsert({
+        where: { email: `stress${ordinal}@workflow.local` },
+        update: { departmentId, managerId: manager.id },
+        create: {
+          employeeCode: `STR${ordinal}`,
+          fullName:
+            index === 0
+              ? "Người dùng kiểm thử có họ tên rất dài dùng để kiểm tra xuống dòng trên bảng, thẻ mobile và menu chọn nhân sự"
+              : `Nhân viên stress ${ordinal}`,
+          email: `stress${ordinal}@workflow.local`,
+          phone: `091${ordinal.padStart(7, "0")}`,
+          title: index === 0 ? "Chức danh kiểm thử cực dài cho layout quản trị người dùng" : "Nhân viên kiểm thử",
+          departmentId,
+          managerId: manager.id,
+          passwordHash: stressPasswordHash,
+          createdAt
+        }
+      });
+    })
+  );
+  await prisma.userRole.createMany({
+    data: stressUsers.map((user) => ({ userId: user.id, roleId: roles.get("employee")!.id })),
     skipDuplicates: true
   });
 
