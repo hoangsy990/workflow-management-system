@@ -123,6 +123,14 @@ const transitionSchema = z.object({
     .default([])
 });
 
+const allowedStartersSchema = z
+  .object({
+    roleCodes: z.array(z.string().trim().min(1)).max(100).optional(),
+    userIds: z.array(z.string().uuid()).max(500).optional(),
+    departmentIds: z.array(z.string().uuid()).max(200).optional()
+  })
+  .strict();
+
 const createTemplateSchema = z.object({
   code: z.string().min(2),
   name: z.string().min(2),
@@ -130,6 +138,7 @@ const createTemplateSchema = z.object({
   category: z.string().optional(),
   managerId: z.string().uuid().optional(),
   activate: z.boolean().default(true),
+  allowedStarters: allowedStartersSchema.optional(),
   fields: z.array(fieldSchema),
   steps: z.array(stepSchema).min(2),
   transitions: z.array(transitionSchema)
@@ -171,7 +180,7 @@ const statusSchema = z.object({
 });
 
 export async function workflowRoutes(app: FastifyInstance) {
-  app.get("/workflow-templates", { preHandler: requireAuth }, async () => listWorkflowTemplates(prisma));
+  app.get("/workflow-templates", { preHandler: requireAuth }, async (request) => listWorkflowTemplates(prisma, request.auth!));
 
   app.post("/workflow-templates", { preHandler: requireAuth }, async (request) => {
     const body = parseBody(request, createTemplateSchema);

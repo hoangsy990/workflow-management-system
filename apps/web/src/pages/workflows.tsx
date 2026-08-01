@@ -189,6 +189,13 @@ type WorkflowVersionDetail = {
   versionNo: number;
   status: string;
   fields?: WorkflowFormField[];
+  allowedStarters?: WorkflowAllowedStarters | null;
+};
+
+type WorkflowAllowedStarters = {
+  roleCodes?: string[];
+  userIds?: string[];
+  departmentIds?: string[];
 };
 
 type WorkflowTemplateDetail = {
@@ -924,7 +931,8 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
     code: "",
     name: "",
     category: "",
-    description: ""
+    description: "",
+    starterRoleCodes: [] as string[]
   });
   const [fields, setFields] = useState<WorkflowFieldDraft[]>([newWorkflowField(1), newWorkflowField(2)]);
   const [approvalSteps, setApprovalSteps] = useState<WorkflowApprovalStepDraft[]>([newApprovalStep(1)]);
@@ -968,6 +976,18 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
         return { ...field, visibleRoleCodes: [...visibleRoleCodes] };
       })
     );
+  }
+
+  function toggleStarterRole(roleCode: string, checked: boolean) {
+    setForm((current) => {
+      const starterRoleCodes = new Set(current.starterRoleCodes);
+      if (checked) {
+        starterRoleCodes.add(roleCode);
+      } else {
+        starterRoleCodes.delete(roleCode);
+      }
+      return { ...current, starterRoleCodes: [...starterRoleCodes] };
+    });
   }
 
   function updateStep(id: string, patch: Partial<WorkflowApprovalStepDraft>) {
@@ -1029,6 +1049,10 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
       placeholder: field.placeholder.trim()
     };
   });
+  const starterRoleLabel =
+    form.starterRoleCodes.length > 0
+      ? form.starterRoleCodes.map((roleCode) => roleNameByCode.get(roleCode) ?? roleCode).join(", ")
+      : "Tất cả người có quyền tạo hồ sơ";
 
   const previewSteps = approvalSteps.map((step, index) => {
     const nextStep = approvalSteps[index + 1];
@@ -1089,6 +1113,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
         category: form.category.trim() || undefined,
         description: form.description.trim() || undefined,
         activate: defaults.autoActivateTemplate,
+        allowedStarters: form.starterRoleCodes.length > 0 ? { roleCodes: form.starterRoleCodes } : undefined,
         fields: fields.map((field, index) => {
           const defaultResult = parseWorkflowFieldDefault(field);
           const validationResult = buildWorkflowFieldValidation(field);
@@ -1155,6 +1180,25 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
           {"Mô tả"}
           <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
         </label>
+        <div className="workflow-template-starters">
+          <span>{"Vai trò được khởi tạo hồ sơ"}</span>
+          <div className="workflow-field-role-options">
+            {roles.loading && <small>{"Đang tải vai trò..."}</small>}
+            {!roles.loading &&
+              (roles.data ?? []).map((role) => (
+                <label className="toggle-line compact-toggle" key={role.code}>
+                  <input
+                    data-testid={`workflow-template-starter-role-${role.code}`}
+                    type="checkbox"
+                    checked={form.starterRoleCodes.includes(role.code)}
+                    onChange={(event) => toggleStarterRole(role.code, event.target.checked)}
+                  />
+                  {role.name}
+                </label>
+              ))}
+          </div>
+          <small>{"Để trống nghĩa là mọi người có quyền tạo hồ sơ đều được dùng mẫu này."}</small>
+        </div>
       </fieldset>
       <fieldset className="builder-list">
         <legend>{"Biểu mẫu"}</legend>
@@ -1401,6 +1445,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
           <div>
             <strong>{form.name.trim() || "Mẫu quy trình mới"}</strong>
             <span>{form.code.trim() || "WORKFLOW_CODE"}</span>
+            <small>Khởi tạo: {starterRoleLabel}</small>
           </div>
           <div className="builder-preview-tools">
             <span className="status-chip">

@@ -108,6 +108,11 @@ interface WorkflowTemplateRecord {
     id: string;
     versionNo: number;
     status?: string;
+    allowedStarters?: {
+      roleCodes?: string[];
+      userIds?: string[];
+      departmentIds?: string[];
+    } | null;
     fields?: Array<{
       code: string;
       defaultValue?: unknown;
@@ -1302,6 +1307,7 @@ test("admin cấu hình thông báo, email, bảo mật và backup trên UI", as
 
 test("admin creates workflow template with dynamic builder", async ({ page, request }) => {
   const admin = await apiLogin(request, "admin");
+  const manager = await apiLogin(request, "manager");
   const employee = await apiLogin(request, "employee");
   const code = `SMOKE_${runId.replace(/[^A-Za-z0-9]/g, "_").toUpperCase()}`;
   const name = `Smoke workflow ${runId}`;
@@ -1312,6 +1318,8 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   await page.getByTestId("workflow-template-create").click();
   await page.getByTestId("workflow-template-code").fill(code);
   await page.getByTestId("workflow-template-name").fill(name);
+  await expect(page.getByTestId("workflow-template-starter-role-employee")).toBeVisible();
+  await page.getByTestId("workflow-template-starter-role-employee").check();
   await page.getByTestId("workflow-field-default-0").fill(defaultPurpose);
   await page.getByTestId("workflow-field-min-length-0").fill("5");
   await page.getByTestId("workflow-field-max-length-0").fill("90");
@@ -1354,6 +1362,7 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   const purposeField = created.versions?.[0]?.fields?.find((field) => field.code === "purpose");
   const amountField = created.versions?.[0]?.fields?.find((field) => field.code === "amount");
   const noteField = created.versions?.[0]?.fields?.find((field) => field.code === "smoke_note");
+  expect(created.versions?.[0]?.allowedStarters).toMatchObject({ roleCodes: ["employee"] });
   expect(condition).toMatchObject({ fieldCode: "amount", operator: "gt", compareValue: 50000000 });
   expect(minCountStep).toMatchObject({ approvalMode: "PARALLEL", completionRule: "MIN_COUNT", minCount: 1 });
   expect(purposeField).toMatchObject({ defaultValue: defaultPurpose, validation: { minLength: 5, maxLength: 90 } });
@@ -1368,6 +1377,15 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
     }
   });
   expect(invalidOption.status()).toBe(400);
+  const managerBlocked = await request.post(`${apiUrl}/workflow-instances`, {
+    headers: authHeaders(manager),
+    data: {
+      templateId: created.id,
+      formData: { amount: 2_500_000 },
+      idempotencyKey: uniqueSlug("manager-blocked-starter")
+    }
+  });
+  expect(managerBlocked.status()).toBe(403);
   const validInstance = await apiPost<WorkflowInstanceRecord>(request, employee, "/workflow-instances", {
     templateId: created.id,
     formData: { amount: 2_500_000, smoke_note: "Ngoai danh sach" },
@@ -1652,7 +1670,7 @@ test("lọc công việc phía server trên UI", async ({ page, request }) => {
 test("phân trang danh sách công việc trên UI", async ({ page, request }) => {
   const manager = await apiLogin(request, "manager");
   const label = `pagination-${runId}`;
-  const firstTask = await createSmokeTask(request, manager, label, {
+  await createSmokeTask(request, manager, label, {
     startDate: `${dateInput(-29)}T00:00:00.000Z`,
     dueDate: `${dateInput(-27)}T00:00:00.000Z`,
     requiresReview: false
@@ -1668,13 +1686,20 @@ test("phân trang danh sách công việc trên UI", async ({ page, request }) =
   await openAppWithSession(page, manager);
   await page.getByTestId("nav-tasks").click();
   await page.getByTestId("task-search-input").fill(`Smoke ${label}`);
-  await expect(page.getByTestId("task-pagination-summary")).toContainText("Trang 1/2");
+  await expect(page.getByTestId("task-pagination-summary")).toContainText("11 công việc");
+  const summaryText = (await page.getByTestId("task-pagination-summary").textContent()) ?? "";
+  const totalTasks = Number(summaryText.match(/- (\d+) công việc/)?.[1] ?? 0);
+  const totalPages = Math.max(1, Math.ceil(totalTasks / 10));
+  expect(totalTasks).toBeGreaterThan(10);
+  await expect(page.getByTestId("task-pagination-summary")).toContainText(`Trang 1/${totalPages}`);
+  await expect(page.locator('tr[data-testid^="task-row-"]')).toHaveCount(10);
   await expect(page.getByTestId("task-pagination-next")).toBeEnabled();
   await page.getByTestId("task-pagination-next").click();
-  await expect(page.getByTestId("task-pagination-summary")).toContainText("Trang 2/2");
-  await expect(page.locator(`tr[data-testid="task-row-${firstTask.id}"]`)).toBeVisible();
+  await expect(page.getByTestId("task-pagination-summary")).toContainText(`Trang 2/${totalPages}`);
+  await expect(page.locator('tr[data-testid^="task-row-"]')).toHaveCount(Math.min(10, totalTasks - 10));
   await page.getByTestId("task-pagination-prev").click();
-  await expect(page.getByTestId("task-pagination-summary")).toContainText("Trang 1/2");
+  await expect(page.getByTestId("task-pagination-summary")).toContainText(`Trang 1/${totalPages}`);
+  await expect(page.locator('tr[data-testid^="task-row-"]')).toHaveCount(10);
 });
 
 test("sắp xếp danh sách công việc phía server trên UI", async ({ page, request }) => {

@@ -1457,6 +1457,13 @@ tbody tr:hover {
   min-height: 28px;
 }
 
+.workflow-template-starters {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .version-compare {
   display: grid;
   gap: 12px;

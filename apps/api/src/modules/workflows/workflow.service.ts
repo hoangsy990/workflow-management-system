@@ -74,6 +74,12 @@ export interface WorkflowTransitionInput {
   }>;
 }
 
+export interface WorkflowAllowedStartersInput {
+  roleCodes?: string[];
+  userIds?: string[];
+  departmentIds?: string[];
+}
+
 export interface CreateWorkflowTemplateInput {
   code: string;
   name: string;
@@ -81,6 +87,7 @@ export interface CreateWorkflowTemplateInput {
   category?: string;
   managerId?: string;
   activate?: boolean;
+  allowedStarters?: WorkflowAllowedStartersInput;
   fields: WorkflowFieldInput[];
   steps: WorkflowStepInput[];
   transitions: WorkflowTransitionInput[];
@@ -160,6 +167,38 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function stringList(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "") : [];
+}
+
+function normalizeAllowedStarters(value: unknown) {
+  const record = asRecord(value);
+  return {
+    roleCodes: stringList(record.roleCodes),
+    userIds: stringList(record.userIds),
+    departmentIds: stringList(record.departmentIds)
+  };
+}
+
+function hasAllowedStarterLimits(config: ReturnType<typeof normalizeAllowedStarters>) {
+  return config.roleCodes.length > 0 || config.userIds.length > 0 || config.departmentIds.length > 0;
+}
+
+function workflowVersionStartableByAuth(version: { allowedStarters?: Prisma.JsonValue | null }, auth: AuthContext) {
+  if (hasPermission(auth, "workflow.template.manage")) {
+    return true;
+  }
+
+  const allowedStarters = normalizeAllowedStarters(version.allowedStarters);
+  if (!hasAllowedStarterLimits(allowedStarters)) {
+    return true;
+  }
+
+  if (allowedStarters.userIds.includes(auth.userId)) {
+    return true;
+  }
+  if (auth.departmentId && allowedStarters.departmentIds.includes(auth.departmentId)) {
+    return true;
+  }
+  return allowedStarters.roleCodes.some((roleCode) => auth.roles.includes(roleCode));
 }
 
 function workflowFieldVisibleToAuth(field: { visibleToRoles?: Prisma.JsonValue | null }, auth: AuthContext) {
@@ -352,8 +391,8 @@ async function pickNextTransition(
   return null;
 }
 
-export async function listWorkflowTemplates(db: PrismaClient) {
-  return db.workflowTemplate.findMany({
+export async function listWorkflowTemplates(db: PrismaClient, auth: AuthContext) {
+  const templates = await db.workflowTemplate.findMany({
     where: { deletedAt: null },
     orderBy: { createdAt: "desc" },
     include: {
@@ -365,6 +404,17 @@ export async function listWorkflowTemplates(db: PrismaClient) {
       }
     }
   });
+
+  if (hasPermission(auth, "workflow.template.manage")) {
+    return templates;
+  }
+
+  return templates
+    .map((template) => ({
+      ...template,
+      versions: template.versions.filter((version) => version.status === "ACTIVE" && workflowVersionStartableByAuth(version, auth))
+    }))
+    .filter((template) => template.versions.length > 0);
 }
 
 export async function getWorkflowTemplate(db: PrismaClient, auth: AuthContext, id: string) {
@@ -388,9 +438,17 @@ export async function getWorkflowTemplate(db: PrismaClient, auth: AuthContext, i
     throw notFound("Không tìm thấy mẫu quy trình.");
   }
 
+  const versions = hasPermission(auth, "workflow.template.manage")
+    ? template.versions
+    : template.versions.filter((version) => version.status === "ACTIVE" && workflowVersionStartableByAuth(version, auth));
+
+  if (versions.length === 0) {
+    throw forbidden("Bạn không thuộc đối tượng được phép khởi tạo mẫu quy trình này.");
+  }
+
   return {
     ...template,
-    versions: template.versions.map((version) => ({
+    versions: versions.map((version) => ({
       ...version,
       fields: version.fields.filter((field) => workflowFieldVisibleToAuth(field, auth))
     }))
@@ -416,6 +474,10 @@ export async function createWorkflowTemplate(
     throw badRequest("Quy trình cần ít nhất bước bắt đầu và kết thúc hoặc một bước xử lý.");
   }
 
+  const allowedStarters = normalizeAllowedStarters(input.allowedStarters);
+  const allowedStartersValue = hasAllowedStarterLimits(allowedStarters) ? allowedStarters : undefined;
+  const formSchema = allowedStartersValue ? { fields: input.fields, allowedStarters: allowedStartersValue } : { fields: input.fields };
+
   return db.$transaction(async (tx) => {
     const template = await tx.workflowTemplate.create({
       data: {
@@ -435,7 +497,8 @@ export async function createWorkflowTemplate(
         status: input.activate ? "ACTIVE" : "DRAFT",
         activatedAt: input.activate ? new Date() : null,
         createdById: auth.userId,
-        formSchema: { fields: input.fields } as unknown as Prisma.InputJsonValue
+        formSchema: formSchema as unknown as Prisma.InputJsonValue,
+        allowedStarters: allowedStartersValue as Prisma.InputJsonValue | undefined
       }
     });
 
@@ -631,6 +694,9 @@ export async function submitWorkflowInstance(
 
   if (!version) {
     throw badRequest("Mẫu quy trình chưa có phiên bản đang hoạt động.");
+  }
+  if (!workflowVersionStartableByAuth(version, auth)) {
+    throw forbidden("Bạn không thuộc đối tượng được phép khởi tạo mẫu quy trình này.");
   }
 
   const visibleFields = version.fields.filter((field) => workflowFieldVisibleToAuth(field, auth));
