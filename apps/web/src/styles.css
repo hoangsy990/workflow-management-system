@@ -1516,6 +1516,124 @@ tbody tr:hover {
   overflow-wrap: anywhere;
 }
 
+.workflow-tracker-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.workflow-tracker {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-tracker-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.workflow-tracker-step::before {
+  content: "";
+  position: absolute;
+  top: 42px;
+  bottom: -12px;
+  left: 20px;
+  width: 2px;
+  background: var(--line);
+}
+
+.workflow-tracker-step:last-child::before {
+  display: none;
+}
+
+.workflow-step-marker {
+  z-index: 1;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.workflow-tracker-step.done .workflow-step-marker {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 48%, var(--line));
+  background: color-mix(in srgb, var(--green) 9%, var(--panel));
+}
+
+.workflow-tracker-step.current .workflow-step-marker {
+  color: var(--blue);
+  border-color: color-mix(in srgb, var(--blue) 48%, var(--line));
+  background: color-mix(in srgb, var(--blue) 9%, var(--panel));
+}
+
+.workflow-tracker-step.blocked .workflow-step-marker {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 48%, var(--line));
+  background: color-mix(in srgb, var(--danger) 9%, var(--panel));
+}
+
+.workflow-step-card {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.workflow-step-title,
+.workflow-step-meta,
+.workflow-step-people,
+.workflow-step-transition {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.workflow-step-title {
+  justify-content: space-between;
+}
+
+.workflow-step-title strong,
+.workflow-step-people span,
+.workflow-step-transition {
+  overflow-wrap: anywhere;
+}
+
+.workflow-step-title span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.workflow-step-meta,
+.workflow-step-people,
+.workflow-step-transition {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.workflow-step-transition {
+  align-items: flex-start;
+}
+
 .kanban-wrap {
   display: grid;
   gap: 12px;

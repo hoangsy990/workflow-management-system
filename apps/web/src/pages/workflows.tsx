@@ -1,4 +1,4 @@
-import { Download, Loader2, Plus, Trash2, Upload } from "lucide-react";
+import { CheckCircle2, CircleDot, Clock3, Download, GitBranch, Loader2, Plus, RotateCcw, Trash2, Upload, XCircle } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock } from "../components/common";
@@ -187,12 +187,99 @@ type WorkflowTemplateDetail = {
 
 type WorkflowActionType = "APPROVE" | "REJECT" | "REQUEST_INFO" | "RETURN" | "TRANSFER";
 
+type WorkflowApprovalSummary = {
+  id: string;
+  status: string;
+  action?: string | null;
+  comment?: string | null;
+  actedAt?: string | null;
+  createdAt?: string | null;
+  approver?: { id: string; fullName: string } | null;
+};
+
+type WorkflowVersionStepSummary = {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  orderIndex: number;
+  approvalMode?: string | null;
+  completionRule?: string | null;
+  minCount?: number | null;
+  minPercent?: number | null;
+  deadlineAmount?: number | null;
+  deadlineUnit?: string | null;
+};
+
+type WorkflowInstanceStepSummary = {
+  id: string;
+  stepId: string;
+  status: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  deadlineAt?: string | null;
+  createdAt?: string | null;
+  step?: WorkflowVersionStepSummary | null;
+  approvals?: WorkflowApprovalSummary[];
+};
+
+type WorkflowTransitionSummary = {
+  id?: string;
+  name?: string | null;
+  fromStepId?: string;
+  toStepId?: string;
+  fromStep?: WorkflowVersionStepSummary | null;
+  toStep?: WorkflowVersionStepSummary | null;
+  conditions?: Array<{ fieldCode: string; operator: string; compareValue: unknown; groupType?: string }>;
+};
+
+type WorkflowTrackerState = "done" | "current" | "blocked" | "upcoming" | "skipped";
+
+type WorkflowTrackerNode = {
+  step: WorkflowVersionStepSummary;
+  runtimeSteps: WorkflowInstanceStepSummary[];
+  approvals: WorkflowApprovalSummary[];
+  state: WorkflowTrackerState;
+  pendingApprovers: string[];
+  completedApprovers: string[];
+  transitionLabel: string;
+};
+
 const workflowActionLabels: Record<WorkflowActionType, string> = {
   APPROVE: "Duyệt hồ sơ",
   REJECT: "Từ chối hồ sơ",
   REQUEST_INFO: "Yêu cầu bổ sung",
   RETURN: "Trả về bước trước",
   TRANSFER: "Chuyển xử lý"
+};
+
+const workflowApprovalStatusLabels: Record<string, string> = {
+  PENDING: "Chờ xử lý",
+  APPROVED: "Đã duyệt",
+  REJECTED: "Bị từ chối",
+  REQUESTED_INFO: "Yêu cầu bổ sung",
+  RETURNED: "Đã trả bước",
+  TRANSFERRED: "Đã chuyển xử lý",
+  SKIPPED: "Bỏ qua"
+};
+
+const workflowActionHistoryLabels: Record<string, string> = {
+  SUBMIT: "Gửi hồ sơ",
+  APPROVE: "Duyệt",
+  REJECT: "Từ chối",
+  REQUEST_INFO: "Yêu cầu bổ sung",
+  RETURN: "Trả bước",
+  TRANSFER: "Chuyển xử lý",
+  COMMENT: "Bình luận",
+  CANCEL: "Hủy"
+};
+
+const workflowStepStateLabels: Record<WorkflowTrackerState, string> = {
+  done: "Đã hoàn tất",
+  current: "Đang xử lý",
+  blocked: "Cần chú ý",
+  upcoming: "Chưa tới bước",
+  skipped: "Bỏ qua"
 };
 const maxWorkflowAttachmentMb = 20;
 const allowedWorkflowAttachmentTypes = new Set([
@@ -563,6 +650,146 @@ function collectAllowedWorkflowAttachmentFiles(files: FileList | null) {
   }
 
   return { accepted, error };
+}
+
+function workflowTime(value?: string | null) {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function uniqueWorkflowNames(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function workflowApprovalLabel(approval: WorkflowApprovalSummary) {
+  if (approval.action) return workflowActionHistoryLabels[approval.action] ?? approval.action;
+  return workflowApprovalStatusLabels[approval.status] ?? approval.status;
+}
+
+function workflowStepModeLabel(step: WorkflowVersionStepSummary) {
+  if (step.type === "END") return "Kết thúc quy trình";
+  const mode = step.approvalMode === "PARALLEL" ? "Đồng thời" : "Tuần tự";
+  if (step.completionRule === "ANY") return `${mode} · chỉ cần một người`;
+  if (step.completionRule === "MIN_COUNT") return `${mode} · tối thiểu ${step.minCount ?? 1} người`;
+  if (step.completionRule === "MIN_PERCENT") return `${mode} · tối thiểu ${step.minPercent ?? 1}%`;
+  return `${mode} · tất cả cùng duyệt`;
+}
+
+function workflowDeadlineLabel(step: WorkflowVersionStepSummary, runtimeSteps: WorkflowInstanceStepSummary[]) {
+  if (step.type === "END") return "Tự động khi hoàn tất";
+  const activeDeadline = runtimeSteps
+    .map((runtime) => runtime.deadlineAt)
+    .filter(Boolean)
+    .sort((left, right) => workflowTime(String(right)) - workflowTime(String(left)))[0];
+  if (activeDeadline) return `Hạn bước: ${formatDate(String(activeDeadline))}`;
+  if (!step.deadlineAmount) return "Chưa cấu hình hạn bước";
+  return `SLA: ${step.deadlineAmount} ${step.deadlineUnit === "HOUR" ? "giờ" : "ngày"}`;
+}
+
+function describeWorkflowCondition(condition: { fieldCode: string; operator: string; compareValue: unknown }) {
+  const operator = conditionOperatorOptions.find(([value]) => value === condition.operator)?.[1] ?? condition.operator;
+  const compareValue = typeof condition.compareValue === "object" ? JSON.stringify(condition.compareValue) : String(condition.compareValue);
+  return `${condition.fieldCode} ${operator} ${compareValue}`;
+}
+
+function describeWorkflowTransition(step: WorkflowVersionStepSummary, transitions: WorkflowTransitionSummary[]) {
+  const outgoing = transitions.filter((transition) => transition.fromStepId === step.id || transition.fromStep?.id === step.id);
+  if (outgoing.length === 0) return "";
+  return outgoing
+    .map((transition) => {
+      const nextName = transition.toStep?.type === "END" ? "Kết thúc" : transition.toStep?.name ?? "Bước tiếp theo";
+      const conditions = transition.conditions ?? [];
+      if (conditions.length === 0) return `Sau bước này: ${nextName}`;
+      return `Nếu ${conditions.map(describeWorkflowCondition).join(" và ")}: ${nextName}`;
+    })
+    .join(" · ");
+}
+
+function inferWorkflowTrackerState(
+  instanceStatus: string,
+  step: WorkflowVersionStepSummary,
+  runtimeSteps: WorkflowInstanceStepSummary[],
+  approvals: WorkflowApprovalSummary[],
+  currentStepId?: string | null
+): WorkflowTrackerState {
+  if (approvals.some((approval) => approval.status === "REJECTED") || runtimeSteps.some((runtime) => runtime.status === "REJECTED")) {
+    return "blocked";
+  }
+  if (
+    instanceStatus === "NEEDS_INFO" &&
+    approvals.some((approval) => approval.status === "REQUESTED_INFO" || approval.action === "REQUEST_INFO")
+  ) {
+    return "blocked";
+  }
+  if (runtimeSteps.some((runtime) => runtime.status === "RETURNED")) {
+    return "blocked";
+  }
+  if (step.type === "END" && (instanceStatus === "APPROVED" || instanceStatus === "COMPLETED")) {
+    return "done";
+  }
+  if (runtimeSteps.some((runtime) => runtime.status === "COMPLETED")) {
+    return "done";
+  }
+  if (runtimeSteps.some((runtime) => runtime.status === "SKIPPED")) {
+    return "skipped";
+  }
+  if (
+    currentStepId === step.id ||
+    runtimeSteps.some((runtime) => runtime.status === "PENDING" || runtime.status === "IN_PROGRESS") ||
+    approvals.some((approval) => approval.status === "PENDING")
+  ) {
+    return "current";
+  }
+  return "upcoming";
+}
+
+function buildWorkflowTracker(instance: Record<string, any>): WorkflowTrackerNode[] {
+  const runtimeSteps = ((instance.steps ?? []) as WorkflowInstanceStepSummary[]).slice().sort((left, right) => {
+    return workflowTime(left.startedAt ?? left.createdAt) - workflowTime(right.startedAt ?? right.createdAt);
+  });
+  const plannedSteps = (((instance.workflowVersion?.steps ?? []) as WorkflowVersionStepSummary[]).length > 0
+    ? ((instance.workflowVersion?.steps ?? []) as WorkflowVersionStepSummary[])
+    : runtimeSteps.map((runtime) => runtime.step).filter(Boolean)
+  ) as WorkflowVersionStepSummary[];
+  const transitions = ((instance.workflowVersion?.transitions ?? []) as WorkflowTransitionSummary[]).slice();
+  const currentStepId = instance.currentStep?.id ?? instance.currentStepId ?? null;
+
+  return plannedSteps
+    .filter((step) => step.type !== "START")
+    .sort((left, right) => left.orderIndex - right.orderIndex)
+    .map((step) => {
+      const matchingRuntimeSteps = runtimeSteps.filter((runtime) => runtime.stepId === step.id || runtime.step?.id === step.id);
+      const approvals = matchingRuntimeSteps
+        .flatMap((runtime) => runtime.approvals ?? [])
+        .sort((left, right) => workflowTime(left.actedAt ?? left.createdAt) - workflowTime(right.actedAt ?? right.createdAt));
+      const pendingApprovers = uniqueWorkflowNames(
+        approvals.filter((approval) => approval.status === "PENDING").map((approval) => approval.approver?.fullName ?? "")
+      );
+      const completedApprovers = uniqueWorkflowNames(
+        approvals
+          .filter((approval) => approval.status !== "PENDING")
+          .map((approval) => [approval.approver?.fullName, workflowApprovalLabel(approval)].filter(Boolean).join(" - "))
+      );
+
+      return {
+        step,
+        runtimeSteps: matchingRuntimeSteps,
+        approvals,
+        state: inferWorkflowTrackerState(instance.status, step, matchingRuntimeSteps, approvals, currentStepId),
+        pendingApprovers,
+        completedApprovers,
+        transitionLabel: describeWorkflowTransition(step, transitions)
+      };
+    });
+}
+
+function WorkflowTrackerIcon({ state }: { state: WorkflowTrackerState }) {
+  if (state === "done") return <CheckCircle2 size={18} />;
+  if (state === "blocked") return <XCircle size={18} />;
+  if (state === "skipped") return <RotateCcw size={18} />;
+  if (state === "current") return <Clock3 size={18} />;
+  return <CircleDot size={18} />;
 }
 
 export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
@@ -1250,6 +1477,9 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
 
   const detailFields = ((data.workflowVersion?.fields ?? []) as WorkflowFormField[]).filter((field) => field.type !== "HEADING");
   const formData = (data.formData ?? {}) as Record<string, unknown>;
+  const workflowTracker = buildWorkflowTracker(data);
+  const completedTrackerSteps = workflowTracker.filter((node) => node.state === "done").length;
+  const currentTrackerApprovers = uniqueWorkflowNames(workflowTracker.flatMap((node) => node.pendingApprovers));
 
   return (
     <section className="detail-grid">
@@ -1275,6 +1505,56 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
         ) : (
           <div className="json-view">{JSON.stringify(data.formData ?? {}, null, 2)}</div>
         )}
+        <section className="workflow-tracker-panel" data-testid="workflow-progress-map">
+          <div className="panel-head wrap">
+            <div>
+              <h2>Sơ đồ theo dõi quy trình</h2>
+              <p data-testid="workflow-progress-summary">
+                Đã hoàn tất {completedTrackerSteps}/{workflowTracker.length} bước
+                {data.currentStep?.name ? ` · Bước hiện tại: ${data.currentStep.name}` : ""}
+              </p>
+            </div>
+            <span className="status-chip" data-testid="workflow-progress-current-users">
+              {currentTrackerApprovers.length > 0 ? currentTrackerApprovers.join(", ") : "Không có người đang chờ"}
+            </span>
+          </div>
+          <ol className="workflow-tracker">
+            {workflowTracker.map((node, index) => (
+              <li
+                key={node.step.id}
+                className={`workflow-tracker-step ${node.state}`}
+                data-testid={`workflow-progress-step-${node.step.code}`}
+              >
+                <div className="workflow-step-marker" aria-hidden="true">
+                  <WorkflowTrackerIcon state={node.state} />
+                </div>
+                <div className="workflow-step-card">
+                  <div className="workflow-step-title">
+                    <strong>
+                      {index + 1}. {node.step.name}
+                    </strong>
+                    <span>{workflowStepStateLabels[node.state]}</span>
+                  </div>
+                  <div className="workflow-step-meta">
+                    <span>{workflowStepModeLabel(node.step)}</span>
+                    <span>{workflowDeadlineLabel(node.step, node.runtimeSteps)}</span>
+                  </div>
+                  <div className="workflow-step-people">
+                    {node.pendingApprovers.length > 0 && <span>Đang chờ: {node.pendingApprovers.join(", ")}</span>}
+                    {node.completedApprovers.length > 0 && <span>Đã xử lý: {node.completedApprovers.join(", ")}</span>}
+                    {node.pendingApprovers.length === 0 && node.completedApprovers.length === 0 && <span>Chưa phát sinh người xử lý.</span>}
+                  </div>
+                  {node.transitionLabel && (
+                    <small className="workflow-step-transition">
+                      <GitBranch size={14} />
+                      {node.transitionLabel}
+                    </small>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
         <div className="approval-actions">
           <button
             className="primary-button"

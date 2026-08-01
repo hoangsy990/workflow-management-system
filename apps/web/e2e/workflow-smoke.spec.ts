@@ -135,6 +135,10 @@ interface WorkflowInstanceRecord {
 }
 
 interface WorkflowInstanceDetailRecord extends WorkflowInstanceRecord {
+  workflowVersion?: {
+    steps?: Array<{ id: string; code: string; name: string }>;
+    transitions?: Array<{ id: string; fromStepId: string; toStepId: string }>;
+  };
   approvals?: Array<{
     id: string;
     action?: string | null;
@@ -1685,14 +1689,21 @@ test("duyệt hồ sơ PAYMENT tuần tự trên UI", async ({ page, request }) 
   const fileName = `workflow-approve-${runId}.pdf`;
 
   await openWorkflowApproval(page, manager, instance);
+  await expect(page.getByTestId("workflow-progress-map")).toBeVisible();
+  await expect(page.getByTestId("workflow-progress-summary")).toContainText("Bước hiện tại");
+  await expect(page.getByTestId("workflow-progress-current-users")).toContainText(manager.user.fullName);
+  await expect(page.locator('[data-testid^="workflow-progress-step-"]').first()).toBeVisible();
   await runWorkflowAction(page, "workflow-action-approve", `Duyệt smoke ${runId}`, undefined, {
     name: fileName,
     mimeType: "application/pdf",
     buffer: Buffer.from(`workflow approval attachment ${runId}`)
   });
   await expect(page.getByTestId("workflow-instance-status")).toContainText(/Đã duyệt|Hoàn thành/);
+  await expect(page.locator('[data-testid^="workflow-progress-step-"].done').first()).toBeVisible();
   await expect(page.getByTestId("workflow-approval-history")).toContainText(fileName);
   const detail = await apiGet<WorkflowInstanceDetailRecord>(request, manager, `/workflow-instances/${instance.id}`);
+  expect((detail.workflowVersion?.steps ?? []).length).toBeGreaterThan(0);
+  expect((detail.workflowVersion?.transitions ?? []).length).toBeGreaterThan(0);
   expect(detail.approvals?.some((approval) => approval.attachments?.some((attachment) => attachment.originalName === fileName))).toBe(true);
   const notifications = await apiGet<Paginated<Record<string, any>>>(request, employee, "/notifications?pageSize=20");
   expect(notifications.data.some((notification) => notification.type === "WORKFLOW_APPROVED" && notification.objectId === instance.id)).toBe(true);

@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=123`, `PARTIAL=114`, `TODO=23`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `47.3%`, tính trọng số partial `69.2%`.
+**Tiến độ hiện tại:** `DONE=124`, `PARTIAL=114`, `TODO=22`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `47.7%`, tính trọng số partial `69.6%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `WORKFLOW-PROGRESS-MAP` | Bổ sung sơ đồ theo dõi quy trình trong chi tiết hồ sơ: API detail trả thêm steps/transitions của phiên bản, UI gom runtime step/approvals để hiện bước đã xong, đang xử lý, cần chú ý, người đang chờ và nhánh chuyển tiếp/điều kiện. Chuyển checklist `Sơ đồ theo dõi quy trình` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, targeted workflow approve smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 40/40, `docker builder prune -af`; Docker images `1.124GB`, volumes `82.54MB`, build cache `0B`. |
 | 01/08/2026 | `OPS-SETTINGS-PANELS` | Bổ sung seed mặc định và panel Cấu hình vận hành cho thông báo in-app/push/email, SMTP, bảo mật đăng nhập và backup; toàn bộ lưu vào `system_settings`, kế thừa audit metadata/redaction hiện có và có smoke test lưu UI rồi đọc lại API thật. Chuyển checklist `Cấu hình thông báo/email/bảo mật/backup` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, `pnpm docker:seed`, query PostgreSQL xác nhận `13` setting vận hành, targeted settings smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 40/40, `docker builder prune -af`; Docker images `1.124GB`, volumes `82.29MB`, build cache `0B`. |
 | 01/08/2026 | `ORG-CHART-DEPARTMENTS` | Bổ sung panel `Sơ đồ tổ chức` trong trang Phòng ban, dựng tree/list từ dữ liệu thật `/departments`, `/users`, `/teams`, hiển thị cấp cha-con, quản lý, nhân sự, nhóm và số công việc; click node chọn đúng phòng ban để chỉnh sửa. Chuyển checklist `Sơ đồ tổ chức tree/org/list` sang DONE. | `pnpm --filter @workflow/web lint`, `docker compose up -d --build web`, targeted department smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 39/39, `docker builder prune -af`; Docker images `1.124GB`, volumes `81.97MB`, build cache `0B`. |
 | 01/08/2026 | `SEED-WORKFLOW-PARALLEL-STRESS` | Bổ sung seed idempotent workflow `STRESS_PARALLEL` có bước phê duyệt song song `PARALLEL`, rule `MIN_COUNT=2`, 3 người duyệt pending cùng lúc và hồ sơ mẫu `IN_PROGRESS`; kết hợp với seed >100 user, task tên dài/nhiều assignee/tag/comment/quá hạn và task cha-con trước đó để hoàn tất bộ seed stress UI. Chuyển checklist `Demo UI nâng cao >100 records, long names, nhiều comment/subtask/parallel workflow` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/api build`, `docker compose up -d --build api`, `pnpm docker:seed`, query PostgreSQL xác nhận `STRESS_PARALLEL` active `PARALLEL/MIN_COUNT=2` và hồ sơ có `3` pending approvals, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm smoke:web` 39/39, `docker builder prune -af`; Docker images `1.124GB`, volumes `81.75MB`, build cache `0B`. |
@@ -404,7 +405,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Chi tiết hồ sơ nội dung/panel quy trình/action bar | `PARTIAL` | Có detail/history/action cơ bản. |
 | Hộp thoại duyệt/từ chối/yêu cầu bổ sung | `DONE` | Có panel xác nhận trong app với textarea ý kiến, validation, loading và thông báo kết quả. |
 | Lịch sử phê duyệt | `DONE` | Có. |
-| Sơ đồ theo dõi quy trình | `TODO` | Chưa có. |
+| Sơ đồ theo dõi quy trình | `DONE` | Chi tiết hồ sơ có flow tracker từ dữ liệu thật `workflowVersion.steps/transitions` và runtime `steps/approvals`, hiển thị bước đã xong/đang xử lý/cần chú ý, người đang chờ, SLA và nhánh chuyển tiếp. |
 
 ## 23. Trung tâm cấu hình hệ thống
 

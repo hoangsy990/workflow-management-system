@@ -714,7 +714,20 @@ export async function getWorkflowInstance(db: PrismaClient, auth: AuthContext, i
     where: { id },
     include: {
       template: true,
-      workflowVersion: { include: { fields: { orderBy: { displayOrder: "asc" } } } },
+      workflowVersion: {
+        include: {
+          fields: { orderBy: { displayOrder: "asc" } },
+          steps: { orderBy: { orderIndex: "asc" } },
+          transitions: {
+            orderBy: { priority: "asc" },
+            include: {
+              fromStep: true,
+              toStep: true,
+              conditions: { orderBy: { createdAt: "asc" } }
+            }
+          }
+        }
+      },
       requester: { select: { id: true, fullName: true, email: true } },
       currentStep: true,
       values: true,
