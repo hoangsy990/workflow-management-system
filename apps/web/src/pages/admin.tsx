@@ -1458,6 +1458,18 @@ function parseSettingValue(value: string) {
   return trimmed;
 }
 
+const defaultFileUploadMimeTypes = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "video/mp4"
+];
+
 export function SettingsPage() {
   const { data, loading, error, reload } = useAsyncData(() => api.settings(), []);
   const [form, setForm] = useState({ key: "task.redo.reset_progress", value: "false", description: "" });
@@ -1466,6 +1478,10 @@ export function SettingsPage() {
     taskPadding: "4",
     workflowPrefix: "WF",
     workflowPadding: "4"
+  });
+  const [fileConfigForm, setFileConfigForm] = useState({
+    maxMb: "20",
+    mimeTypes: defaultFileUploadMimeTypes.join("\n")
   });
   const [saving, setSaving] = useState("");
   const [settingMessage, setSettingMessage] = useState("");
@@ -1478,6 +1494,15 @@ export function SettingsPage() {
       taskPadding: settingValue(data, "auto_code.task.padding", "4"),
       workflowPrefix: settingValue(data, "auto_code.workflow_instance.prefix", "WF"),
       workflowPadding: settingValue(data, "auto_code.workflow_instance.padding", "4")
+    });
+    const rawMimeTypes = data.find((setting) => setting.key === "file.upload.allowed_mime_types")?.value;
+    setFileConfigForm({
+      maxMb: settingValue(data, "file.upload.max_mb", "20"),
+      mimeTypes: Array.isArray(rawMimeTypes)
+        ? rawMimeTypes.filter((item): item is string => typeof item === "string").join("\n")
+        : typeof rawMimeTypes === "string"
+          ? rawMimeTypes
+          : defaultFileUploadMimeTypes.join("\n")
     });
   }, [data]);
 
@@ -1529,6 +1554,52 @@ export function SettingsPage() {
       await reload();
     } catch (err) {
       setSettingError(err instanceof Error ? err.message : "Không lưu được cấu hình mã tự động.");
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function saveFileConfig(event: FormEvent) {
+    event.preventDefault();
+    setSaving("file-config");
+    setSettingMessage("");
+    setSettingError("");
+    const maxMb = Number(fileConfigForm.maxMb);
+    const mimeTypes = [
+      ...new Set(
+        fileConfigForm.mimeTypes
+          .split(/[\s,;]+/)
+          .map((item) => item.trim().toLowerCase())
+          .filter(Boolean)
+      )
+    ];
+    if (!Number.isFinite(maxMb) || maxMb < 1) {
+      setSaving("");
+      setSettingError("Dung lượng upload phải lớn hơn hoặc bằng 1 MB.");
+      return;
+    }
+    if (mimeTypes.length === 0) {
+      setSaving("");
+      setSettingError("Vui lòng nhập ít nhất một MIME type được phép.");
+      return;
+    }
+    try {
+      await Promise.all([
+        api.saveSetting({
+          key: "file.upload.max_mb",
+          value: Math.floor(maxMb),
+          description: "Dung lượng tệp upload tối đa tính bằng MB, không vượt quá trần MAX_UPLOAD_MB."
+        }),
+        api.saveSetting({
+          key: "file.upload.allowed_mime_types",
+          value: mimeTypes,
+          description: "Danh sách MIME type được phép upload cho task và workflow."
+        })
+      ]);
+      setSettingMessage("Đã lưu cấu hình tệp upload.");
+      await reload();
+    } catch (err) {
+      setSettingError(err instanceof Error ? err.message : "Không lưu được cấu hình tệp upload.");
     } finally {
       setSaving("");
     }
@@ -1611,6 +1682,35 @@ export function SettingsPage() {
         <button className="primary-button" data-testid="settings-auto-code-save" type="submit" disabled={saving === "auto-code"}>
           {saving === "auto-code" && <Loader2 className="spin" size={16} />}
           Lưu mã tự động
+        </button>
+      </form>
+
+      <form className="panel form-stack" onSubmit={saveFileConfig}>
+        <div className="panel-head">
+          <h2>Tệp upload</h2>
+        </div>
+        <label>
+          Dung lượng tối đa (MB)
+          <input
+            data-testid="settings-file-max-mb"
+            type="number"
+            min="1"
+            value={fileConfigForm.maxMb}
+            onChange={(event) => setFileConfigForm({ ...fileConfigForm, maxMb: event.target.value })}
+          />
+        </label>
+        <label>
+          MIME type được phép
+          <textarea
+            data-testid="settings-file-mime-types"
+            rows={8}
+            value={fileConfigForm.mimeTypes}
+            onChange={(event) => setFileConfigForm({ ...fileConfigForm, mimeTypes: event.target.value })}
+          />
+        </label>
+        <button className="primary-button" data-testid="settings-file-config-save" type="submit" disabled={saving === "file-config"}>
+          {saving === "file-config" && <Loader2 className="spin" size={16} />}
+          Lưu cấu hình tệp
         </button>
       </form>
 

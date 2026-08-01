@@ -13,6 +13,7 @@ import { requireAuth } from "../auth/auth.guard.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { visibleTaskWhere } from "../tasks/task.service.js";
 import { ensureCanReadWorkflowInstance, ensureCanUploadWorkflowAttachment } from "../workflows/workflow.service.js";
+import { getUploadConfig } from "./upload-config.service.js";
 
 const taskParamSchema = z.object({ id: z.string().uuid() });
 const attachmentParamSchema = z.object({ id: z.string().uuid() });
@@ -21,17 +22,6 @@ const avatarParamSchema = z.object({
   filename: z.string().regex(/^[A-Za-z0-9_-]+\.(jpg|jpeg|png|webp)$/i)
 });
 
-const allowedMimeTypes = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "video/mp4"
-]);
 const avatarMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const avatarExtensionByMime: Record<string, string> = {
   "image/jpeg": ".jpg",
@@ -60,6 +50,10 @@ async function ensureTaskVisible(taskId: string, userId: string, authWhere: Awai
 }
 
 export async function uploadRoutes(app: FastifyInstance) {
+  app.get("/upload-config", { preHandler: requireAuth }, async () => {
+    return getUploadConfig(prisma);
+  });
+
   app.get("/avatars/:userId/:filename", async (request, reply) => {
     const params = parseParams(request, avatarParamSchema);
     const avatarUrl = `/api/v1/avatars/${params.userId}/${params.filename}`;
@@ -93,8 +87,9 @@ export async function uploadRoutes(app: FastifyInstance) {
   });
 
   app.post("/profile/avatar", { preHandler: requireAuth }, async (request) => {
+    const uploadConfig = await getUploadConfig(prisma);
     const file = await request.file({
-      limits: { fileSize: Math.min(config.MAX_UPLOAD_MB, 5) * 1024 * 1024 }
+      limits: { fileSize: Math.min(uploadConfig.maxMb, 5) * 1024 * 1024 }
     });
     if (!file) {
       throw badRequest("Vui lòng chọn ảnh đại diện.");
@@ -140,14 +135,15 @@ export async function uploadRoutes(app: FastifyInstance) {
     const params = parseParams(request, taskParamSchema);
     const authWhere = await visibleTaskWhere(prisma, request.auth!);
     await ensureTaskVisible(params.id, request.auth!.userId, authWhere);
+    const uploadConfig = await getUploadConfig(prisma);
 
     const file = await request.file({
-      limits: { fileSize: config.MAX_UPLOAD_MB * 1024 * 1024 }
+      limits: { fileSize: uploadConfig.maxMb * 1024 * 1024 }
     });
     if (!file) {
       throw badRequest("Vui lòng chọn tệp cần tải lên.");
     }
-    if (!allowedMimeTypes.has(file.mimetype)) {
+    if (!uploadConfig.allowedMimeTypes.includes(file.mimetype.toLowerCase())) {
       throw badRequest("Định dạng tệp không được hỗ trợ.");
     }
 
@@ -196,14 +192,15 @@ export async function uploadRoutes(app: FastifyInstance) {
   app.post("/workflow-instances/:id/attachments", { preHandler: requireAuth }, async (request) => {
     const params = parseParams(request, taskParamSchema);
     await ensureCanUploadWorkflowAttachment(prisma, request.auth!, params.id);
+    const uploadConfig = await getUploadConfig(prisma);
 
     const file = await request.file({
-      limits: { fileSize: config.MAX_UPLOAD_MB * 1024 * 1024 }
+      limits: { fileSize: uploadConfig.maxMb * 1024 * 1024 }
     });
     if (!file) {
       throw badRequest("Vui lòng chọn tệp cần tải lên.");
     }
-    if (!allowedMimeTypes.has(file.mimetype)) {
+    if (!uploadConfig.allowedMimeTypes.includes(file.mimetype.toLowerCase())) {
       throw badRequest("Định dạng tệp không được hỗ trợ.");
     }
 

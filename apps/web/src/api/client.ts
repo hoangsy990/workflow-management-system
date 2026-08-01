@@ -384,6 +384,7 @@ export const api = {
     form.set("file", file);
     return apiRequest<Record<string, any>>(`/tasks/${id}/attachments`, { method: "POST", body: form });
   },
+  uploadConfig: () => cachedApiRequest<Record<string, any>>("/upload-config"),
   downloadAttachment: (id: string) => apiBlobRequest(`/attachments/${id}/download`),
   uploadWorkflowAttachment: (id: string, file: File) => {
     const form = new FormData();
@@ -405,6 +406,10 @@ export const api = {
     apiRequest<Record<string, any>>(`/workflow-instances/${id}/actions`, { method: "POST", body: JSON.stringify(payload) }),
   activityLogs: () => apiRequest<Paginated<Record<string, any>>>("/activity-logs?pageSize=50"),
   settings: () => apiRequest<Record<string, any>[]>("/system-settings"),
-  saveSetting: (payload: Record<string, unknown>) =>
-    apiRequest<Record<string, any>>("/system-settings", { method: "PUT", body: JSON.stringify(payload) })
+  saveSetting: async (payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>("/system-settings", { method: "PUT", body: JSON.stringify(payload) });
+    clearApiCache("/system-settings");
+    clearApiCache("/upload-config");
+    return result;
+  }
 };

@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=113`, `PARTIAL=117`, `TODO=30`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `43.5%`, tính trọng số partial `66.0%`.
+**Tiến độ hiện tại:** `DONE=114`, `PARTIAL=116`, `TODO=30`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `43.8%`, tính trọng số partial `66.2%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `UPLOAD-FILE-SETTINGS` | Chuyển cấu hình upload task/workflow sang đọc `system_settings` (`file.upload.max_mb`, `file.upload.allowed_mime_types`), thêm API `/upload-config`, seed default, cache invalidation khi lưu setting, panel `Tệp upload` trong trang Cấu hình và task upload UI dùng `accept`/validate từ API. Chuyển checklist `Cấu hình tệp` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, smoke web 39/39 gồm test cấu hình upload mới, `pnpm lint`, `pnpm test`, `pnpm build`, `docker builder prune -af`; Docker images `1.124GB`, volumes `80.69MB`, build cache `0B`. |
 | 01/08/2026 | `AUTO-CODE-SETTINGS` | Chuyển generator mã task/workflow instance sang đọc `system_settings` (`auto_code.task.prefix`, `auto_code.task.padding`, `auto_code.workflow_instance.prefix`, `auto_code.workflow_instance.padding`), seed default, thêm panel `Mã tự động` ở trang Cấu hình và smoke test chỉnh prefix/padding rồi tạo task/hồ sơ thật. Chuyển checklist `Mã tự động` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, targeted auto-code smoke 1/1, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm smoke:web` 38/38, `docker builder prune -af`; Docker images `1.124GB`, volumes `80.5MB`, build cache `0B`. |
 | 01/08/2026 | `TASK-CATALOG-MANAGEMENT` | Bổ sung quản lý danh mục/nhãn công việc: migration soft delete cho `task_categories`/`tags`, CRUD API có RBAC `task.update_any`, validation, audit log, cache invalidation frontend và trang `Danh mục` trong sidebar để tạo/sửa/xóa danh mục/nhãn. Chuyển checklist `Task categories/tags` sang DONE. | `pnpm --filter @workflow/api prisma:generate`, `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `prisma migrate deploy`, targeted catalog smoke 1/1, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build api web`, `pnpm smoke:web` 37/37, `docker builder prune -af`; Docker images `1.124GB`, volumes `80.24MB`, build cache `0B`. |
 | 01/08/2026 | `MOBILE-FILTER-SHEET` | Chuyển bộ lọc công việc trên mobile thành bottom sheet có backdrop, nút đóng, nút áp dụng, khóa cuộn nền, đóng bằng Escape, `role=dialog` và bộ đếm filter đang bật; desktop vẫn giữ panel inline. Chuyển checklist `Mobile filter bottom sheet/fullscreen/drawer` sang DONE. | `pnpm --filter @workflow/web lint`, targeted mobile filter smoke 1/1, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build api web`, `pnpm smoke:web` 36/36, `docker builder prune -af`; Docker images `1.124GB`, volumes `79.96MB`, build cache `0B`. |
@@ -405,7 +406,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Cấu hình công việc | `PARTIAL` | Setting redo reset đã được enforce trong service; UI cấu hình vẫn dạng key/value, chưa có nhóm cấu hình công việc chuyên biệt. |
 | Cấu hình quy trình | `TODO` | Chưa có UI nhóm. |
 | Ngày làm việc/ngày nghỉ/SLA | `TODO` | Chưa có. |
-| Cấu hình tệp | `PARTIAL` | Backend env size/type hard-coded; chưa UI. |
+| Cấu hình tệp | `DONE` | Upload task/workflow đọc size/MIME từ `system_settings`, có default seed, API `/upload-config`, UI task dùng cấu hình thật để validate/accept và trang Cấu hình có panel `Tệp upload` kèm smoke test. |
 | Cấu hình thông báo/email/bảo mật/backup | `TODO` | Chưa có trung tâm cấu hình đầy đủ. |
 
 ## 24. Danh mục và dữ liệu dùng chung

@@ -287,6 +287,8 @@ Backend validate form theo version đang active để hồ sơ cũ tiếp tục 
 
 Danh mục dùng chung cần module riêng để quản trị các danh mục tùy chỉnh, có thể làm nguồn dữ liệu cho field select trong form builder.
 
+Nhóm `Tệp upload` đã có cấu hình vận hành qua `system_settings`: `file.upload.max_mb` và `file.upload.allowed_mime_types`. API `/upload-config` cung cấp cấu hình này cho web/PC/mobile; `MAX_UPLOAD_MB` trong môi trường vẫn là trần bảo vệ hạ tầng để không mở upload quá lớn ngoài ý muốn.
+
 ### 9.5. Tổ chức, người dùng và phân quyền nâng cao
 
 RBAC hiện có roles/permissions cơ bản. Giai đoạn tiếp theo cần:

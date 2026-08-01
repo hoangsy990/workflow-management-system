@@ -600,6 +600,34 @@ async function main() {
         value: 4,
         description: "Số chữ số thứ tự trong mã hồ sơ quy trình."
       }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "file.upload.max_mb" },
+      update: {},
+      create: {
+        key: "file.upload.max_mb",
+        value: 20,
+        description: "Dung lượng tệp upload tối đa tính bằng MB, không vượt quá trần MAX_UPLOAD_MB."
+      }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "file.upload.allowed_mime_types" },
+      update: {},
+      create: {
+        key: "file.upload.allowed_mime_types",
+        value: [
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "application/pdf",
+          "application/msword",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "application/vnd.ms-excel",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "video/mp4"
+        ],
+        description: "Danh sách MIME type được phép upload cho task và workflow."
+      }
     })
   ]);
 

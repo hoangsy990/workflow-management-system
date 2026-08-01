@@ -10,6 +10,17 @@ const accounts = {
   manager: { email: "manager@workflow.local", password: "Manager@123456" },
   employee: { email: "lan@workflow.local", password: "Demo@123456" }
 } as const;
+const defaultUploadMimeTypes = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "video/mp4"
+];
 
 type AccountKey = keyof typeof accounts;
 
@@ -81,6 +92,12 @@ interface TaskCategoryRecord {
 interface TagRecord {
   id: string;
   name: string;
+}
+
+interface UploadConfigRecord {
+  maxMb: number;
+  allowedMimeTypes: string[];
+  accept: string;
 }
 
 interface WorkflowTemplateRecord {
@@ -917,6 +934,66 @@ test("cấu hình mã tự động áp dụng cho task và hồ sơ quy trình",
         key: "auto_code.workflow_instance.padding",
         value: 4,
         description: "Số chữ số thứ tự trong mã hồ sơ quy trình."
+      })
+    ]);
+  }
+});
+
+test("cấu hình tệp upload áp dụng cho UI và API task attachment", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  const manager = await apiLogin(request, "manager");
+
+  try {
+    await openAppWithSession(page, admin);
+    await page.getByTestId("nav-settings").click();
+    await page.getByTestId("settings-file-max-mb").fill("1");
+    await page.getByTestId("settings-file-mime-types").fill("application/pdf");
+    await page.getByTestId("settings-file-config-save").click();
+    await expect(page.getByTestId("settings-message")).toContainText("tệp upload");
+
+    const uploadConfig = await apiGet<UploadConfigRecord>(request, admin, "/upload-config");
+    expect(uploadConfig.maxMb).toBe(1);
+    expect(uploadConfig.allowedMimeTypes).toEqual(["application/pdf"]);
+    expect(uploadConfig.accept).toBe("application/pdf");
+
+    await page.getByTestId("nav-newTask").click();
+    await expect(page.getByTestId("task-create-attachment-input")).toHaveAttribute("accept", "application/pdf");
+
+    const task = await createSmokeTask(request, manager, "file-config");
+    const rejected = await request.post(`${apiUrl}/tasks/${task.id}/attachments`, {
+      headers: authHeaders(manager),
+      multipart: {
+        file: {
+          name: "blocked.txt",
+          mimeType: "text/plain",
+          buffer: Buffer.from("blocked by smoke test")
+        }
+      }
+    });
+    expect(rejected.status()).toBe(400);
+
+    const accepted = await request.post(`${apiUrl}/tasks/${task.id}/attachments`, {
+      headers: authHeaders(manager),
+      multipart: {
+        file: {
+          name: "accepted.pdf",
+          mimeType: "application/pdf",
+          buffer: Buffer.from("%PDF-1.4\n% smoke\n")
+        }
+      }
+    });
+    expect(accepted.ok(), await accepted.text()).toBeTruthy();
+  } finally {
+    await Promise.all([
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "file.upload.max_mb",
+        value: 20,
+        description: "Dung lượng tệp upload tối đa tính bằng MB, không vượt quá trần MAX_UPLOAD_MB."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "file.upload.allowed_mime_types",
+        value: defaultUploadMimeTypes,
+        description: "Danh sách MIME type được phép upload cho task và workflow."
       })
     ]);
   }

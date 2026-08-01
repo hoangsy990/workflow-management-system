@@ -57,8 +57,7 @@ const defaultTaskFilters: TaskFilters = {
   overdue: false
 };
 const taskListPageSize = 10;
-const maxAttachmentMb = 20;
-const allowedAttachmentTypes = new Set([
+const defaultAllowedAttachmentTypes = [
   "image/jpeg",
   "image/png",
   "image/webp",
@@ -68,8 +67,25 @@ const allowedAttachmentTypes = new Set([
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "video/mp4"
-]);
-const attachmentAccept = [...allowedAttachmentTypes].join(",");
+];
+const defaultUploadConfig = {
+  maxMb: 20,
+  allowedMimeTypes: defaultAllowedAttachmentTypes,
+  accept: defaultAllowedAttachmentTypes.join(",")
+};
+
+function normalizeUploadConfig(value?: Record<string, any> | null) {
+  const allowedMimeTypes =
+    Array.isArray(value?.allowedMimeTypes) && value.allowedMimeTypes.length > 0
+      ? value.allowedMimeTypes.filter((item: unknown): item is string => typeof item === "string")
+      : defaultUploadConfig.allowedMimeTypes;
+  const maxMb = Number(value?.maxMb);
+  return {
+    maxMb: Number.isFinite(maxMb) && maxMb > 0 ? maxMb : defaultUploadConfig.maxMb,
+    allowedMimeTypes,
+    accept: typeof value?.accept === "string" && value.accept.trim() ? value.accept : allowedMimeTypes.join(",")
+  };
+}
 
 function formatFileSize(bytes?: number) {
   if (!bytes) return "0 B";
@@ -78,18 +94,19 @@ function formatFileSize(bytes?: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function collectAllowedAttachmentFiles(files: FileList | null) {
+function collectAllowedAttachmentFiles(files: FileList | null, uploadConfig = defaultUploadConfig) {
   const accepted: File[] = [];
   let error = "";
   if (!files) return { accepted, error };
+  const allowedAttachmentTypes = new Set(uploadConfig.allowedMimeTypes);
 
   for (const file of Array.from(files)) {
     if (!allowedAttachmentTypes.has(file.type)) {
       error = `Tệp ${file.name} không đúng định dạng cho phép.`;
       continue;
     }
-    if (file.size > maxAttachmentMb * 1024 * 1024) {
-      error = `Tệp ${file.name} vượt quá ${maxAttachmentMb} MB.`;
+    if (file.size > uploadConfig.maxMb * 1024 * 1024) {
+      error = `Tệp ${file.name} vượt quá ${uploadConfig.maxMb} MB.`;
       continue;
     }
     accepted.push(file);
@@ -866,6 +883,7 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
   const departments = useAsyncData(() => api.departments(), []);
   const categories = useAsyncData(() => api.taskCategories(), []);
   const tags = useAsyncData(() => api.tags(), []);
+  const uploadConfigData = useAsyncData(() => api.uploadConfig(), []);
   const [taskLinkKeyword, setTaskLinkKeyword] = useState("");
   const taskLinkQuery = useMemo(() => {
     const params = new URLSearchParams({ pageSize: "100" });
@@ -903,6 +921,7 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
     () => (taskOptions.data?.data ?? []).map((task: Record<string, any>) => ({ ...task, name: `${task.code} - ${task.title}` })),
     [taskOptions.data]
   );
+  const uploadConfig = useMemo(() => normalizeUploadConfig(uploadConfigData.data), [uploadConfigData.data]);
 
   useEffect(() => {
     localStorage.setItem(draftKey, JSON.stringify(form));
@@ -913,7 +932,7 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
   }
 
   function addFiles(files: FileList | null) {
-    const result = collectAllowedAttachmentFiles(files);
+    const result = collectAllowedAttachmentFiles(files, uploadConfig);
     setError(result.error);
     setSelectedFiles((current) => [...current, ...result.accepted]);
   }
@@ -1106,7 +1125,7 @@ export function TaskForm({ setPage, setTaskId }: TaskPageProps) {
             data-testid="task-create-attachment-input"
             type="file"
             multiple
-            accept={attachmentAccept}
+            accept={uploadConfig.accept}
             onChange={(event) => addFiles(event.target.files)}
           />
         </label>
@@ -1159,6 +1178,8 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
   const [evaluationError, setEvaluationError] = useState("");
   const [evaluationMessage, setEvaluationMessage] = useState("");
   const { data, loading, error, reload } = useAsyncData(() => (taskId ? api.task(taskId) : Promise.resolve(null)), [taskId]);
+  const uploadConfigData = useAsyncData(() => api.uploadConfig(), []);
+  const uploadConfig = useMemo(() => normalizeUploadConfig(uploadConfigData.data), [uploadConfigData.data]);
 
   useEffect(() => {
     if (data?.progress !== undefined) setProgress(data.progress);
@@ -1190,7 +1211,7 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
   }, [data?.comments]);
 
   function addFiles(files: FileList | null) {
-    const result = collectAllowedAttachmentFiles(files);
+    const result = collectAllowedAttachmentFiles(files, uploadConfig);
     setLocalError(result.error);
     setSelectedFiles((current) => [...current, ...result.accepted]);
   }
@@ -1247,7 +1268,7 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
   }
 
   function addEvaluationFiles(files: FileList | null) {
-    const result = collectAllowedAttachmentFiles(files);
+    const result = collectAllowedAttachmentFiles(files, uploadConfig);
     setEvaluationError(result.error);
     setEvaluationFiles((current) => [...current, ...result.accepted]);
   }
@@ -1465,7 +1486,7 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
                 data-testid="task-evaluation-attachment-input"
                 type="file"
                 multiple
-                accept={attachmentAccept}
+                accept={uploadConfig.accept}
                 onChange={(event) => {
                   addEvaluationFiles(event.target.files);
                   event.currentTarget.value = "";
@@ -1594,7 +1615,7 @@ export function TaskDetail({ taskId, setPage }: { taskId: string | null; setPage
                 data-testid="task-attachment-input"
                 type="file"
                 multiple
-                accept={attachmentAccept}
+                accept={uploadConfig.accept}
                 onChange={(event) => {
                   addFiles(event.target.files);
                   event.currentTarget.value = "";
