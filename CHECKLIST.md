@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=120`, `PARTIAL=114`, `TODO=26`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `46.2%`, tính trọng số partial `68.1%`.
+**Tiến độ hiện tại:** `DONE=121`, `PARTIAL=114`, `TODO=25`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `46.5%`, tính trọng số partial `68.5%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `SEED-WORKFLOW-PARALLEL-STRESS` | Bổ sung seed idempotent workflow `STRESS_PARALLEL` có bước phê duyệt song song `PARALLEL`, rule `MIN_COUNT=2`, 3 người duyệt pending cùng lúc và hồ sơ mẫu `IN_PROGRESS`; kết hợp với seed >100 user, task tên dài/nhiều assignee/tag/comment/quá hạn và task cha-con trước đó để hoàn tất bộ seed stress UI. Chuyển checklist `Demo UI nâng cao >100 records, long names, nhiều comment/subtask/parallel workflow` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/api build`, `docker compose up -d --build api`, `pnpm docker:seed`, query PostgreSQL xác nhận `STRESS_PARALLEL` active `PARALLEL/MIN_COUNT=2` và hồ sơ có `3` pending approvals, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm smoke:web` 39/39, `docker builder prune -af`; Docker images `1.124GB`, volumes `81.75MB`, build cache `0B`. |
 | 01/08/2026 | `DASHBOARD-CHART-FILTERS` | Bổ sung bộ lọc dashboard theo phòng ban/khoảng ngày chạy phía server trên API `/dashboard`, áp cùng scope quyền backend cho card/count/groupBy/task cần chú ý; UI có panel lọc, reset, biểu đồ thanh tỷ lệ cho thống kê trạng thái/phòng ban và smoke test lọc dashboard bằng dữ liệu thật. Chuyển checklist `Biểu đồ và bộ lọc` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build api web`, targeted dashboard smoke 1/1, `pnpm smoke:web` 39/39, `docker builder prune -af`; Docker images `1.124GB`, volumes `81.47MB`, build cache `0B`. |
 | 01/08/2026 | `TASK-SETTINGS-PANEL` | Bổ sung panel `Cấu hình công việc` trong trang Cấu hình cho setting `task.redo.reset_progress`, dùng checkbox/tải/lưu riêng thay vì key-value thô; smoke redo-reset bật setting qua UI panel mới rồi restore bằng API. Chuyển checklist `Cấu hình công việc` sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm build`, `pnpm test`, `docker compose up -d --build web`, `pnpm smoke:web` 39/39, `docker builder prune -af`; Docker images `1.124GB`, volumes `81.25MB`, build cache `0B`. |
 | 01/08/2026 | `TASK-ADVANCED-FILTER-CHECKLIST` | Rà soát lại trạng thái checklist cho `Bộ lọc nâng cao`: backend `/tasks` và UI đã có keyword, code, status, creator, assignee, manager, department, priority, date range, overdue, category, tag, sort, reset và mobile filter sheet; smoke đã phủ filter server-side. Chuyển checklist stale `Bộ lọc nâng cao` sang DONE. | Đối chiếu `task.routes.ts`, `tasks.tsx`, smoke `lọc công việc phía server trên UI`; `pnpm smoke:web` 39/39 đã pass ở chunk trước cùng trạng thái code. |
@@ -287,7 +288,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Task nhiều trạng thái | `DONE` | Seed có. |
 | Payment và leave workflows | `DONE` | Seed có. |
 | Hồ sơ pending/approved/rejected/request info | `DONE` | Seed có pending, approved, rejected và request-info/`NEEDS_INFO`; request-info được tạo bằng service submit + action `REQUEST_INFO`, đã chạy lại `pnpm docker:seed` và query DB xác nhận. |
-| Demo UI nâng cao >100 records, long names, nhiều comment/subtask/parallel workflow | `TODO` | Chưa có bộ seed stress UI. |
+| Demo UI nâng cao >100 records, long names, nhiều comment/subtask/parallel workflow | `DONE` | Seed có 105 user stress, phòng ban nhiều cấp, task tên dài/nhiều assignee/tag/comment/quá hạn, task cha-con tự tính tiến độ và workflow song song `STRESS_PARALLEL` với 3 approval pending. |
 
 ## 13. Kiểm thử
 

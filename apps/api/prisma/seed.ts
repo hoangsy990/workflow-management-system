@@ -707,6 +707,74 @@ async function main() {
     }
   }
 
+  let stressParallelTemplate: { id: string; code: string; name: string } | null = await prisma.workflowTemplate.findUnique({
+    where: { code: "STRESS_PARALLEL" },
+    select: { id: true, code: true, name: true }
+  });
+  if (!stressParallelTemplate) {
+    stressParallelTemplate = (await createWorkflowTemplate(prisma, adminAuth, {
+      code: "STRESS_PARALLEL",
+      name: "Demo stress phê duyệt song song",
+      description: "Dữ liệu kiểm thử quy trình song song nhiều người duyệt, dùng cho QA layout và logic MIN_COUNT.",
+      category: "Kiểm thử",
+      managerId: manager.id,
+      activate: true,
+      fields: [
+        { name: "Hạng mục đề xuất", code: "item", type: "SHORT_TEXT", isRequired: true, displayOrder: 1 },
+        { name: "Ngân sách dự kiến", code: "budget", type: "CURRENCY", isRequired: true, displayOrder: 2 },
+        { name: "Lý do cần phê duyệt", code: "reason", type: "LONG_TEXT", isRequired: true, displayOrder: 3 }
+      ],
+      steps: [
+        { code: "start", name: "Bắt đầu", type: "START", orderIndex: 1 },
+        {
+          code: "parallel_review",
+          name: "Hội đồng duyệt song song",
+          type: "APPROVAL",
+          orderIndex: 2,
+          approvalMode: "PARALLEL",
+          completionRule: "MIN_COUNT",
+          minCount: 2,
+          deadlineAmount: 2,
+          deadlineUnit: "DAY",
+          reminderBeforeHours: 12,
+          assignees: [
+            { resolverType: "SPECIFIC_USER", userId: manager.id, orderIndex: 1 },
+            { resolverType: "SPECIFIC_USER", userId: admin.id, orderIndex: 2 },
+            { resolverType: "SPECIFIC_USER", userId: employees[1]!.id, orderIndex: 3 }
+          ]
+        },
+        { code: "end", name: "Kết thúc", type: "END", orderIndex: 3 }
+      ],
+      transitions: [{ fromStepCode: "parallel_review", toStepCode: "end", priority: 1 }]
+    })) as { id: string; code: string; name: string };
+  }
+
+  const stressParallelScope = `workflow.submit:${stressParallelTemplate.id}`;
+  const existingStressParallelInstance = await prisma.idempotencyKey.findUnique({
+    where: {
+      userId_key_scope: {
+        userId: employees[0]!.id,
+        key: "seed-stress-parallel-pending",
+        scope: stressParallelScope
+      }
+    }
+  });
+  if (!existingStressParallelInstance) {
+    await submitWorkflowInstance(
+      prisma,
+      auth(employees[0]!.id, ["workflow.instance.create"], ["employee"], employees[0]!.fullName),
+      {
+        templateId: stressParallelTemplate.id,
+        formData: {
+          item: "Gói kiểm thử quy trình song song có nhiều người xử lý cùng lúc",
+          budget: 36000000,
+          reason: "Tạo dữ liệu thật để QA danh sách hồ sơ, chi tiết phê duyệt và trạng thái nhiều approver pending."
+        },
+        idempotencyKey: "seed-stress-parallel-pending"
+      }
+    );
+  }
+
   await prisma.systemSetting.upsert({
     where: { key: "task.redo.reset_progress" },
     update: { value: false },
