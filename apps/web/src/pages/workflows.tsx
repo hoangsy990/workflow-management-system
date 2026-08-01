@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleDot, Clock3, Download, GitBranch, Loader2, Plus, RotateCcw, Trash2, Upload, XCircle } from "lucide-react";
+import { CheckCircle2, CircleDot, Clock3, Download, GitBranch, Loader2, Monitor, Plus, RotateCcw, Smartphone, Trash2, Upload, XCircle } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock } from "../components/common";
@@ -834,6 +834,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
   });
   const [fields, setFields] = useState<WorkflowFieldDraft[]>([newWorkflowField(1), newWorkflowField(2)]);
   const [approvalSteps, setApprovalSteps] = useState<WorkflowApprovalStepDraft[]>([newApprovalStep(1)]);
+  const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -1225,16 +1226,42 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
           {"Thêm bước"}
         </button>
       </fieldset>
-      <fieldset className="workflow-builder-preview full" data-testid="workflow-builder-preview">
+      <fieldset className={`workflow-builder-preview full ${previewDevice}`} data-testid="workflow-builder-preview">
         <legend>Preview quy trình</legend>
         <div className="builder-preview-head">
           <div>
             <strong>{form.name.trim() || "Mẫu quy trình mới"}</strong>
             <span>{form.code.trim() || "WORKFLOW_CODE"}</span>
           </div>
-          <span className="status-chip">
-            {previewFields.length} trường · {previewSteps.length} bước
-          </span>
+          <div className="builder-preview-tools">
+            <span className="status-chip">
+              {previewFields.length} trường · {previewSteps.length} bước
+            </span>
+            <div className="segmented-control" data-testid="workflow-preview-device">
+              <button
+                className={previewDevice === "desktop" ? "active" : ""}
+                data-testid="workflow-preview-desktop"
+                type="button"
+                title="Preview PC"
+                aria-pressed={previewDevice === "desktop"}
+                onClick={() => setPreviewDevice("desktop")}
+              >
+                <Monitor size={15} />
+                PC
+              </button>
+              <button
+                className={previewDevice === "mobile" ? "active" : ""}
+                data-testid="workflow-preview-mobile"
+                type="button"
+                title="Preview mobile"
+                aria-pressed={previewDevice === "mobile"}
+                onClick={() => setPreviewDevice("mobile")}
+              >
+                <Smartphone size={15} />
+                Mobile
+              </button>
+            </div>
+          </div>
         </div>
         <div className="builder-preview-grid">
           <section className="preview-card" data-testid="workflow-preview-form">

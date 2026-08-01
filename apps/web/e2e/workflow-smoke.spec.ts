@@ -1146,6 +1146,10 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   await expect(page.getByTestId("workflow-preview-steps")).toContainText("Xác nhận sau cùng");
   await expect(page.getByTestId("workflow-preview-step-1")).toContainText("50000000");
   await expect(page.getByTestId("workflow-preview-step-2")).toContainText("Đồng thời");
+  await page.getByTestId("workflow-preview-mobile").click();
+  await expect(page.getByTestId("workflow-builder-preview")).toHaveClass(/mobile/);
+  await page.getByTestId("workflow-preview-desktop").click();
+  await expect(page.getByTestId("workflow-builder-preview")).toHaveClass(/desktop/);
 
   const createResponse = page.waitForResponse((response) => response.url().endsWith("/workflow-templates") && response.request().method() === "POST");
   await page.getByTestId("workflow-template-save").click();

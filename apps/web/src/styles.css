@@ -642,6 +642,34 @@ legend {
   color: var(--primary-strong);
 }
 
+.segmented-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.segmented-control button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 9px;
+  font-weight: 800;
+}
+
+.segmented-control button.active {
+  background: var(--panel-soft);
+  color: var(--primary-strong);
+}
+
 .filter-panel {
   display: grid;
   gap: 12px;
@@ -1446,10 +1474,36 @@ tbody tr:hover {
   font-weight: 800;
 }
 
+.builder-preview-tools {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .builder-preview-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
+}
+
+.workflow-builder-preview.mobile .builder-preview-head,
+.workflow-builder-preview.mobile .builder-preview-grid {
+  width: min(390px, 100%);
+  margin-inline: auto;
+}
+
+.workflow-builder-preview.mobile .builder-preview-grid {
+  grid-template-columns: 1fr;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.workflow-builder-preview.mobile .preview-list article,
+.workflow-builder-preview.mobile .step-preview article {
+  background: var(--panel-soft);
 }
 
 .preview-card {
