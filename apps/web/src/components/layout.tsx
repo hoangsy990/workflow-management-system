@@ -166,7 +166,7 @@ export function AppShell({
               type="button"
               title="Thông báo"
               aria-label={unread > 0 ? `Thông báo, ${unread} chưa đọc` : "Thông báo"}
-              onClick={() => setPage("dashboard")}
+              onClick={() => goToPage("notifications")}
             >
               <Bell size={18} />
               {unread > 0 && <b aria-hidden="true">{unread}</b>}
@@ -300,13 +300,16 @@ export function AppShell({
           return (
             <button
               key={item.page}
-              className={page === item.page ? "active" : ""}
+              className={cls(page === item.page && "active", item.mobilePrimary && "mobile-primary")}
               aria-current={page === item.page ? "page" : undefined}
               data-testid={`bottom-nav-${item.page}`}
               onClick={() => goToPage(item.page)}
               type="button"
             >
-              <Icon size={20} />
+              <span className="bottom-nav-icon">
+                <Icon size={item.mobilePrimary ? 22 : 20} />
+                {item.page === "notifications" && unread > 0 && <b aria-hidden="true">{unread}</b>}
+              </span>
               <span>{item.label}</span>
             </button>
           );

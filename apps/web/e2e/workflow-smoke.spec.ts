@@ -245,7 +245,11 @@ async function openAppWithSession(page: Page, session: ApiSession) {
     );
   }, session);
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("nav-dashboard")).toBeVisible();
+  try {
+    await expect(page.getByTestId("nav-dashboard")).toBeVisible({ timeout: 1500 });
+  } catch {
+    await expect(page.getByTestId("bottom-nav-dashboard")).toBeVisible();
+  }
 }
 
 async function createSmokeTask(
@@ -317,7 +321,7 @@ async function openWorkflowApproval(page: Page, manager: ApiSession, instance: W
   const row = page.locator(`tr[data-testid="workflow-instance-row-${instance.id}"]`);
   await expect(row).toBeVisible();
   await row.click();
-  await expect(page.getByText(instance.code)).toBeVisible();
+  await expect(page.getByRole("heading", { name: instance.code })).toBeVisible();
 }
 
 async function runWorkflowAction(
@@ -393,6 +397,26 @@ test("layout có landmark và ARIA cơ bản cho screen reader", async ({ page, 
   await page.getByTestId("account-sessions-open").click();
   await expect(page.getByTestId("account-sessions-open")).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("dialog", { name: "Phiên đăng nhập" })).toBeVisible();
+});
+
+test("mobile bottom nav ưu tiên luồng chính và mở trang thông báo", async ({ page, request }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const admin = await apiLogin(request, "admin");
+  await openAppWithSession(page, admin);
+
+  await expect(page.getByTestId("bottom-nav-dashboard")).toBeVisible();
+  await expect(page.getByTestId("bottom-nav-myTasks")).toBeVisible();
+  await expect(page.getByTestId("bottom-nav-newTask")).toBeVisible();
+  await expect(page.getByTestId("bottom-nav-approvals")).toBeVisible();
+  await expect(page.getByTestId("bottom-nav-notifications")).toBeVisible();
+  await expect(page.getByTestId("bottom-nav-profile")).toBeVisible();
+
+  await page.getByTestId("bottom-nav-notifications").click();
+  await expect(page.getByTestId("notifications-page")).toBeVisible();
+  await expect(page.getByTestId("bottom-nav-notifications")).toHaveAttribute("aria-current", "page");
+
+  await page.getByTestId("bottom-nav-newTask").click();
+  await expect(page.getByTestId("task-create-title")).toBeVisible();
 });
 
 test("xem, thu hồi phiên thiết bị và đăng xuất tất cả", async ({ page, request }) => {

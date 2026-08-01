@@ -285,8 +285,9 @@ export const api = {
   revokeAuthSession: (id: string) => apiRequest<{ ok: true }>(`/auth/sessions/${id}`, { method: "DELETE" }),
   logoutAllSessions: () => apiRequest<{ ok: true }>("/auth/logout-all", { method: "POST" }),
   dashboard: () => apiRequest<Record<string, any>>("/dashboard"),
-  notifications: () => apiRequest<Paginated<Record<string, any>> & { unread: number }>("/notifications?pageSize=8"),
+  notifications: (pageSize = 8) => apiRequest<Paginated<Record<string, any>> & { unread: number }>(`/notifications?pageSize=${pageSize}`),
   readNotification: (id: string) => apiRequest<{ ok: true }>(`/notifications/${id}/read`, { method: "POST" }),
+  readAllNotifications: () => apiRequest<{ ok: true }>("/notifications/read-all", { method: "POST" }),
   users: () => cachedApiRequest<Paginated<Record<string, any>>>("/users?pageSize=100"),
   createUser: async (payload: Record<string, unknown>) => {
     const result = await apiRequest<Record<string, any>>("/users", { method: "POST", body: JSON.stringify(payload) });

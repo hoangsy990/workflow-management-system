@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=106`, `PARTIAL=122`, `TODO=32`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `40.8%`, tính trọng số partial `64.2%`.
+**Tiến độ hiện tại:** `DONE=107`, `PARTIAL=121`, `TODO=32`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `41.2%`, tính trọng số partial `64.4%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `MOBILE-BOTTOM-NAV-NOTIFICATIONS` | Bổ sung trang `Thông báo` riêng dùng API thật, hỗ trợ xem 50 thông báo gần nhất, đánh dấu đã đọc từng dòng/tất cả và mở đúng task/workflow từ link; đổi mobile bottom nav thành Tổng quan/Công việc/Tạo dạng FAB/Duyệt/Thông báo/Cá nhân, có unread badge và smoke test viewport mobile. Ổn định helper smoke mở hồ sơ workflow bằng heading detail để tránh strict-mode trùng table/mobile card. Chuyển checklist `Bottom navigation` sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/web test`, targeted mobile bottom nav smoke 1/1, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web`, targeted workflow return smoke 1/1, `pnpm smoke:web` 32/32, `docker builder prune -af`; Docker images `1.124GB`, volumes `78.79MB`, build cache `0B`. |
 | 01/08/2026 | `SCREEN-READER-BASICS` | Bổ sung lớp accessibility cơ bản cho app shell: skip link tới nội dung chính, landmark/aria-label cho sidebar/nav/main/bottom nav, `aria-current` cho trang đang active, trạng thái kết nối dạng `role=status`, lỗi dạng `role=alert`, panel phiên đăng nhập dạng dialog và smoke test bằng role selectors. Chuyển checklist `Screen reader cơ bản` sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/web test`, targeted accessibility smoke 1/1, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web`, targeted redo-reset smoke 1/1, `pnpm smoke:web` 31/31, `docker builder prune -af`; Docker images `1.124GB`, volumes `78.33MB`, build cache `0B`. |
 | 01/08/2026 | `FRONTEND-LAZY-PAGES` | Chuyển các trang authenticated chính trong `App.tsx` sang `React.lazy`/`Suspense`, dùng skeleton loading chung làm fallback khi tải chunk để giảm tải bundle ban đầu mà vẫn giữ trải nghiệm loading nhất quán. Chuyển checklist `Lazy load tab` sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/web test`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web`, `pnpm smoke:web` 30/30, `docker builder prune -af`; Docker images `1.124GB`, volumes `77.82MB`, build cache `0B`. |
 | 01/08/2026 | `SKELETON-LOADING` | Nâng `LoadingBlock` dùng chung thành skeleton loading responsive có shimmer, `aria-busy`, nội dung screen-reader và layout card/list để các trang dashboard/task/workflow/admin/profile không chỉ hiện spinner rỗng khi tải dữ liệu. Chuyển checklist `Skeleton loading` sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/web test`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web`, `pnpm smoke:web` 30/30, `docker builder prune -af`; Docker images `1.124GB`, volumes `77.65MB`, build cache `0B`. |
@@ -282,7 +283,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API/UI bổ sung progress, review, redo reset theo setting và overdue. Cần integration tests đầy đủ hơn. |
 | Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có thêm validate form data + smoke API/UI nhiều luồng. Chưa có integration transaction failure tự động. |
 | Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
-| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, accessibility landmark/ARIA cơ bản, dashboard department stats, deadline scheduler, user edit, department edit, role preview, tạo workflow template bằng builder có default/options/validation rule, compare workflow versions, tạo workflow instance bằng form động, task upload/download/download audit/reply/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, progress, evaluation attachment, redo reset, workflow action attachment, approved notification, approve/reject/request-info/return/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
+| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, accessibility landmark/ARIA cơ bản, mobile bottom nav viewport, dashboard department stats, deadline scheduler, user edit, department edit, role preview, tạo workflow template bằng builder có default/options/validation rule, compare workflow versions, tạo workflow instance bằng form động, task upload/download/download audit/reply/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, progress, evaluation attachment, redo reset, workflow action attachment, approved notification, approve/reject/request-info/return/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
 | Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `PARTIAL` | Windows desktop build và Android arm64 APK build đã pass. Chưa QA cài/chạy trên thiết bị Android, chưa có Edge/iOS/macOS matrix. |
 
 ## 14. Triển khai
@@ -330,7 +331,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Design system tokens/typography/spacing/components | `PARTIAL` | CSS variables/component classes có; đã tách UI primitives chung sang `components/common.tsx`. Chưa có tài liệu design system đầy đủ. |
 | Màu trạng thái nhất quán | `PARTIAL` | Status labels/chips có; cần audit toàn app. |
 | Bố cục PC/web: sidebar/header/main/breadcrumb | `DONE` | Có. |
-| Header/account/notification/search | `PARTIAL` | Account/profile/notification/session device có; global search chưa. |
+| Header/account/notification/search | `PARTIAL` | Account/profile/session device có, topbar notification mở trang thông báo riêng có unread badge và đánh dấu đã đọc. Global search chưa. |
 | Loading/empty/error/offline state | `PARTIAL` | Có state cơ bản; skeleton chưa. |
 
 ## 18. Dashboard nâng cao
@@ -445,7 +446,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Bottom navigation | `PARTIAL` | Có bottom nav 5 mục + menu mở rộng. Chưa đúng đề xuất Tổng quan/Công việc/Phê duyệt/Thông báo/Cá nhân với FAB. |
+| Bottom navigation | `DONE` | Mobile bottom nav ưu tiên Tổng quan/Công việc/Tạo dạng FAB/Duyệt/Thông báo/Cá nhân, có unread badge, `aria-current` và smoke test viewport mobile. |
 | Mobile cards cho list | `DONE` | DataTable chuyển card trên mobile. |
 | Mobile filter bottom sheet/fullscreen/drawer | `TODO` | Chưa có. |
 | Detail mobile chia section/tab | `PARTIAL` | Có section tuần tự; chưa tabs/section navigation chuyên biệt. |

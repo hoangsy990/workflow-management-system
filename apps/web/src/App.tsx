@@ -22,6 +22,7 @@ const WorkflowInstanceDetail = lazy(() => import("./pages/workflows").then((modu
 const WorkflowInstances = lazy(() => import("./pages/workflows").then((module) => ({ default: module.WorkflowInstances })));
 const WorkflowTemplates = lazy(() => import("./pages/workflows").then((module) => ({ default: module.WorkflowTemplates })));
 const ProfilePage = lazy(() => import("./pages/profile").then((module) => ({ default: module.ProfilePage })));
+const NotificationsPage = lazy(() => import("./pages/notifications").then((module) => ({ default: module.NotificationsPage })));
 
 export default function App() {
   const [user, setUser] = useState<ApiUser | null>(null);
@@ -108,6 +109,8 @@ export default function App() {
         return <WorkflowInstanceDetail instanceId={instanceId} setPage={setPage} />;
       case "approvals":
         return <WorkflowInstances {...props} pendingMine />;
+      case "notifications":
+        return <NotificationsPage {...props} onUnreadChanged={setUnread} />;
       case "users":
         return <UsersPage />;
       case "departments":

@@ -111,8 +111,11 @@ export function Dashboard({ setPage, setTaskId, setInstanceId }: DashboardProps)
       </section>
 
       <section className="panel">
-        <div className="panel-head">
+        <div className="panel-head wrap">
           <h2>Thông báo</h2>
+          <button className="ghost-button compact" type="button" onClick={() => setPage("notifications")}>
+            Xem tất cả
+          </button>
         </div>
         {notifications.loading ? (
           <LoadingBlock />

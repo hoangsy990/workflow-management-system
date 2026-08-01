@@ -1527,6 +1527,48 @@ progress {
   background: var(--panel-soft);
 }
 
+.notification-list {
+  display: grid;
+  gap: 10px;
+}
+
+.notification-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-left: 4px solid transparent;
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.notification-item.unread {
+  border-left-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--panel));
+}
+
+.notification-main,
+.notification-meta {
+  display: grid;
+  gap: 4px;
+}
+
+.notification-main span,
+.notification-meta {
+  color: var(--muted);
+}
+
+.notification-meta {
+  justify-items: end;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .bar-list > div {
   display: flex;
   justify-content: space-between;
@@ -2087,21 +2129,61 @@ progress {
     right: 0;
     bottom: 0;
     z-index: 10;
-    height: 68px;
+    min-height: 76px;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     background: var(--panel);
     border-top: 1px solid var(--line);
+    padding: 6px 4px max(6px, env(safe-area-inset-bottom));
   }
 
   .bottom-nav button {
+    position: relative;
     display: grid;
     justify-items: center;
     align-content: center;
     gap: 4px;
     color: var(--muted);
     font-size: 10px;
-    padding: 6px 4px;
+    padding: 4px 2px;
+  }
+
+  .bottom-nav button.mobile-primary {
+    color: var(--primary-strong);
+    font-weight: 800;
+  }
+
+  .bottom-nav-icon {
+    position: relative;
+    min-width: 28px;
+    min-height: 24px;
+    display: grid;
+    place-items: center;
+  }
+
+  .bottom-nav button.mobile-primary .bottom-nav-icon {
+    width: 46px;
+    height: 46px;
+    margin-top: -18px;
+    border: 1px solid color-mix(in srgb, var(--primary) 72%, var(--line));
+    border-radius: 999px;
+    background: var(--primary);
+    color: #ffffff;
+    box-shadow: 0 12px 28px rgba(15, 118, 110, 0.28);
+  }
+
+  .bottom-nav-icon b {
+    position: absolute;
+    top: -5px;
+    right: -8px;
+    min-width: 17px;
+    height: 17px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--danger);
+    color: #ffffff;
+    font-size: 10px;
   }
 }
 
@@ -2127,5 +2209,14 @@ progress {
   .form-actions button,
   .approval-actions button {
     width: 100%;
+  }
+
+  .notification-item {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-meta {
+    justify-items: start;
+    white-space: normal;
   }
 }
