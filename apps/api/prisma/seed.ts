@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/security/hash.js";
-import { createTask, updateTaskProgress, evaluateTask } from "../src/modules/tasks/task.service.js";
+import { addTaskComment, createTask, updateTaskProgress, evaluateTask } from "../src/modules/tasks/task.service.js";
 import { actOnWorkflowInstance, createWorkflowTemplate, submitWorkflowInstance } from "../src/modules/workflows/workflow.service.js";
 import type { AuthContext } from "../src/types/fastify.js";
 
@@ -431,6 +431,52 @@ async function main() {
     await updateTaskProgress(prisma, auth(employees[3]!.id, ["task.comment"], ["employee"], employees[3]!.fullName), childMinutes.id, {
       progress: 100,
       note: "Đã chuẩn bị xong mẫu biên bản."
+    });
+  }
+
+  if (
+    !(await prisma.task.findFirst({
+      where: { title: "Demo stress task: tên rất dài, nhiều người thực hiện, nhiều nhãn, quá hạn và nhiều trao đổi", deletedAt: null }
+    }))
+  ) {
+    const stressTask = await createTask(prisma, managerAuth, {
+      title: "Demo stress task: tên rất dài, nhiều người thực hiện, nhiều nhãn, quá hạn và nhiều trao đổi",
+      description:
+        "Dữ liệu kiểm thử giao diện với tiêu đề dài, nhiều người tham gia, nhiều nhãn, hạn đã qua và nhiều bình luận để kiểm tra layout danh sách/thẻ mobile/chi tiết.",
+      managerId: manager.id,
+      assigneeIds: employees.map((employee) => employee.id),
+      followerIds: [admin.id],
+      departmentId: financeDepartment.id,
+      startDate: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+      dueDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      priority: "URGENT",
+      categoryId: categories[1]!.id,
+      tagIds: tags.map((tag) => tag.id),
+      requiresReview: true
+    });
+    await updateTaskProgress(prisma, auth(employees[0]!.id, ["task.comment"], ["employee"], employees[0]!.fullName), stressTask.id, {
+      progress: 20,
+      note: "Bắt đầu xử lý dữ liệu stress task."
+    });
+    const firstStressComment = await addTaskComment(
+      prisma,
+      auth(employees[0]!.id, ["task.comment"], ["employee"], employees[0]!.fullName),
+      stressTask.id,
+      {
+        content: "Đã rà soát đầu việc, cần cả nhóm cập nhật tình trạng trước cuối ngày.",
+        mentions: [manager.id]
+      }
+    );
+    const stressCommentAuthors = [employees[1]!, employees[2]!, employees[3]!, employees[0]!, employees[1]!, employees[2]!];
+    for (const [index, author] of stressCommentAuthors.entries()) {
+      await addTaskComment(prisma, auth(author.id, ["task.comment"], ["employee"], author.fullName), stressTask.id, {
+        content: `Cập nhật stress comment ${index + 1}: nội dung dài vừa phải để kiểm tra hiển thị dòng, xuống dòng và khoảng cách trong chi tiết công việc.`,
+        mentions: index % 2 === 0 ? [manager.id] : []
+      });
+    }
+    await addTaskComment(prisma, managerAuth, stressTask.id, {
+      parentCommentId: firstStressComment.id,
+      content: "Đã nhận cập nhật, nhóm tiếp tục xử lý theo thứ tự ưu tiên."
     });
   }
 

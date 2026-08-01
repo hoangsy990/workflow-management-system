@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=115`, `PARTIAL=116`, `TODO=29`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `44.2%`, tính trọng số partial `66.5%`.
+**Tiến độ hiện tại:** `DONE=116`, `PARTIAL=115`, `TODO=29`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `44.6%`, tính trọng số partial `66.7%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `SEED-TASK-STRESS` | Bổ sung seed idempotent cho task stress có tên dài, 4 assignee, 3 tag, trạng thái quá hạn, progress 20 và 8 comment/reply/mention để QA list/card/detail mobile và layout nội dung dài. Chuyển checklist `Task tên dài, nhiều assignee, nhiều tags, quá hạn, nhiều comment` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm build`, `docker compose up -d --build api`, `pnpm docker:seed`, query PostgreSQL xác nhận `assignees=4`, `tags=3`, `comments=8`, `overdue=t`, `pnpm lint`, `pnpm test`, `docker builder prune -af`; Docker images `1.124GB`, volumes `80.77MB`, build cache `0B`. |
 | 01/08/2026 | `SEED-TASK-SUBTASKS` | Bổ sung seed idempotent cho dữ liệu demo task cha/con: một task cha bật tự tính tiến độ và hai task con có progress 50/100 để parent tự ra 75%. Chuyển checklist `Task con` trong seed stress sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm build`, `docker compose up -d --build api`, `pnpm docker:seed`, query PostgreSQL xác nhận parent progress `75` và `child_count=2`, `pnpm lint`, `pnpm test`, `docker builder prune -af`; Docker images `1.124GB`, volumes `80.74MB`, build cache `0B`. |
 | 01/08/2026 | `UPLOAD-FILE-SETTINGS` | Chuyển cấu hình upload task/workflow sang đọc `system_settings` (`file.upload.max_mb`, `file.upload.allowed_mime_types`), thêm API `/upload-config`, seed default, cache invalidation khi lưu setting, panel `Tệp upload` trong trang Cấu hình và task upload UI dùng `accept`/validate từ API. Chuyển checklist `Cấu hình tệp` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, smoke web 39/39 gồm test cấu hình upload mới, `pnpm lint`, `pnpm test`, `pnpm build`, `docker builder prune -af`; Docker images `1.124GB`, volumes `80.69MB`, build cache `0B`. |
 | 01/08/2026 | `AUTO-CODE-SETTINGS` | Chuyển generator mã task/workflow instance sang đọc `system_settings` (`auto_code.task.prefix`, `auto_code.task.padding`, `auto_code.workflow_instance.prefix`, `auto_code.workflow_instance.padding`), seed default, thêm panel `Mã tự động` ở trang Cấu hình và smoke test chỉnh prefix/padding rồi tạo task/hồ sơ thật. Chuyển checklist `Mã tự động` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, targeted auto-code smoke 1/1, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm smoke:web` 38/38, `docker builder prune -af`; Docker images `1.124GB`, volumes `80.5MB`, build cache `0B`. |
@@ -498,7 +499,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Task tên dài, nhiều assignee, nhiều tags, quá hạn, nhiều comment | `PARTIAL` | Một số seed/smoke có. Cần seed stress đầy đủ. |
+| Task tên dài, nhiều assignee, nhiều tags, quá hạn, nhiều comment | `DONE` | Seed idempotent tạo task stress có tiêu đề dài, 4 người thực hiện, 3 nhãn, hạn đã qua, progress 20 và 8 comment/reply/mention để QA layout. |
 | Task con | `DONE` | Seed idempotent tạo task cha `Demo task cha: Chuẩn bị họp giao ban` và hai task con 50/100%, parent bật auto progress nên tự ra 75%. |
 | Workflow form dài/bảng nhiều dòng/nhiều nhánh/parallel | `PARTIAL` | Branch có ở backend và builder điều kiện cơ bản; form dài/parallel seed chưa. |
 | User tên dài, phòng ban nhiều cấp, >100 records | `TODO` | Chưa có. |
