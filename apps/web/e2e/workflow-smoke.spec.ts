@@ -630,6 +630,62 @@ test("dashboard hiển thị thống kê công việc theo phòng ban", async ({
   await expect(page.getByTestId("dashboard-status-chart").locator(".bar-meter").first()).toBeVisible();
 });
 
+test("báo cáo lọc phía server theo phòng ban, trạng thái, ưu tiên và khoảng ngày", async ({ page, request }) => {
+  const manager = await apiLogin(request, "manager");
+  const users = await apiGet<Paginated<UserRecord>>(request, manager, "/users?pageSize=100");
+  const departments = await apiGet<DepartmentRecord[]>(request, manager, "/departments");
+  const assignee = users.data.find((user) => user.email === accounts.employee.email) ?? users.data[0];
+  const department = assignee?.department ?? departments[0];
+  const from = dateInput(44);
+  const to = dateInput(46);
+  const targetDate = dateInput(45);
+
+  expect(department, "Seed department is required").toBeTruthy();
+
+  const task = await createSmokeTask(request, manager, "report-filter", {
+    departmentId: department!.id,
+    priority: "URGENT",
+    status: "TODO",
+    startDate: `${targetDate}T02:00:00.000Z`,
+    dueDate: `${targetDate}T09:00:00.000Z`,
+    requiresReview: false
+  });
+  const report = await apiGet<Record<string, any>>(
+    request,
+    manager,
+    `/reports/summary?departmentId=${department!.id}&taskStatus=TODO&priority=URGENT&from=${from}&to=${to}`
+  );
+  expect(report.tasks.cards.total).toBeGreaterThanOrEqual(1);
+  expect((report.tasks.recent as Array<Record<string, any>>).some((item) => item.id === task.id)).toBe(true);
+
+  await openAppWithSession(page, manager);
+  await page.getByTestId("nav-reports").click();
+  await expect(page.getByTestId("reports-page")).toBeVisible();
+
+  await page.getByTestId("report-filter-department").selectOption(department!.id);
+  await page.getByTestId("report-filter-task-status").selectOption("TODO");
+  await page.getByTestId("report-filter-priority").selectOption("URGENT");
+  await page.getByTestId("report-filter-from").fill(from);
+  const filteredResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname.endsWith("/reports/summary") &&
+      url.searchParams.get("departmentId") === department!.id &&
+      url.searchParams.get("taskStatus") === "TODO" &&
+      url.searchParams.get("priority") === "URGENT" &&
+      url.searchParams.get("from") === from &&
+      url.searchParams.get("to") === to
+    );
+  });
+  await page.getByTestId("report-filter-to").fill(to);
+  const response = await filteredResponse;
+  expect(response.ok(), await response.text()).toBeTruthy();
+
+  await expect(page.getByTestId("report-filter-count")).toContainText("5 bộ lọc");
+  await expect(page.getByTestId("report-task-priority-chart")).toContainText("Khẩn cấp");
+  await expect(page.getByTestId(`report-task-row-${task.id}`)).toBeVisible();
+});
+
 test("scheduler gửi thông báo task và bước phê duyệt sắp hạn/quá hạn", async ({ request }) => {
   const admin = await apiLogin(request, "admin");
   const manager = await apiLogin(request, "manager");

@@ -1,5 +1,6 @@
 import {
   Activity,
+  BarChart3,
   Bell,
   CalendarDays,
   CheckCircle2,
@@ -31,6 +32,7 @@ export type Page =
   | "newInstance"
   | "instanceDetail"
   | "approvals"
+  | "reports"
   | "users"
   | "departments"
   | "catalogs"
@@ -56,6 +58,7 @@ export const navItems: NavItem[] = [
   { page: "workflowTemplates", label: "Mẫu quy trình", icon: Workflow },
   { page: "workflowInstances", label: "Hồ sơ quy trình", icon: FileClock },
   { page: "approvals", label: "Chờ tôi duyệt", icon: CheckCircle2 },
+  { page: "reports", label: "Báo cáo", icon: BarChart3 },
   { page: "notifications", label: "Thông báo", icon: Bell },
   { page: "users", label: "Người dùng", icon: Users },
   { page: "departments", label: "Phòng ban", icon: Activity },
