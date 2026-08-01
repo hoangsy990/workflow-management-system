@@ -1,4 +1,4 @@
-import { RotateCcw, Search } from "lucide-react";
+import { Download, Loader2, Printer, RotateCcw, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock } from "../components/common";
@@ -66,6 +66,9 @@ function buildDrilldownQuery(baseQuery: string, drilldown: ReportDrilldown | nul
 export function ReportsPage({ setPage, setTaskId, setInstanceId }: ReportsPageProps) {
   const [filters, setFilters] = useState(emptyReportFilters);
   const [drilldown, setDrilldown] = useState<ReportDrilldown | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState("");
+  const [exportError, setExportError] = useState("");
   const departments = useAsyncData(() => api.departments(), []);
   const query = useMemo(() => buildReportQuery(filters), [filters]);
   const { data, loading, error } = useAsyncData(() => api.reportsSummary(query), [query]);
@@ -83,6 +86,28 @@ export function ReportsPage({ setPage, setTaskId, setInstanceId }: ReportsPagePr
     setDrilldown(null);
   }, [query]);
 
+  async function downloadCsv() {
+    setExporting(true);
+    setExportMessage("");
+    setExportError("");
+    try {
+      const { blob, filename } = await api.exportReportsCsv(query);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename || "workflow-report.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setExportMessage("Đã tạo file CSV báo cáo.");
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Không xuất được báo cáo CSV.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   if (loading) return <LoadingBlock />;
   if (error) return <ErrorBlock message={error} />;
 
@@ -94,10 +119,20 @@ export function ReportsPage({ setPage, setTaskId, setInstanceId }: ReportsPagePr
             <h2>Bộ lọc báo cáo</h2>
             <p>Lọc phía server theo phạm vi dữ liệu người đang đăng nhập được phép xem.</p>
           </div>
-          <button className="ghost-button compact" type="button" data-testid="report-filter-reset" onClick={() => setFilters(emptyReportFilters)}>
-            <RotateCcw size={15} />
-            Đặt lại
-          </button>
+          <div className="inline-actions">
+            <button className="ghost-button compact" type="button" data-testid="report-print" onClick={() => window.print()}>
+              <Printer size={15} />
+              In
+            </button>
+            <button className="primary-button compact" type="button" data-testid="report-export-csv" disabled={exporting} onClick={() => void downloadCsv()}>
+              {exporting ? <Loader2 className="spin" size={15} /> : <Download size={15} />}
+              Tải CSV
+            </button>
+            <button className="ghost-button compact" type="button" data-testid="report-filter-reset" onClick={() => setFilters(emptyReportFilters)}>
+              <RotateCcw size={15} />
+              Đặt lại
+            </button>
+          </div>
         </div>
         <div className="filter-grid dashboard-filters" data-testid="report-filter-panel">
           <label>
@@ -183,6 +218,16 @@ export function ReportsPage({ setPage, setTaskId, setInstanceId }: ReportsPagePr
         <p className="field-hint" data-testid="report-filter-count">
           {activeFilterCount > 0 ? `${activeFilterCount} bộ lọc đang áp dụng.` : "Đang xem toàn bộ dữ liệu trong phạm vi quyền."}
         </p>
+        {exportMessage && (
+          <p className="success-text" data-testid="report-export-message">
+            {exportMessage}
+          </p>
+        )}
+        {exportError && (
+          <p className="form-error" role="alert" data-testid="report-export-error">
+            {exportError}
+          </p>
+        )}
       </section>
 
       <div className="metric-grid">

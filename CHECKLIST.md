@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=130`, `PARTIAL=115`, `TODO=15`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `50.0%`, tính trọng số partial `72.1%`.
+**Tiến độ hiện tại:** `DONE=130`, `PARTIAL=116`, `TODO=14`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `50.0%`, tính trọng số partial `72.3%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `REPORT-CSV-EXPORT` | Bổ sung export CSV cho báo cáo qua API `/reports/export.csv`, áp scope quyền/filter server-side, ghi audit `report.export.csv` với metadata số dòng và filter; UI có nút `Tải CSV`, trạng thái loading/success/error và nút `In` với CSS print tối thiểu. Chuyển checklist `Export Excel/CSV/PDF/print theo quyền + audit` sang PARTIAL vì CSV/print/audit đã có, Excel/PDF native chưa có. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, targeted report smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 42/42, `docker builder prune -af`; Docker images `1.124GB`, volumes `84.52MB`, build cache `0B`. |
 | 01/08/2026 | `REPORT-DRILLDOWN` | Bổ sung endpoint `/reports/drilldown` có pagination và scope quyền backend để xem chi tiết theo bucket chart; trang `Báo cáo` biến các dòng chart task/workflow thành nút drill-down, hiển thị bảng chi tiết và mở đúng công việc/hồ sơ. Chuyển checklist `Drill-down` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, targeted report smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 42/42, `docker builder prune -af`; Docker images `1.124GB`, volumes `84.19MB`, build cache `0B`. |
 | 01/08/2026 | `REPORT-SERVER-FILTERS` | Bổ sung module API `/reports/summary` áp scope quyền backend cho công việc/hồ sơ quy trình, hỗ trợ lọc server-side theo phòng ban, trạng thái công việc, ưu tiên, trạng thái hồ sơ và khoảng ngày; thêm trang `Báo cáo` lazy-load với chart/tổng quan/bảng gần nhất từ DB thật. Chuyển checklist `Bộ lọc báo cáo` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, targeted report smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 42/42, `docker builder prune -af`; Docker images `1.124GB`, volumes `83.95MB`, build cache `0B`. |
 | 01/08/2026 | `MOBILE-SWIPE-ACTIONS` | Bổ sung action rail dạng swipe cho mobile cards của `DataTable`, TaskList có nút nhanh `Mở`/`Bắt đầu`/`Tiếp tục` riêng trên mobile và ẩn cột thao tác khỏi card để không lặp nội dung. Chuyển checklist `Swipe actions` sang DONE. | `pnpm --filter @workflow/web lint`, `docker compose up -d --build web`, targeted mobile filter smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 41/41, `docker builder prune -af`; Docker images `1.124GB`, volumes `83.65MB`, build cache `0B`. |
@@ -462,7 +463,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Báo cáo quy trình | `PARTIAL` | Recent/count cơ bản. Module report riêng chưa. |
 | Bộ lọc báo cáo | `DONE` | Trang `Báo cáo` gọi API `/reports/summary` và lọc server-side theo phòng ban, trạng thái công việc, ưu tiên, trạng thái hồ sơ và khoảng ngày trong phạm vi quyền backend. |
 | Drill-down | `DONE` | Report charts mở bảng chi tiết qua API `/reports/drilldown` có pagination, áp đúng filter hiện tại và scope quyền backend; smoke test kiểm drill-down từ chart ưu tiên về task thật. |
-| Export Excel/CSV/PDF/print theo quyền + audit | `TODO` | Chưa có. |
+| Export Excel/CSV/PDF/print theo quyền + audit | `PARTIAL` | Đã có export CSV qua API `/reports/export.csv` theo filter/scope quyền, audit `report.export.csv`, UI tải CSV và in bằng print stylesheet; chưa có file Excel `.xlsx` và PDF native. |
 | Dashboard tùy chỉnh | `TODO` | Chưa có. |
 
 ## 28. Mobile

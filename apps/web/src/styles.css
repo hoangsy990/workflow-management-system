@@ -2894,3 +2894,36 @@ progress {
     white-space: normal;
   }
 }
+
+@media print {
+  .sidebar,
+  .topbar,
+  .bottom-nav,
+  .mobile-menu-panel,
+  .offline-banner,
+  .skip-link,
+  .inline-actions {
+    display: none !important;
+  }
+
+  .app-shell,
+  .workspace,
+  .content {
+    display: block;
+    min-height: auto;
+    padding: 0;
+    background: #fff;
+  }
+
+  .page-grid {
+    display: block;
+  }
+
+  .panel,
+  .metric-card {
+    break-inside: avoid;
+    box-shadow: none;
+    border-color: #ddd;
+    margin-bottom: 12px;
+  }
+}

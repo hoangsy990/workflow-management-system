@@ -5,6 +5,7 @@ import { badRequest } from "../../http/errors.js";
 import { prisma } from "../../prisma.js";
 import { parseQuery } from "../../http/validation.js";
 import { requireAuth } from "../auth/auth.guard.js";
+import { writeAuditLog } from "../audit/audit.service.js";
 import { visibleTaskWhere } from "../tasks/task.service.js";
 import { visibleWorkflowInstanceWhere } from "../workflows/workflow.service.js";
 
@@ -149,6 +150,36 @@ function workflowDrilldownFilter(query: z.infer<typeof reportDrilldownQuerySchem
   throw badRequest("Bucket drill-down không áp dụng cho hồ sơ quy trình.");
 }
 
+function serializeReportFilters(query: z.infer<typeof reportQuerySchema>) {
+  return {
+    departmentId: query.departmentId ?? null,
+    taskStatus: query.taskStatus ?? null,
+    priority: query.priority ?? null,
+    workflowStatus: query.workflowStatus ?? null,
+    from: query.from?.toISOString() ?? null,
+    to: query.to?.toISOString() ?? null
+  };
+}
+
+function csvCell(value: unknown) {
+  const text = value === null || value === undefined ? "" : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function csvDate(value: Date | string | null | undefined) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Asia/Ho_Chi_Minh"
+  }).format(new Date(value));
+}
+
+function toCsv(rows: unknown[][]) {
+  return `\uFEFF${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
+}
+
 export async function reportRoutes(app: FastifyInstance) {
   app.get("/reports/summary", { preHandler: requireAuth }, async (request) => {
     const auth = request.auth!;
@@ -253,6 +284,81 @@ export async function reportRoutes(app: FastifyInstance) {
         recent: recentInstances
       }
     };
+  });
+
+  app.get("/reports/export.csv", { preHandler: requireAuth }, async (request, reply) => {
+    const auth = request.auth!;
+    const query = parseQuery(request, reportQuerySchema);
+    const taskWhere: Prisma.TaskWhereInput = {
+      AND: [await visibleTaskWhere(prisma, auth), taskReportFilters(query)]
+    };
+    const workflowWhere: Prisma.WorkflowInstanceWhereInput = {
+      AND: [visibleWorkflowInstanceWhere(auth), workflowReportFilters(query)]
+    };
+    const [tasks, workflows] = await Promise.all([
+      prisma.task.findMany({
+        where: taskWhere,
+        take: 5000,
+        orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+        include: {
+          department: { select: { name: true } },
+          assignees: { include: { user: { select: { fullName: true } } } }
+        }
+      }),
+      prisma.workflowInstance.findMany({
+        where: workflowWhere,
+        take: 5000,
+        orderBy: { createdAt: "desc" },
+        include: {
+          template: { select: { name: true } },
+          requester: { select: { fullName: true, department: { select: { name: true } } } },
+          currentStep: { select: { name: true } }
+        }
+      })
+    ]);
+    const rows: unknown[][] = [
+      ["Loại", "Mã", "Tên/Mẫu", "Trạng thái", "Ưu tiên/Bước", "Phòng ban/Người tạo", "Người liên quan", "Tiến độ", "Ngày"],
+      ...tasks.map((task) => [
+        "Công việc",
+        task.code,
+        task.title,
+        task.status,
+        task.priority,
+        task.department?.name ?? "",
+        task.assignees.map((assignee) => assignee.user.fullName).join("; "),
+        `${task.progress}%`,
+        csvDate(task.dueDate ?? task.createdAt)
+      ]),
+      ...workflows.map((instance) => [
+        "Hồ sơ quy trình",
+        instance.code,
+        instance.template.name,
+        instance.status,
+        instance.currentStep?.name ?? "",
+        instance.requester.department?.name ?? "",
+        instance.requester.fullName,
+        "",
+        csvDate(instance.createdAt)
+      ])
+    ];
+
+    await writeAuditLog(prisma, {
+      actorId: auth.userId,
+      action: "report.export.csv",
+      entityType: "reports",
+      ipAddress: request.ip,
+      metadata: {
+        filters: serializeReportFilters(query),
+        taskCount: tasks.length,
+        workflowCount: workflows.length
+      }
+    });
+
+    const fileName = `workflow-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    return reply
+      .type("text/csv; charset=utf-8")
+      .header("Content-Disposition", `attachment; filename="${encodeURIComponent(fileName)}"`)
+      .send(toCsv(rows));
   });
 
   app.get("/reports/drilldown", { preHandler: requireAuth }, async (request) => {

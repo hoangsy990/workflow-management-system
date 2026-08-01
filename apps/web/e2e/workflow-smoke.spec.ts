@@ -631,6 +631,7 @@ test("dashboard hiển thị thống kê công việc theo phòng ban", async ({
 });
 
 test("báo cáo lọc phía server theo phòng ban, trạng thái, ưu tiên và khoảng ngày", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
   const manager = await apiLogin(request, "manager");
   const users = await apiGet<Paginated<UserRecord>>(request, manager, "/users?pageSize=100");
   const departments = await apiGet<DepartmentRecord[]>(request, manager, "/departments");
@@ -699,6 +700,21 @@ test("báo cáo lọc phía server theo phòng ban, trạng thái, ưu tiên và
   expect(drilldown.ok(), await drilldown.text()).toBeTruthy();
   await expect(page.getByTestId("report-drilldown-panel")).toContainText("Chi tiết");
   await expect(page.getByTestId(`report-drilldown-task-row-${task.id}`)).toBeVisible();
+
+  const exportDownload = page.waitForEvent("download");
+  await page.getByTestId("report-export-csv").click();
+  const downloadedReport = await exportDownload;
+  expect(downloadedReport.suggestedFilename()).toContain("workflow-report");
+  await expect(page.getByTestId("report-export-message")).toContainText("CSV");
+
+  const exportLogs = await apiGet<Paginated<Record<string, any>>>(
+    request,
+    admin,
+    "/activity-logs?pageSize=20&action=report.export.csv&entityType=reports"
+  );
+  expect(
+    exportLogs.data.some((log) => log.actor?.id === manager.user.id && Number((log.metadata as Record<string, any> | undefined)?.taskCount ?? 0) > 0)
+  ).toBe(true);
 });
 
 test("scheduler gửi thông báo task và bước phê duyệt sắp hạn/quá hạn", async ({ request }) => {
