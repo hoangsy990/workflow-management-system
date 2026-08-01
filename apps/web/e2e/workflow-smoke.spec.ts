@@ -1140,6 +1140,12 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   await page.getByTestId("workflow-condition-field-0").selectOption("amount");
   await page.getByTestId("workflow-condition-operator-0").selectOption("gt");
   await page.getByTestId("workflow-condition-value-0").fill("50000000");
+  await expect(page.getByTestId("workflow-builder-preview")).toBeVisible();
+  await expect(page.getByTestId("workflow-preview-form")).toContainText(defaultPurpose);
+  await expect(page.getByTestId("workflow-preview-field-3")).toContainText("Noi bo, Khach hang");
+  await expect(page.getByTestId("workflow-preview-steps")).toContainText("Xác nhận sau cùng");
+  await expect(page.getByTestId("workflow-preview-step-1")).toContainText("50000000");
+  await expect(page.getByTestId("workflow-preview-step-2")).toContainText("Đồng thời");
 
   const createResponse = page.waitForResponse((response) => response.url().endsWith("/workflow-templates") && response.request().method() === "POST");
   await page.getByTestId("workflow-template-save").click();

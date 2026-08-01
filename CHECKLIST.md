@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=124`, `PARTIAL=114`, `TODO=22`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `47.7%`, tính trọng số partial `69.6%`.
+**Tiến độ hiện tại:** `DONE=125`, `PARTIAL=114`, `TODO=21`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `48.1%`, tính trọng số partial `70.0%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `WORKFLOW-BUILDER-PREVIEW` | Bổ sung preview quy trình ngay trong màn tạo mẫu: xem trước thông tin mẫu, biểu mẫu nhập liệu, default/validation/options, bước xử lý, resolver, rule hoàn thành, SLA và điều kiện chuyển bước trước khi lưu. Chuyển checklist `Preview quy trình` sang DONE. | `pnpm --filter @workflow/web lint`, `docker compose up -d --build web`, targeted builder smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 40/40, `docker builder prune -af`; Docker images `1.124GB`, volumes `82.84MB`, build cache `0B`. |
 | 01/08/2026 | `WORKFLOW-PROGRESS-MAP` | Bổ sung sơ đồ theo dõi quy trình trong chi tiết hồ sơ: API detail trả thêm steps/transitions của phiên bản, UI gom runtime step/approvals để hiện bước đã xong, đang xử lý, cần chú ý, người đang chờ và nhánh chuyển tiếp/điều kiện. Chuyển checklist `Sơ đồ theo dõi quy trình` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, targeted workflow approve smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 40/40, `docker builder prune -af`; Docker images `1.124GB`, volumes `82.54MB`, build cache `0B`. |
 | 01/08/2026 | `OPS-SETTINGS-PANELS` | Bổ sung seed mặc định và panel Cấu hình vận hành cho thông báo in-app/push/email, SMTP, bảo mật đăng nhập và backup; toàn bộ lưu vào `system_settings`, kế thừa audit metadata/redaction hiện có và có smoke test lưu UI rồi đọc lại API thật. Chuyển checklist `Cấu hình thông báo/email/bảo mật/backup` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, `pnpm docker:seed`, query PostgreSQL xác nhận `13` setting vận hành, targeted settings smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 40/40, `docker builder prune -af`; Docker images `1.124GB`, volumes `82.29MB`, build cache `0B`. |
 | 01/08/2026 | `ORG-CHART-DEPARTMENTS` | Bổ sung panel `Sơ đồ tổ chức` trong trang Phòng ban, dựng tree/list từ dữ liệu thật `/departments`, `/users`, `/teams`, hiển thị cấp cha-con, quản lý, nhân sự, nhóm và số công việc; click node chọn đúng phòng ban để chỉnh sửa. Chuyển checklist `Sơ đồ tổ chức tree/org/list` sang DONE. | `pnpm --filter @workflow/web lint`, `docker compose up -d --build web`, targeted department smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 39/39, `docker builder prune -af`; Docker images `1.124GB`, volumes `81.97MB`, build cache `0B`. |
@@ -381,7 +382,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Panel cấu hình node | `TODO` | Chưa có. |
 | Cấu hình đường nối/condition builder | `PARTIAL` | Backend structured conditions có; UI builder cấu hình điều kiện chuyển sang bước kế tiếp cơ bản. Chưa có canvas đường nối kéo thả. |
 | Kiểm tra quy trình/lỗi | `PARTIAL` | Backend validation cơ bản; UI checker chưa. |
-| Preview quy trình | `TODO` | Chưa có. |
+| Preview quy trình | `DONE` | Builder có preview form và flow trước khi lưu: fields/default/validation/options, steps/resolver/rule/SLA/condition và end node, có smoke test UI. |
 | Quản lý phiên bản visual | `PARTIAL` | Backend version có; UI chưa. |
 
 ## 21. Form builder kéo thả

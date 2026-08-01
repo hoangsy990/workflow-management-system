@@ -792,6 +792,39 @@ function WorkflowTrackerIcon({ state }: { state: WorkflowTrackerState }) {
   return <CircleDot size={18} />;
 }
 
+function optionLabel(options: readonly (readonly [string, string])[], value: string) {
+  return options.find(([optionValue]) => optionValue === value)?.[1] ?? value;
+}
+
+function workflowPreviewValue(value: unknown) {
+  if (value === undefined || value === null || value === "") return "";
+  if (typeof value === "boolean") return value ? "Có" : "Không";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function workflowFieldValidationPreview(field: WorkflowFieldDraft) {
+  const validationResult = buildWorkflowFieldValidation(field);
+  if (validationResult.error) return `Validation lỗi: ${validationResult.error}`;
+  const validation = validationResult.validation ?? {};
+  const rules = [
+    validation.minLength !== undefined ? `Tối thiểu ${validation.minLength} ký tự` : "",
+    validation.maxLength !== undefined ? `Tối đa ${validation.maxLength} ký tự` : "",
+    validation.min !== undefined ? `Tối thiểu ${validation.min}` : "",
+    validation.max !== undefined ? `Tối đa ${validation.max}` : "",
+    validation.options?.length ? `Lựa chọn: ${validation.options.join(", ")}` : ""
+  ].filter(Boolean);
+  return rules.length > 0 ? rules.join(" · ") : "Không có rule bổ sung";
+}
+
+function workflowStepCompletionPreview(step: WorkflowApprovalStepDraft) {
+  const mode = step.approvalMode === "PARALLEL" ? "Đồng thời" : "Tuần tự";
+  if (step.completionRule === "ANY") return `${mode} · một người duyệt`;
+  if (step.completionRule === "MIN_COUNT") return `${mode} · tối thiểu ${step.minCount} người`;
+  if (step.completionRule === "MIN_PERCENT") return `${mode} · tối thiểu ${step.minPercent}%`;
+  return `${mode} · tất cả cùng duyệt`;
+}
+
 export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
   const [form, setForm] = useState({
     code: "",
@@ -848,6 +881,43 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
     if (invalidCondition) return "Điều kiện chuyển bước cần chọn trường hợp lệ và giá trị so sánh.";
     return "";
   }
+
+  const previewFields = fields.map((field, index) => {
+    const defaultResult = parseWorkflowFieldDefault(field);
+    return {
+      id: field.id,
+      order: index + 1,
+      name: field.name.trim() || `Trường ${index + 1}`,
+      code: normalizeWorkflowCode(field.code) || "field_code",
+      typeLabel: optionLabel(fieldTypeOptions, field.type),
+      requiredLabel: field.isRequired ? "Bắt buộc" : "Không bắt buộc",
+      defaultLabel: defaultResult.error ? `Mặc định lỗi: ${defaultResult.error}` : workflowPreviewValue(defaultResult.value),
+      validationLabel: workflowFieldValidationPreview(field),
+      placeholder: field.placeholder.trim()
+    };
+  });
+
+  const previewSteps = approvalSteps.map((step, index) => {
+    const nextStep = approvalSteps[index + 1];
+    const nextLabel = nextStep ? nextStep.name.trim() || `Bước ${index + 2}` : "Kết thúc";
+    const conditionField = fields.find((field) => normalizeWorkflowCode(field.code) === normalizeWorkflowCode(step.conditionFieldCode));
+    const conditionLabel = step.conditionalNext
+      ? `Nếu ${conditionField?.name ?? step.conditionFieldCode} ${optionLabel(conditionOperatorOptions, step.conditionOperator).toLowerCase()} ${
+          step.conditionOperator === "exists" ? "có dữ liệu" : step.conditionValue || "..."
+        } thì chuyển ${nextLabel}`
+      : `Sau khi hoàn tất chuyển ${nextLabel}`;
+
+    return {
+      id: step.id,
+      order: index + 1,
+      name: step.name.trim() || `Bước duyệt ${index + 1}`,
+      code: normalizeWorkflowCode(step.code) || "step_code",
+      resolverLabel: optionLabel(resolverTypeOptions, step.resolverType),
+      completionLabel: workflowStepCompletionPreview(step),
+      deadlineLabel: step.deadlineAmount > 0 ? `${step.deadlineAmount} ${step.deadlineUnit === "HOUR" ? "giờ" : "ngày"}` : "Không đặt hạn",
+      conditionLabel
+    };
+  });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -1154,6 +1224,65 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
           <Plus size={16} />
           {"Thêm bước"}
         </button>
+      </fieldset>
+      <fieldset className="workflow-builder-preview full" data-testid="workflow-builder-preview">
+        <legend>Preview quy trình</legend>
+        <div className="builder-preview-head">
+          <div>
+            <strong>{form.name.trim() || "Mẫu quy trình mới"}</strong>
+            <span>{form.code.trim() || "WORKFLOW_CODE"}</span>
+          </div>
+          <span className="status-chip">
+            {previewFields.length} trường · {previewSteps.length} bước
+          </span>
+        </div>
+        <div className="builder-preview-grid">
+          <section className="preview-card" data-testid="workflow-preview-form">
+            <h3>Biểu mẫu nhập liệu</h3>
+            <div className="preview-list">
+              {previewFields.map((field) => (
+                <article key={field.id} data-testid={`workflow-preview-field-${field.order}`}>
+                  <div className="preview-item-title">
+                    <strong>
+                      {field.order}. {field.name}
+                    </strong>
+                    <span>{field.typeLabel}</span>
+                  </div>
+                  <p>
+                    {field.code} · {field.requiredLabel}
+                  </p>
+                  {field.placeholder && <small>Gợi ý: {field.placeholder}</small>}
+                  {field.defaultLabel && <small>Mặc định: {field.defaultLabel}</small>}
+                  <small>{field.validationLabel}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+          <section className="preview-card" data-testid="workflow-preview-steps">
+            <h3>Luồng xử lý</h3>
+            <div className="step-preview">
+              {previewSteps.map((step) => (
+                <article key={step.id} data-testid={`workflow-preview-step-${step.order}`}>
+                  <div className="preview-item-title">
+                    <strong>
+                      {step.order}. {step.name}
+                    </strong>
+                    <span>{step.deadlineLabel}</span>
+                  </div>
+                  <p>
+                    {step.code} · {step.resolverLabel}
+                  </p>
+                  <small>{step.completionLabel}</small>
+                  <small>{step.conditionLabel}</small>
+                </article>
+              ))}
+              <article className="preview-end-node" data-testid="workflow-preview-end">
+                <CheckCircle2 size={16} />
+                <span>Kết thúc quy trình</span>
+              </article>
+            </div>
+          </section>
+        </div>
       </fieldset>
       {error && <p className="form-error full">{error}</p>}
       <div className="form-actions full">
