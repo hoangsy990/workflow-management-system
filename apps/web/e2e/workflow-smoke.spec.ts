@@ -692,6 +692,45 @@ test("admin reviews role permission preview on UI", async ({ page, request }) =>
   await expect(page.getByTestId("role-permission-preview").locator("div")).toHaveCount(4);
 });
 
+test("audit log ghi metadata thay đổi cấu hình và ẩn giá trị nhạy cảm", async ({ request }) => {
+  const admin = await apiLogin(request, "admin");
+  const visibleKey = `smoke.audit.visible.${runId}`;
+  const firstSetting = await apiPut<Record<string, any>>(request, admin, "/system-settings", {
+    key: visibleKey,
+    value: { enabled: false, runId },
+    description: "Smoke audit initial"
+  });
+  await apiPut<Record<string, any>>(request, admin, "/system-settings", {
+    key: visibleKey,
+    value: { enabled: true, runId },
+    description: "Smoke audit updated"
+  });
+  const logs = await apiGet<Paginated<Record<string, any>>>(
+    request,
+    admin,
+    "/activity-logs?action=system_setting.upsert&entityType=system_settings&pageSize=20"
+  );
+  const visibleLog = logs.data.find((log) => log.entityId === firstSetting.id && log.metadata?.key === visibleKey && log.metadata?.operation === "update");
+  expect(visibleLog?.metadata?.previousValue).toMatchObject({ enabled: false, runId });
+  expect(visibleLog?.metadata?.nextValue).toMatchObject({ enabled: true, runId });
+
+  const secretKey = `security.token.${runId}`;
+  const secretValue = `secret-${runId}`;
+  const secretSetting = await apiPut<Record<string, any>>(request, admin, "/system-settings", {
+    key: secretKey,
+    value: secretValue,
+    description: "Smoke secret audit redaction"
+  });
+  const secretLogs = await apiGet<Paginated<Record<string, any>>>(
+    request,
+    admin,
+    "/activity-logs?action=system_setting.upsert&entityType=system_settings&pageSize=20"
+  );
+  const secretLog = secretLogs.data.find((log) => log.entityId === secretSetting.id && log.metadata?.key === secretKey);
+  expect(secretLog?.metadata?.nextValue).toBe("[REDACTED]");
+  expect(JSON.stringify(secretLog?.metadata)).not.toContain(secretValue);
+});
+
 test("admin creates workflow template with dynamic builder", async ({ page, request }) => {
   const admin = await apiLogin(request, "admin");
   const employee = await apiLogin(request, "employee");

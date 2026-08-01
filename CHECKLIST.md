@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=107`, `PARTIAL=121`, `TODO=32`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `41.2%`, tính trọng số partial `64.4%`.
+**Tiến độ hiện tại:** `DONE=108`, `PARTIAL=120`, `TODO=32`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `41.5%`, tính trọng số partial `64.6%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `SETTINGS-AUDIT-METADATA` | Nâng audit log thay đổi cấu hình hệ thống: route `/system-settings` chạy trong transaction, ghi metadata key/operation/previousValue/nextValue/description trước-sau, tự redact value khi key nhạy cảm dạng password/token/secret/credential/api key và bổ sung smoke API kiểm metadata + không lộ secret trong log. Chuyển checklist `Audit config changes` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, targeted settings audit smoke 1/1, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build api web`, `pnpm smoke:web` 33/33, `docker builder prune -af`; Docker images `1.124GB`, volumes `79.01MB`, build cache `0B`. |
 | 01/08/2026 | `MOBILE-BOTTOM-NAV-NOTIFICATIONS` | Bổ sung trang `Thông báo` riêng dùng API thật, hỗ trợ xem 50 thông báo gần nhất, đánh dấu đã đọc từng dòng/tất cả và mở đúng task/workflow từ link; đổi mobile bottom nav thành Tổng quan/Công việc/Tạo dạng FAB/Duyệt/Thông báo/Cá nhân, có unread badge và smoke test viewport mobile. Ổn định helper smoke mở hồ sơ workflow bằng heading detail để tránh strict-mode trùng table/mobile card. Chuyển checklist `Bottom navigation` sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/web test`, targeted mobile bottom nav smoke 1/1, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web`, targeted workflow return smoke 1/1, `pnpm smoke:web` 32/32, `docker builder prune -af`; Docker images `1.124GB`, volumes `78.79MB`, build cache `0B`. |
 | 01/08/2026 | `SCREEN-READER-BASICS` | Bổ sung lớp accessibility cơ bản cho app shell: skip link tới nội dung chính, landmark/aria-label cho sidebar/nav/main/bottom nav, `aria-current` cho trang đang active, trạng thái kết nối dạng `role=status`, lỗi dạng `role=alert`, panel phiên đăng nhập dạng dialog và smoke test bằng role selectors. Chuyển checklist `Screen reader cơ bản` sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/web test`, targeted accessibility smoke 1/1, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web`, targeted redo-reset smoke 1/1, `pnpm smoke:web` 31/31, `docker builder prune -af`; Docker images `1.124GB`, volumes `78.33MB`, build cache `0B`. |
 | 01/08/2026 | `FRONTEND-LAZY-PAGES` | Chuyển các trang authenticated chính trong `App.tsx` sang `React.lazy`/`Suspense`, dùng skeleton loading chung làm fallback khi tải chunk để giảm tải bundle ban đầu mà vẫn giữ trải nghiệm loading nhất quán. Chuyển checklist `Lazy load tab` sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/web test`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web`, `pnpm smoke:web` 30/30, `docker builder prune -af`; Docker images `1.124GB`, volumes `77.82MB`, build cache `0B`. |
@@ -210,8 +211,8 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Upload file: giới hạn type/size/safe filename/no internal path leak | `DONE` | API upload kiểm MIME/size/safe name/storageKey. |
 | Rate limit login/API nhạy cảm | `DONE` | Fastify rate limit có `API_RATE_LIMIT_MAX` cấu hình theo môi trường; login route vẫn giới hạn riêng 5 lần/phút. |
 | Lock/delay sau nhiều lần login sai | `DONE` | `failedLoginAttempts`, `lockedUntil`. |
-| Không log secret | `PARTIAL` | Không chủ động log token/password; đổi mật khẩu chỉ audit action và số phiên thu hồi, không ghi password. Cần rà production logger/redaction. |
-| Audit login/task/workflow/permission/config/download/delete file | `PARTIAL` | Nhiều hành động, profile update/password change/session revoke và download file task/workflow có. Delete file/config/import/export chưa phủ hết. |
+| Không log secret | `PARTIAL` | Không chủ động log token/password; đổi mật khẩu chỉ audit action và số phiên thu hồi, không ghi password; audit cấu hình đã redact key nhạy cảm. Cần rà production logger/redaction toàn app. |
+| Audit login/task/workflow/permission/config/download/delete file | `PARTIAL` | Login, task, workflow, permission/profile/session, download file task/workflow và config changes có audit metadata. Delete file/import/export chưa phủ hết. |
 
 ## 9. Giao diện trang bắt buộc
 
@@ -515,7 +516,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Configuration center, auto code, working days/SLA | `PARTIAL` | Settings cơ bản; center nâng cao chưa. |
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission chưa có cấu hình riêng. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
-| Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
+| Audit config changes | `DONE` | `/system-settings` ghi audit trong transaction kèm metadata trước/sau và redact value cho key nhạy cảm; smoke API xác nhận không lộ secret trong log. |
 | Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk skeleton loading đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web` và `pnpm smoke:web` 30/30. Responsive vẫn cần QA sâu trên thiết bị thật/Edge/iOS. |
 
 ## Việc ưu tiên tiếp theo
