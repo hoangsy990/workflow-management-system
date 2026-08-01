@@ -10,6 +10,7 @@ import type { AuthContext } from "../../types/fastify.js";
 import { badRequest, conflict, forbidden, notFound } from "../../http/errors.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { enqueueNotifications } from "../notifications/notification.service.js";
+import { dateScopedCodePrefix, getAutoCodeConfig, nextDateScopedCode } from "../settings/auto-code.service.js";
 import {
   applyWorkflowDefaultValues,
   assertWorkflowVersionEditable,
@@ -142,23 +143,15 @@ export async function ensureCanUploadWorkflowAttachment(db: Db, auth: AuthContex
   }
 }
 
-function dateCodePrefix(prefix: string) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Ho_Chi_Minh",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).formatToParts(new Date());
-  const year = parts.find((part) => part.type === "year")?.value ?? "0000";
-  const month = parts.find((part) => part.type === "month")?.value ?? "00";
-  const day = parts.find((part) => part.type === "day")?.value ?? "00";
-  return `${prefix}-${year}${month}${day}`;
-}
-
 async function generateInstanceCode(db: Db) {
-  const prefix = dateCodePrefix("WF");
+  const config = await getAutoCodeConfig(db, {
+    prefixKey: "auto_code.workflow_instance.prefix",
+    paddingKey: "auto_code.workflow_instance.padding",
+    defaultPrefix: "WF"
+  });
+  const prefix = dateScopedCodePrefix(config.prefix);
   const count = await db.workflowInstance.count({ where: { code: { startsWith: prefix } } });
-  return `${prefix}-${String(count + 1).padStart(4, "0")}`;
+  return nextDateScopedCode(prefix, count, config.padding);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

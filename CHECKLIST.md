@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=112`, `PARTIAL=117`, `TODO=31`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `43.1%`, tính trọng số partial `65.6%`.
+**Tiến độ hiện tại:** `DONE=113`, `PARTIAL=117`, `TODO=30`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `43.5%`, tính trọng số partial `66.0%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `AUTO-CODE-SETTINGS` | Chuyển generator mã task/workflow instance sang đọc `system_settings` (`auto_code.task.prefix`, `auto_code.task.padding`, `auto_code.workflow_instance.prefix`, `auto_code.workflow_instance.padding`), seed default, thêm panel `Mã tự động` ở trang Cấu hình và smoke test chỉnh prefix/padding rồi tạo task/hồ sơ thật. Chuyển checklist `Mã tự động` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, targeted auto-code smoke 1/1, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm smoke:web` 38/38, `docker builder prune -af`; Docker images `1.124GB`, volumes `80.5MB`, build cache `0B`. |
 | 01/08/2026 | `TASK-CATALOG-MANAGEMENT` | Bổ sung quản lý danh mục/nhãn công việc: migration soft delete cho `task_categories`/`tags`, CRUD API có RBAC `task.update_any`, validation, audit log, cache invalidation frontend và trang `Danh mục` trong sidebar để tạo/sửa/xóa danh mục/nhãn. Chuyển checklist `Task categories/tags` sang DONE. | `pnpm --filter @workflow/api prisma:generate`, `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `prisma migrate deploy`, targeted catalog smoke 1/1, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build api web`, `pnpm smoke:web` 37/37, `docker builder prune -af`; Docker images `1.124GB`, volumes `80.24MB`, build cache `0B`. |
 | 01/08/2026 | `MOBILE-FILTER-SHEET` | Chuyển bộ lọc công việc trên mobile thành bottom sheet có backdrop, nút đóng, nút áp dụng, khóa cuộn nền, đóng bằng Escape, `role=dialog` và bộ đếm filter đang bật; desktop vẫn giữ panel inline. Chuyển checklist `Mobile filter bottom sheet/fullscreen/drawer` sang DONE. | `pnpm --filter @workflow/web lint`, targeted mobile filter smoke 1/1, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build api web`, `pnpm smoke:web` 36/36, `docker builder prune -af`; Docker images `1.124GB`, volumes `79.96MB`, build cache `0B`. |
 | 01/08/2026 | `GLOBAL-HEADER-SEARCH` | Bổ sung API `/api/v1/search` dùng chung cho web/PC/mobile, tìm công việc và hồ sơ theo scope quyền backend, tìm người dùng khi có `user.read`; thêm ô tìm kiếm header responsive có debounce, dropdown nhóm Công việc/Hồ sơ/Người dùng và click mở đúng detail/page. Chuyển checklist `Header/account/notification/search` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, targeted global search smoke 1/1, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build api web`, `pnpm smoke:web` 35/35, `docker builder prune -af`; Docker images `1.124GB`, volumes `79.56MB`, build cache `0B`. |
@@ -137,7 +138,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Mã công việc tự sinh | `DONE` | `TASK-YYYYMMDD-XXXX`. |
+| Mã công việc tự sinh | `DONE` | Mặc định `TASK-YYYYMMDD-XXXX`, prefix/padding đọc từ `system_settings` và có UI cấu hình. |
 | Form tạo task: title, mô tả, assigner, assignee, manager, follower, department, start/due, priority, category, tags, review | `DONE` | UI/API có. |
 | Người giao việc | `DONE` | Backend có `assignerId`; UI form tạo task đã có select Người giao việc, lưu draft và smoke test assert API lưu đúng. |
 | Tệp đính kèm khi tạo task | `DONE` | Form tạo task chọn nhiều file, validate MIME/dung lượng, upload sau khi tạo task và smoke test kiểm tra attachment trong detail API/UI. |
@@ -288,7 +289,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API/UI bổ sung progress, review, redo reset theo setting và overdue. Cần integration tests đầy đủ hơn. |
 | Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có thêm validate form data + smoke API/UI nhiều luồng. Chưa có integration transaction failure tự động. |
 | Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
-| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, accessibility landmark/ARIA cơ bản, mobile bottom nav viewport, mobile task filter bottom sheet, offline banner, global search mở task/workflow/user, dashboard department stats, deadline scheduler, user edit, department edit, team create/update, task catalog/tag management, role preview, tạo workflow template bằng builder có default/options/validation rule, compare workflow versions, tạo workflow instance bằng form động, task upload/download/download audit/reply/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, progress, evaluation attachment, redo reset, workflow action attachment, approved notification, approve/reject/request-info/return/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark và responsive matrix. |
+| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, accessibility landmark/ARIA cơ bản, mobile bottom nav viewport, mobile task filter bottom sheet, offline banner, global search mở task/workflow/user, dashboard department stats, deadline scheduler, user edit, department edit, team create/update, task catalog/tag management, auto-code settings, role preview, tạo workflow template bằng builder có default/options/validation rule, compare workflow versions, tạo workflow instance bằng form động, task upload/download/download audit/reply/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, progress, evaluation attachment, redo reset, workflow action attachment, approved notification, approve/reject/request-info/return/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark và responsive matrix. |
 | Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `PARTIAL` | Windows desktop build và Android arm64 APK build đã pass. Chưa QA cài/chạy trên thiết bị Android, chưa có Edge/iOS/macOS matrix. |
 
 ## 14. Triển khai
@@ -400,7 +401,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Cấu hình chung | `PARTIAL` | Key/value settings có. |
-| Mã tự động | `TODO` | Hard-coded generator hiện tại, chưa UI/config. |
+| Mã tự động | `DONE` | Task và workflow instance code đọc prefix/padding từ `system_settings`, có seed default, UI panel Cấu hình và smoke test tạo dữ liệu thật theo cấu hình. |
 | Cấu hình công việc | `PARTIAL` | Setting redo reset đã được enforce trong service; UI cấu hình vẫn dạng key/value, chưa có nhóm cấu hình công việc chuyên biệt. |
 | Cấu hình quy trình | `TODO` | Chưa có UI nhóm. |
 | Ngày làm việc/ngày nghỉ/SLA | `TODO` | Chưa có. |

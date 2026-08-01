@@ -564,6 +564,45 @@ async function main() {
     }
   });
 
+  await Promise.all([
+    prisma.systemSetting.upsert({
+      where: { key: "auto_code.task.prefix" },
+      update: {},
+      create: {
+        key: "auto_code.task.prefix",
+        value: "TASK",
+        description: "Tiền tố mã công việc tự sinh."
+      }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "auto_code.task.padding" },
+      update: {},
+      create: {
+        key: "auto_code.task.padding",
+        value: 4,
+        description: "Số chữ số thứ tự trong mã công việc."
+      }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "auto_code.workflow_instance.prefix" },
+      update: {},
+      create: {
+        key: "auto_code.workflow_instance.prefix",
+        value: "WF",
+        description: "Tiền tố mã hồ sơ quy trình tự sinh."
+      }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "auto_code.workflow_instance.padding" },
+      update: {},
+      create: {
+        key: "auto_code.workflow_instance.padding",
+        value: 4,
+        description: "Số chữ số thứ tự trong mã hồ sơ quy trình."
+      }
+    })
+  ]);
+
   console.log("Seed completed.");
   console.table([
     { role: "Admin", email: "admin@workflow.local", password: password.admin },

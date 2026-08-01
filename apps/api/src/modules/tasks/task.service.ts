@@ -3,6 +3,7 @@ import type { AuthContext } from "../../types/fastify.js";
 import { badRequest, conflict, forbidden, notFound } from "../../http/errors.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { enqueueNotifications } from "../notifications/notification.service.js";
+import { dateScopedCodePrefix, getAutoCodeConfig, nextDateScopedCode } from "../settings/auto-code.service.js";
 import { assertNoTaskCycle, daysRemaining, isTaskOverdue, nextStatusAfterProgress } from "./task.domain.js";
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -54,27 +55,19 @@ function hasPermission(auth: AuthContext, permission: string): boolean {
   return auth.permissions.includes(permission);
 }
 
-function todayCodePrefix() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Ho_Chi_Minh",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).formatToParts(new Date());
-  const year = parts.find((part) => part.type === "year")?.value ?? "0000";
-  const month = parts.find((part) => part.type === "month")?.value ?? "00";
-  const day = parts.find((part) => part.type === "day")?.value ?? "00";
-  return `TASK-${year}${month}${day}`;
-}
-
 async function generateTaskCode(db: Db) {
-  const prefix = todayCodePrefix();
+  const config = await getAutoCodeConfig(db, {
+    prefixKey: "auto_code.task.prefix",
+    paddingKey: "auto_code.task.padding",
+    defaultPrefix: "TASK"
+  });
+  const prefix = dateScopedCodePrefix(config.prefix);
   const count = await db.task.count({
     where: {
       code: { startsWith: prefix }
     }
   });
-  return `${prefix}-${String(count + 1).padStart(4, "0")}`;
+  return nextDateScopedCode(prefix, count, config.padding);
 }
 
 async function directReportIds(db: Db, managerId: string) {

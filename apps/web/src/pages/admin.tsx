@@ -1436,14 +1436,104 @@ export function CatalogsPage() {
   );
 }
 
+function settingValue(data: Record<string, any>[] | null, key: string, fallback: string) {
+  const raw = data?.find((setting) => setting.key === key)?.value;
+  if (typeof raw === "string") return raw;
+  if (typeof raw === "number" || typeof raw === "boolean") return String(raw);
+  return fallback;
+}
+
+function parseSettingValue(value: string) {
+  const trimmed = value.trim();
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) return Number(trimmed);
+  if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+    try {
+      return JSON.parse(trimmed) as unknown;
+    } catch {
+      return trimmed;
+    }
+  }
+  return trimmed;
+}
+
 export function SettingsPage() {
   const { data, loading, error, reload } = useAsyncData(() => api.settings(), []);
   const [form, setForm] = useState({ key: "task.redo.reset_progress", value: "false", description: "" });
+  const [autoCodeForm, setAutoCodeForm] = useState({
+    taskPrefix: "TASK",
+    taskPadding: "4",
+    workflowPrefix: "WF",
+    workflowPadding: "4"
+  });
+  const [saving, setSaving] = useState("");
+  const [settingMessage, setSettingMessage] = useState("");
+  const [settingError, setSettingError] = useState("");
+
+  useEffect(() => {
+    if (!data) return;
+    setAutoCodeForm({
+      taskPrefix: settingValue(data, "auto_code.task.prefix", "TASK"),
+      taskPadding: settingValue(data, "auto_code.task.padding", "4"),
+      workflowPrefix: settingValue(data, "auto_code.workflow_instance.prefix", "WF"),
+      workflowPadding: settingValue(data, "auto_code.workflow_instance.padding", "4")
+    });
+  }, [data]);
+
   async function submit(event: FormEvent) {
     event.preventDefault();
-    await api.saveSetting({ key: form.key, value: form.value === "true" ? true : form.value, description: form.description });
-    await reload();
+    setSaving("generic");
+    setSettingMessage("");
+    setSettingError("");
+    try {
+      await api.saveSetting({ key: form.key, value: parseSettingValue(form.value), description: form.description });
+      setSettingMessage("Đã lưu cấu hình.");
+      await reload();
+    } catch (err) {
+      setSettingError(err instanceof Error ? err.message : "Không lưu được cấu hình.");
+    } finally {
+      setSaving("");
+    }
   }
+
+  async function saveAutoCode(event: FormEvent) {
+    event.preventDefault();
+    setSaving("auto-code");
+    setSettingMessage("");
+    setSettingError("");
+    try {
+      await Promise.all([
+        api.saveSetting({
+          key: "auto_code.task.prefix",
+          value: autoCodeForm.taskPrefix.trim().toUpperCase(),
+          description: "Tiền tố mã công việc tự sinh."
+        }),
+        api.saveSetting({
+          key: "auto_code.task.padding",
+          value: Number(autoCodeForm.taskPadding),
+          description: "Số chữ số thứ tự trong mã công việc."
+        }),
+        api.saveSetting({
+          key: "auto_code.workflow_instance.prefix",
+          value: autoCodeForm.workflowPrefix.trim().toUpperCase(),
+          description: "Tiền tố mã hồ sơ quy trình tự sinh."
+        }),
+        api.saveSetting({
+          key: "auto_code.workflow_instance.padding",
+          value: Number(autoCodeForm.workflowPadding),
+          description: "Số chữ số thứ tự trong mã hồ sơ quy trình."
+        })
+      ]);
+      setSettingMessage("Đã lưu cấu hình mã tự động.");
+      await reload();
+    } catch (err) {
+      setSettingError(err instanceof Error ? err.message : "Không lưu được cấu hình mã tự động.");
+    } finally {
+      setSaving("");
+    }
+  }
+
   if (loading) return <LoadingBlock />;
   if (error) return <ErrorBlock message={error} />;
   return (
@@ -1452,13 +1542,84 @@ export function SettingsPage() {
         <div className="panel-head">
           <h2>Cấu hình hệ thống</h2>
         </div>
-        <input value={form.key} onChange={(event) => setForm({ ...form, key: event.target.value })} />
-        <input value={form.value} onChange={(event) => setForm({ ...form, value: event.target.value })} />
-        <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
-        <button className="primary-button" type="submit">
+        <label>
+          Khóa
+          <input data-testid="settings-generic-key" value={form.key} onChange={(event) => setForm({ ...form, key: event.target.value })} />
+        </label>
+        <label>
+          Giá trị
+          <input data-testid="settings-generic-value" value={form.value} onChange={(event) => setForm({ ...form, value: event.target.value })} />
+        </label>
+        <label>
+          Mô tả
+          <textarea data-testid="settings-generic-description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+        </label>
+        <button className="primary-button" data-testid="settings-generic-save" type="submit" disabled={saving === "generic"}>
+          {saving === "generic" && <Loader2 className="spin" size={16} />}
           Lưu cấu hình
         </button>
       </form>
+
+      <form className="panel form-stack" onSubmit={saveAutoCode}>
+        <div className="panel-head">
+          <h2>Mã tự động</h2>
+        </div>
+        <div className="form-grid compact-form">
+          <label>
+            Prefix công việc
+            <input
+              data-testid="settings-task-prefix"
+              required
+              pattern="[A-Za-z0-9_-]{2,12}"
+              value={autoCodeForm.taskPrefix}
+              onChange={(event) => setAutoCodeForm({ ...autoCodeForm, taskPrefix: event.target.value })}
+            />
+          </label>
+          <label>
+            Số chữ số task
+            <input
+              data-testid="settings-task-padding"
+              type="number"
+              min="3"
+              max="8"
+              value={autoCodeForm.taskPadding}
+              onChange={(event) => setAutoCodeForm({ ...autoCodeForm, taskPadding: event.target.value })}
+            />
+          </label>
+          <label>
+            Prefix hồ sơ
+            <input
+              data-testid="settings-workflow-prefix"
+              required
+              pattern="[A-Za-z0-9_-]{2,12}"
+              value={autoCodeForm.workflowPrefix}
+              onChange={(event) => setAutoCodeForm({ ...autoCodeForm, workflowPrefix: event.target.value })}
+            />
+          </label>
+          <label>
+            Số chữ số hồ sơ
+            <input
+              data-testid="settings-workflow-padding"
+              type="number"
+              min="3"
+              max="8"
+              value={autoCodeForm.workflowPadding}
+              onChange={(event) => setAutoCodeForm({ ...autoCodeForm, workflowPadding: event.target.value })}
+            />
+          </label>
+        </div>
+        <button className="primary-button" data-testid="settings-auto-code-save" type="submit" disabled={saving === "auto-code"}>
+          {saving === "auto-code" && <Loader2 className="spin" size={16} />}
+          Lưu mã tự động
+        </button>
+      </form>
+
+      {(settingMessage || settingError) && (
+        <section className="panel wide compact-status" role={settingError ? "alert" : "status"} data-testid="settings-message">
+          {settingError || settingMessage}
+        </section>
+      )}
+
       <section className="panel wide">
         <DataTable
           columns={["Khóa", "Giá trị", "Mô tả"]}

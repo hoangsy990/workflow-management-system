@@ -873,6 +873,55 @@ test("audit log ghi metadata thay đổi cấu hình và ẩn giá trị nhạy 
   expect(JSON.stringify(secretLog?.metadata)).not.toContain(secretValue);
 });
 
+test("cấu hình mã tự động áp dụng cho task và hồ sơ quy trình", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  const manager = await apiLogin(request, "manager");
+  const employee = await apiLogin(request, "employee");
+  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+  const taskPrefix = `TS${suffix}`;
+  const workflowPrefix = `WI${suffix}`;
+
+  try {
+    await openAppWithSession(page, admin);
+    await page.getByTestId("nav-settings").click();
+    await page.getByTestId("settings-task-prefix").fill(taskPrefix);
+    await page.getByTestId("settings-task-padding").fill("5");
+    await page.getByTestId("settings-workflow-prefix").fill(workflowPrefix);
+    await page.getByTestId("settings-workflow-padding").fill("3");
+    await page.getByTestId("settings-auto-code-save").click();
+    await expect(page.getByTestId("settings-message")).toContainText("mã tự động");
+
+    const task = await createSmokeTask(request, manager, "auto-code");
+    expect(task.code).toMatch(new RegExp(`^${taskPrefix}-\\d{8}-\\d{5}$`));
+
+    const instance = await createSmokeWorkflowInstance(request, employee, "auto-code");
+    expect(instance.code).toMatch(new RegExp(`^${workflowPrefix}-\\d{8}-\\d{3}$`));
+  } finally {
+    await Promise.all([
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "auto_code.task.prefix",
+        value: "TASK",
+        description: "Tiền tố mã công việc tự sinh."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "auto_code.task.padding",
+        value: 4,
+        description: "Số chữ số thứ tự trong mã công việc."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "auto_code.workflow_instance.prefix",
+        value: "WF",
+        description: "Tiền tố mã hồ sơ quy trình tự sinh."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "auto_code.workflow_instance.padding",
+        value: 4,
+        description: "Số chữ số thứ tự trong mã hồ sơ quy trình."
+      })
+    ]);
+  }
+});
+
 test("admin creates workflow template with dynamic builder", async ({ page, request }) => {
   const admin = await apiLogin(request, "admin");
   const employee = await apiLogin(request, "employee");
