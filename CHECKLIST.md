@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=105`, `PARTIAL=122`, `TODO=33`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `40.4%`, tính trọng số partial `63.8%`.
+**Tiến độ hiện tại:** `DONE=106`, `PARTIAL=122`, `TODO=32`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `40.8%`, tính trọng số partial `64.2%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `SCREEN-READER-BASICS` | Bổ sung lớp accessibility cơ bản cho app shell: skip link tới nội dung chính, landmark/aria-label cho sidebar/nav/main/bottom nav, `aria-current` cho trang đang active, trạng thái kết nối dạng `role=status`, lỗi dạng `role=alert`, panel phiên đăng nhập dạng dialog và smoke test bằng role selectors. Chuyển checklist `Screen reader cơ bản` sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/web test`, targeted accessibility smoke 1/1, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web`, targeted redo-reset smoke 1/1, `pnpm smoke:web` 31/31, `docker builder prune -af`; Docker images `1.124GB`, volumes `78.33MB`, build cache `0B`. |
 | 01/08/2026 | `FRONTEND-LAZY-PAGES` | Chuyển các trang authenticated chính trong `App.tsx` sang `React.lazy`/`Suspense`, dùng skeleton loading chung làm fallback khi tải chunk để giảm tải bundle ban đầu mà vẫn giữ trải nghiệm loading nhất quán. Chuyển checklist `Lazy load tab` sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/web test`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web`, `pnpm smoke:web` 30/30, `docker builder prune -af`; Docker images `1.124GB`, volumes `77.82MB`, build cache `0B`. |
 | 01/08/2026 | `SKELETON-LOADING` | Nâng `LoadingBlock` dùng chung thành skeleton loading responsive có shimmer, `aria-busy`, nội dung screen-reader và layout card/list để các trang dashboard/task/workflow/admin/profile không chỉ hiện spinner rỗng khi tải dữ liệu. Chuyển checklist `Skeleton loading` sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/web test`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web`, `pnpm smoke:web` 30/30, `docker builder prune -af`; Docker images `1.124GB`, volumes `77.65MB`, build cache `0B`. |
 | 01/08/2026 | `REFERENCE-DATA-CACHE` | Thêm cache in-memory TTL ngắn cho dữ liệu nền frontend (`users`, `departments`, `teams`, `roles`, `permissions`, `taskCategories`, `tags`), tự clear khi đổi API URL, đổi/clear session hoặc mutate user/department/team/role; bổ sung test cache và invalidation. Chuyển checklist `Cache danh mục` sang DONE. | `pnpm --filter @workflow/web test`, `pnpm --filter @workflow/web lint`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build web`, `pnpm smoke:web` 30/30, `docker builder prune -af`; Docker images `1.124GB`, volumes `77.36MB`, build cache `0B`. |
@@ -281,7 +282,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Task domain: tạo, quyền, progress, review, redo, overdue | `PARTIAL` | Domain tests có 5; smoke API/UI bổ sung progress, review, redo reset theo setting và overdue. Cần integration tests đầy đủ hơn. |
 | Workflow: submit, sequential, parallel, reject, request info, branch, idempotency, version lock, transaction failure | `PARTIAL` | Domain tests có thêm validate form data + smoke API/UI nhiều luồng. Chưa có integration transaction failure tự động. |
 | Permission scopes admin/manager/employee/approver | `PARTIAL` | Smoke có một số 403. Cần automated integration suite. |
-| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, dashboard department stats, deadline scheduler, user edit, department edit, role preview, tạo workflow template bằng builder có default/options/validation rule, compare workflow versions, tạo workflow instance bằng form động, task upload/download/download audit/reply/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, progress, evaluation attachment, redo reset, workflow action attachment, approved notification, approve/reject/request-info/return/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
+| UI tests validation/navigation/responsive/dark/offline/upload | `PARTIAL` | Playwright smoke phủ login, accessibility landmark/ARIA cơ bản, dashboard department stats, deadline scheduler, user edit, department edit, role preview, tạo workflow template bằng builder có default/options/validation rule, compare workflow versions, tạo workflow instance bằng form động, task upload/download/download audit/reply/comment notification, calendar start/due, kanban confirm, pagination/sort/row action, progress, evaluation attachment, redo reset, workflow action attachment, approved notification, approve/reject/request-info/return/transfer và idempotency. Chưa có suite đầy đủ cho validation, dark, offline và responsive matrix. |
 | Browser/device matrix Chrome/Edge/Android/iOS/Windows desktop | `PARTIAL` | Windows desktop build và Android arm64 APK build đã pass. Chưa QA cài/chạy trên thiết bị Android, chưa có Edge/iOS/macOS matrix. |
 
 ## 14. Triển khai
@@ -460,7 +461,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Tooltip icon | `PARTIAL` | `title` có ở nhiều icon; tooltip custom chưa. |
 | Form labels đầy đủ | `PARTIAL` | Phần lớn có label. Cần audit dynamic forms. |
 | Không phụ thuộc hoàn toàn màu sắc | `PARTIAL` | Có text labels/status. Cần audit charts/status. |
-| Screen reader cơ bản | `TODO` | Chưa audit ARIA. |
+| Screen reader cơ bản | `DONE` | App shell có skip link, landmark labels, `aria-current`, trạng thái kết nối `role=status`, lỗi `role=alert`, dialog phiên đăng nhập và smoke test bằng role selectors. |
 | Không vỡ chữ dài, zoom/system text | `PARTIAL` | CSS responsive có; cần QA stress long text. |
 
 ## 30. Hiệu năng giao diện

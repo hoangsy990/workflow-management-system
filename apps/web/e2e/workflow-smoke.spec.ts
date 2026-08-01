@@ -365,7 +365,7 @@ async function openTaskFromNav(page: Page, navTestId: string, task: TaskRecord, 
   const row = page.locator(`tr[data-testid="task-row-${task.id}"]`);
   await expect(row).toBeVisible();
   await row.click();
-  await expect(page.getByText(task.title)).toBeVisible();
+  await expect(page.getByRole("heading", { name: task.title })).toBeVisible();
 }
 
 test("đăng nhập web bằng tài khoản quản trị", async ({ page }) => {
@@ -376,6 +376,23 @@ test("đăng nhập web bằng tài khoản quản trị", async ({ page }) => {
 
   await expect(page.getByTestId("nav-dashboard")).toBeVisible();
   await expect(page.getByTestId("nav-tasks")).toBeVisible();
+});
+
+test("layout có landmark và ARIA cơ bản cho screen reader", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  await openAppWithSession(page, admin);
+
+  await expect(page.getByRole("link", { name: "Bỏ qua điều hướng" })).toHaveAttribute("href", "#main-content");
+  await page.getByRole("link", { name: "Bỏ qua điều hướng" }).focus();
+  await expect(page.getByRole("link", { name: "Bỏ qua điều hướng" })).toBeFocused();
+  await expect(page.getByRole("navigation", { name: "Điều hướng chính" })).toBeVisible();
+  await expect(page.getByRole("main", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByTestId("nav-dashboard")).toHaveAttribute("aria-current", "page");
+  await expect(page.locator(".sync-pill")).toHaveAttribute("role", "status");
+
+  await page.getByTestId("account-sessions-open").click();
+  await expect(page.getByTestId("account-sessions-open")).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("dialog", { name: "Phiên đăng nhập" })).toBeVisible();
 });
 
 test("xem, thu hồi phiên thiết bị và đăng xuất tất cả", async ({ page, request }) => {

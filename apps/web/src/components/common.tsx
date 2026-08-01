@@ -32,7 +32,7 @@ export function LoadingBlock() {
 
 export function ErrorBlock({ message }: { message: string }) {
   return (
-    <div className="state-panel danger">
+    <div className="state-panel danger" role="alert">
       <XCircle size={22} />
       <span>{message}</span>
     </div>
@@ -45,7 +45,7 @@ export function DataTable({ columns, rows }: { columns: string[]; rows: DataTabl
   }
 
   return (
-    <div className="table-wrap">
+    <div className="table-wrap" role="region" aria-label="Bảng dữ liệu" tabIndex={0}>
       <table>
         <thead>
           <tr>

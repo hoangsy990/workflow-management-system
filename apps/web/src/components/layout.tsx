@@ -98,7 +98,10 @@ export function AppShell({
 
   return (
     <div className={cls("app-shell", dark && "dark")}>
-      <aside className="sidebar">
+      <a className="skip-link" href="#main-content">
+        Bỏ qua điều hướng
+      </a>
+      <aside className="sidebar" aria-label="Thanh điều hướng chính">
         <div className="brand">
           <div className="brand-mark">WF</div>
           <div>
@@ -106,13 +109,14 @@ export function AppShell({
             <span>Management System</span>
           </div>
         </div>
-        <nav>
+        <nav aria-label="Điều hướng chính">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
               <button
                 key={item.page}
                 className={cls("nav-item", page === item.page && "active")}
+                aria-current={page === item.page ? "page" : undefined}
                 data-testid={`nav-${item.page}`}
                 onClick={() => goToPage(item.page)}
                 type="button"
@@ -133,44 +137,79 @@ export function AppShell({
               className="menu-trigger"
               type="button"
               title="Mở menu"
+              aria-controls="mobile-menu-panel"
+              aria-expanded={mobileMenuOpen}
+              aria-label="Mở menu điều hướng"
               onClick={() => setMobileMenuOpen((open) => !open)}
             >
               <Menu size={18} />
             </button>
-            <span>{activeItem?.label ?? "Dashboard"}</span>
+            <span id="page-title">{activeItem?.label ?? "Dashboard"}</span>
           </div>
           <div className="top-actions">
-            <span className={cls("sync-pill", online ? "online" : "offline")}>
+            <span className={cls("sync-pill", online ? "online" : "offline")} role="status" aria-live="polite">
               <Smartphone size={14} />
               {online ? "Đang kết nối" : "Mất kết nối"}
             </span>
-            <button className="icon-button" type="button" title="Đổi giao diện" onClick={() => setDark(!dark)}>
+            <button
+              className="icon-button"
+              type="button"
+              title="Đổi giao diện"
+              aria-label={dark ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối"}
+              aria-pressed={dark}
+              onClick={() => setDark(!dark)}
+            >
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <button className="icon-button" type="button" title="Thông báo" onClick={() => setPage("dashboard")}>
+            <button
+              className="icon-button"
+              type="button"
+              title="Thông báo"
+              aria-label={unread > 0 ? `Thông báo, ${unread} chưa đọc` : "Thông báo"}
+              onClick={() => setPage("dashboard")}
+            >
               <Bell size={18} />
-              {unread > 0 && <b>{unread}</b>}
+              {unread > 0 && <b aria-hidden="true">{unread}</b>}
             </button>
-            <div className="account-menu">
+            <div className="account-menu" aria-label="Tài khoản">
               <span>{user.fullName}</span>
-              <button className="icon-button" data-testid="account-profile-open" type="button" title="Hồ sơ" onClick={() => goToPage("profile")}>
+              <button
+                className="icon-button"
+                data-testid="account-profile-open"
+                type="button"
+                title="Hồ sơ"
+                aria-label="Mở hồ sơ cá nhân"
+                onClick={() => goToPage("profile")}
+              >
                 <UserCircle size={18} />
               </button>
-              <button className="icon-button" data-testid="account-sessions-open" type="button" title="Phiên đăng nhập" onClick={toggleSessions}>
+              <button
+                className="icon-button"
+                data-testid="account-sessions-open"
+                type="button"
+                title="Phiên đăng nhập"
+                aria-expanded={sessionsOpen}
+                aria-label="Mở danh sách phiên đăng nhập"
+                onClick={toggleSessions}
+              >
                 <Smartphone size={18} />
               </button>
-              <button className="icon-button" type="button" title="Đăng xuất" onClick={onLogout}>
+              <button className="icon-button" type="button" title="Đăng xuất" aria-label="Đăng xuất" onClick={onLogout}>
                 <LogOut size={18} />
               </button>
               {sessionsOpen && (
-                <div className="session-popover" data-testid="auth-session-panel">
+                <div className="session-popover" data-testid="auth-session-panel" role="dialog" aria-modal="false" aria-labelledby="session-panel-title">
                   <div className="session-popover-head">
-                    <strong>Phiên đăng nhập</strong>
+                    <strong id="session-panel-title">Phiên đăng nhập</strong>
                     <button className="ghost-button compact" type="button" disabled={sessionsLoading} onClick={loadSessions}>
                       Làm mới
                     </button>
                   </div>
-                  {sessionsError && <p className="form-error">{sessionsError}</p>}
+                  {sessionsError && (
+                    <p className="form-error" role="alert">
+                      {sessionsError}
+                    </p>
+                  )}
                   <div className="session-danger-zone">
                     {!confirmingLogoutAll ? (
                       <button
@@ -203,7 +242,7 @@ export function AppShell({
                     )}
                   </div>
                   {sessionsLoading ? (
-                    <p>Đang tải...</p>
+                    <p role="status">Đang tải...</p>
                   ) : (
                     <div className="session-list" data-testid="auth-session-list">
                       {sessions.length === 0 && <p>Không có phiên đang hoạt động.</p>}
@@ -230,13 +269,14 @@ export function AppShell({
         </header>
 
         {mobileMenuOpen && (
-          <nav className="mobile-menu-panel">
+          <nav className="mobile-menu-panel" id="mobile-menu-panel" aria-label="Menu điều hướng di động">
             {navItems.map((item) => {
               const Icon = item.icon;
               return (
                 <button
                   key={item.page}
                   className={cls(page === item.page && "active")}
+                  aria-current={page === item.page ? "page" : undefined}
                   data-testid={`mobile-menu-${item.page}`}
                   type="button"
                   onClick={() => goToPage(item.page)}
@@ -249,16 +289,19 @@ export function AppShell({
           </nav>
         )}
 
-        <main className="content">{children}</main>
+        <main className="content" id="main-content" aria-labelledby="page-title" tabIndex={-1}>
+          {children}
+        </main>
       </div>
 
-      <nav className="bottom-nav">
+      <nav className="bottom-nav" aria-label="Điều hướng dưới trên điện thoại">
         {mobileNav.map((item) => {
           const Icon = item.icon;
           return (
             <button
               key={item.page}
               className={page === item.page ? "active" : ""}
+              aria-current={page === item.page ? "page" : undefined}
               data-testid={`bottom-nav-${item.page}`}
               onClick={() => goToPage(item.page)}
               type="button"
