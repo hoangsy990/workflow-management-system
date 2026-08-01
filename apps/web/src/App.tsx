@@ -6,6 +6,7 @@ import { Page } from "./navigation";
 import { Login } from "./pages/auth";
 
 const Dashboard = lazy(() => import("./pages/dashboard").then((module) => ({ default: module.Dashboard })));
+const CatalogsPage = lazy(() => import("./pages/admin").then((module) => ({ default: module.CatalogsPage })));
 const DepartmentsPage = lazy(() => import("./pages/admin").then((module) => ({ default: module.DepartmentsPage })));
 const LogsPage = lazy(() => import("./pages/admin").then((module) => ({ default: module.LogsPage })));
 const RolesPage = lazy(() => import("./pages/admin").then((module) => ({ default: module.RolesPage })));
@@ -115,6 +116,8 @@ export default function App() {
         return <UsersPage />;
       case "departments":
         return <DepartmentsPage />;
+      case "catalogs":
+        return <CatalogsPage />;
       case "roles":
         return <RolesPage />;
       case "logs":

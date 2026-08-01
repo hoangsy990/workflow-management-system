@@ -751,6 +751,78 @@ test("admin creates and updates work team on UI", async ({ page, request }) => {
   expect(updated?.members?.some((member) => member.user.id === secondMember!.id)).toBe(true);
 });
 
+test("admin quản lý danh mục và nhãn công việc trên UI", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+  const categoryCode = `SMOKE_${suffix}`;
+  const categoryName = `Danh mục ${suffix}`;
+  const updatedCategoryName = `Danh mục ${suffix} cập nhật`;
+  const tagName = `Nhãn ${suffix}`;
+  const updatedTagName = `Nhãn ${suffix} cập nhật`;
+
+  await openAppWithSession(page, admin);
+  await page.getByTestId("nav-catalogs").click();
+
+  await page.getByTestId("catalog-category-code").fill(categoryCode);
+  await page.getByTestId("catalog-category-name").fill(categoryName);
+  await page.getByTestId("catalog-category-description").fill("Danh mục tạo bởi smoke test.");
+  const categoryCreateResponse = page.waitForResponse((response) => response.url().endsWith("/task-categories") && response.request().method() === "POST");
+  await page.getByTestId("catalog-category-create-save").click();
+  const category = (await (await categoryCreateResponse).json()) as Record<string, any>;
+  const categoryRow = page.locator(`tr[data-testid="catalog-category-row-${category.id}"]`);
+  await expect(categoryRow).toBeVisible();
+
+  await categoryRow.getByTestId(`catalog-category-edit-${category.id}`).click();
+  await categoryRow.getByTestId(`catalog-category-edit-name-${category.id}`).fill(updatedCategoryName);
+  const categoryUpdateResponse = page.waitForResponse((response) => response.url().includes(`/task-categories/${category.id}`) && response.request().method() === "PATCH");
+  await categoryRow.getByTestId(`catalog-category-save-${category.id}`).click();
+  await categoryUpdateResponse;
+  await expect(categoryRow).toContainText(updatedCategoryName);
+
+  await page.getByTestId("catalog-tag-name").fill(tagName);
+  await page.getByTestId("catalog-tag-color").fill("#16a34a");
+  const tagCreateResponse = page.waitForResponse((response) => response.url().endsWith("/tags") && response.request().method() === "POST");
+  await page.getByTestId("catalog-tag-create-save").click();
+  const tag = (await (await tagCreateResponse).json()) as Record<string, any>;
+  const tagRow = page.locator(`tr[data-testid="catalog-tag-row-${tag.id}"]`);
+  await expect(tagRow).toBeVisible();
+
+  await tagRow.getByTestId(`catalog-tag-edit-${tag.id}`).click();
+  await tagRow.getByTestId(`catalog-tag-edit-name-${tag.id}`).fill(updatedTagName);
+  await tagRow.getByTestId(`catalog-tag-edit-color-${tag.id}`).fill("#dc2626");
+  const tagUpdateResponse = page.waitForResponse((response) => response.url().includes(`/tags/${tag.id}`) && response.request().method() === "PATCH");
+  await tagRow.getByTestId(`catalog-tag-save-${tag.id}`).click();
+  await tagUpdateResponse;
+  await expect(tagRow).toContainText(updatedTagName);
+
+  page.once("dialog", async (dialog) => {
+    await dialog.accept();
+  });
+  const tagDeleteResponse = page.waitForResponse((response) => response.url().includes(`/tags/${tag.id}`) && response.request().method() === "DELETE");
+  await tagRow.getByTestId(`catalog-tag-delete-${tag.id}`).click();
+  await tagDeleteResponse;
+  const tags = await apiGet<Record<string, any>[]>(request, admin, "/tags");
+  expect(tags.some((item) => item.id === tag.id)).toBe(false);
+
+  page.once("dialog", async (dialog) => {
+    await dialog.accept();
+  });
+  const categoryDeleteResponse = page.waitForResponse((response) => response.url().includes(`/task-categories/${category.id}`) && response.request().method() === "DELETE");
+  await categoryRow.getByTestId(`catalog-category-delete-${category.id}`).click();
+  await categoryDeleteResponse;
+  const categories = await apiGet<Record<string, any>[]>(request, admin, "/task-categories");
+  expect(categories.some((item) => item.id === category.id)).toBe(false);
+
+  const categoryLogs = await apiGet<Paginated<Record<string, any>>>(
+    request,
+    admin,
+    "/activity-logs?action=task_category.delete&entityType=task_categories&pageSize=20"
+  );
+  expect(categoryLogs.data.some((log) => log.entityId === category.id)).toBe(true);
+  const tagLogs = await apiGet<Paginated<Record<string, any>>>(request, admin, "/activity-logs?action=tag.delete&entityType=tags&pageSize=20");
+  expect(tagLogs.data.some((log) => log.entityId === tag.id)).toBe(true);
+});
+
 test("admin reviews role permission preview on UI", async ({ page, request }) => {
   const admin = await apiLogin(request, "admin");
 

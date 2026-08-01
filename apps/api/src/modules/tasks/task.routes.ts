@@ -2,15 +2,21 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { parseBody, parseParams, parseQuery } from "../../http/validation.js";
 import { paginate, paginationSchema } from "../../http/pagination.js";
-import { requireAuth } from "../auth/auth.guard.js";
+import { requireAuth, requirePermission } from "../auth/auth.guard.js";
 import {
   addTaskComment,
+  createTag,
+  createTaskCategory,
   createTask,
+  deleteTag,
+  deleteTaskCategory,
   evaluateTask,
   getTask,
   listTags,
   listTaskCategories,
   listTasks,
+  updateTag,
+  updateTaskCategory,
   updateTask,
   updateTaskProgress
 } from "./task.service.js";
@@ -81,9 +87,57 @@ const commentSchema = z.object({
   attachmentIds: z.array(z.string().uuid()).default([])
 });
 
+const taskCategorySchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(2)
+    .max(40)
+    .regex(/^[a-zA-Z0-9_-]+$/, "Mã danh mục chỉ gồm chữ, số, gạch ngang hoặc gạch dưới."),
+  name: z.string().trim().min(2).max(120),
+  description: z.string().trim().max(500).nullable().optional()
+});
+
+const tagSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  color: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-fA-F]{6}$/, "Màu nhãn phải có dạng #RRGGBB.")
+    .nullable()
+    .optional()
+});
+
 export async function taskRoutes(app: FastifyInstance) {
   app.get("/task-categories", { preHandler: requireAuth }, async () => listTaskCategories(prisma));
+  app.post("/task-categories", { preHandler: requirePermission("task.update_any") }, async (request) => {
+    const body = parseBody(request, taskCategorySchema);
+    return createTaskCategory(prisma, request.auth!, body, request.ip);
+  });
+  app.patch("/task-categories/:id", { preHandler: requirePermission("task.update_any") }, async (request) => {
+    const params = parseParams(request, idParamSchema);
+    const body = parseBody(request, taskCategorySchema.partial());
+    return updateTaskCategory(prisma, request.auth!, params.id, body, request.ip);
+  });
+  app.delete("/task-categories/:id", { preHandler: requirePermission("task.update_any") }, async (request) => {
+    const params = parseParams(request, idParamSchema);
+    return deleteTaskCategory(prisma, request.auth!, params.id, request.ip);
+  });
+
   app.get("/tags", { preHandler: requireAuth }, async () => listTags(prisma));
+  app.post("/tags", { preHandler: requirePermission("task.update_any") }, async (request) => {
+    const body = parseBody(request, tagSchema);
+    return createTag(prisma, request.auth!, body, request.ip);
+  });
+  app.patch("/tags/:id", { preHandler: requirePermission("task.update_any") }, async (request) => {
+    const params = parseParams(request, idParamSchema);
+    const body = parseBody(request, tagSchema.partial());
+    return updateTag(prisma, request.auth!, params.id, body, request.ip);
+  });
+  app.delete("/tags/:id", { preHandler: requirePermission("task.update_any") }, async (request) => {
+    const params = parseParams(request, idParamSchema);
+    return deleteTag(prisma, request.auth!, params.id, request.ip);
+  });
 
   app.get("/tasks", { preHandler: requireAuth }, async (request) => {
     const query = parseQuery(request, taskQuerySchema);

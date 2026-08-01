@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { Edit3, Loader2, Plus, Save, Trash2, XCircle } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock, MultiCheck } from "../components/common";
@@ -1113,6 +1113,325 @@ export function LogsPage() {
           cells: [formatDate(log.createdAt), log.actor?.fullName, log.action, `${log.entityType}:${log.entityId ?? ""}`]
         }))}
       />
+    </section>
+  );
+}
+
+const emptyCategoryForm = { code: "", name: "", description: "" };
+const emptyTagForm = { name: "", color: "#2563eb" };
+
+export function CatalogsPage() {
+  const categories = useAsyncData(() => api.taskCategories(), []);
+  const tags = useAsyncData(() => api.tags(), []);
+  const [categoryForm, setCategoryForm] = useState({ ...emptyCategoryForm });
+  const [tagForm, setTagForm] = useState({ ...emptyTagForm });
+  const [editingCategoryId, setEditingCategoryId] = useState("");
+  const [editingCategory, setEditingCategory] = useState({ ...emptyCategoryForm });
+  const [editingTagId, setEditingTagId] = useState("");
+  const [editingTag, setEditingTag] = useState({ ...emptyTagForm });
+  const [busy, setBusy] = useState("");
+  const [message, setMessage] = useState("");
+  const [formError, setFormError] = useState("");
+
+  const loading = categories.loading || tags.loading;
+  const error = categories.error || tags.error;
+
+  async function reloadCatalogs() {
+    await Promise.all([categories.reload(), tags.reload()]);
+  }
+
+  async function submitCategory(event: FormEvent) {
+    event.preventDefault();
+    setBusy("category-create");
+    setMessage("");
+    setFormError("");
+    try {
+      await api.createTaskCategory({
+        code: categoryForm.code,
+        name: categoryForm.name,
+        description: categoryForm.description || undefined
+      });
+      setCategoryForm({ ...emptyCategoryForm });
+      setMessage("Đã tạo danh mục công việc.");
+      await reloadCatalogs();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Không lưu được danh mục công việc.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function submitTag(event: FormEvent) {
+    event.preventDefault();
+    setBusy("tag-create");
+    setMessage("");
+    setFormError("");
+    try {
+      await api.createTag({ name: tagForm.name, color: tagForm.color || undefined });
+      setTagForm({ ...emptyTagForm });
+      setMessage("Đã tạo nhãn công việc.");
+      await reloadCatalogs();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Không lưu được nhãn công việc.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function editCategory(category: Record<string, any>) {
+    setEditingCategoryId(category.id);
+    setEditingCategory({
+      code: category.code ?? "",
+      name: category.name ?? "",
+      description: category.description ?? ""
+    });
+  }
+
+  function editTag(tag: Record<string, any>) {
+    setEditingTagId(tag.id);
+    setEditingTag({
+      name: tag.name ?? "",
+      color: tag.color ?? "#2563eb"
+    });
+  }
+
+  async function saveCategory(id: string) {
+    setBusy(`category-${id}`);
+    setMessage("");
+    setFormError("");
+    try {
+      await api.updateTaskCategory(id, {
+        code: editingCategory.code,
+        name: editingCategory.name,
+        description: editingCategory.description || null
+      });
+      setEditingCategoryId("");
+      setMessage("Đã cập nhật danh mục công việc.");
+      await reloadCatalogs();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Không cập nhật được danh mục công việc.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function saveTag(id: string) {
+    setBusy(`tag-${id}`);
+    setMessage("");
+    setFormError("");
+    try {
+      await api.updateTag(id, { name: editingTag.name, color: editingTag.color || null });
+      setEditingTagId("");
+      setMessage("Đã cập nhật nhãn công việc.");
+      await reloadCatalogs();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Không cập nhật được nhãn công việc.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function deleteCategory(category: Record<string, any>) {
+    if (!window.confirm(`Xóa danh mục "${category.name}" khỏi danh sách chọn? Công việc cũ vẫn giữ lịch sử danh mục.`)) return;
+    setBusy(`category-delete-${category.id}`);
+    setMessage("");
+    setFormError("");
+    try {
+      await api.deleteTaskCategory(category.id);
+      setMessage("Đã xóa danh mục công việc.");
+      await reloadCatalogs();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Không xóa được danh mục công việc.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function deleteTag(tag: Record<string, any>) {
+    if (!window.confirm(`Xóa nhãn "${tag.name}" khỏi danh sách chọn? Công việc cũ vẫn giữ lịch sử nhãn.`)) return;
+    setBusy(`tag-delete-${tag.id}`);
+    setMessage("");
+    setFormError("");
+    try {
+      await api.deleteTag(tag.id);
+      setMessage("Đã xóa nhãn công việc.");
+      await reloadCatalogs();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Không xóa được nhãn công việc.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  if (loading) return <LoadingBlock />;
+  if (error) return <ErrorBlock message={error} />;
+
+  return (
+    <section className="page-grid">
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Danh mục công việc</h2>
+        </div>
+        <form className="form-grid compact-form" onSubmit={submitCategory}>
+          <label>
+            Mã danh mục
+            <input
+              data-testid="catalog-category-code"
+              required
+              pattern="[A-Za-z0-9_-]{2,40}"
+              value={categoryForm.code}
+              onChange={(event) => setCategoryForm({ ...categoryForm, code: event.target.value })}
+            />
+          </label>
+          <label>
+            Tên danh mục
+            <input
+              data-testid="catalog-category-name"
+              required
+              value={categoryForm.name}
+              onChange={(event) => setCategoryForm({ ...categoryForm, name: event.target.value })}
+            />
+          </label>
+          <label className="full">
+            Mô tả
+            <textarea
+              data-testid="catalog-category-description"
+              value={categoryForm.description}
+              onChange={(event) => setCategoryForm({ ...categoryForm, description: event.target.value })}
+            />
+          </label>
+          <button className="primary-button full" data-testid="catalog-category-create-save" type="submit" disabled={busy === "category-create"}>
+            {busy === "category-create" ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
+            Tạo danh mục
+          </button>
+        </form>
+        <DataTable
+          columns={["Mã", "Tên", "Mô tả", "Cập nhật", "Thao tác"]}
+          rows={(categories.data ?? []).map((category) => {
+            const editing = editingCategoryId === category.id;
+            return {
+              key: category.id,
+              testId: `catalog-category-row-${category.id}`,
+              cells: [
+                editing ? (
+                  <input data-testid={`catalog-category-edit-code-${category.id}`} value={editingCategory.code} onChange={(event) => setEditingCategory({ ...editingCategory, code: event.target.value })} />
+                ) : (
+                  category.code
+                ),
+                editing ? (
+                  <input data-testid={`catalog-category-edit-name-${category.id}`} value={editingCategory.name} onChange={(event) => setEditingCategory({ ...editingCategory, name: event.target.value })} />
+                ) : (
+                  category.name
+                ),
+                editing ? (
+                  <input
+                    data-testid={`catalog-category-edit-description-${category.id}`}
+                    value={editingCategory.description}
+                    onChange={(event) => setEditingCategory({ ...editingCategory, description: event.target.value })}
+                  />
+                ) : (
+                  category.description ?? ""
+                ),
+                formatDate(category.updatedAt),
+                <div className="row-actions">
+                  {editing ? (
+                    <>
+                      <button className="primary-button compact" data-testid={`catalog-category-save-${category.id}`} type="button" disabled={busy === `category-${category.id}`} onClick={() => void saveCategory(category.id)}>
+                        {busy === `category-${category.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />}
+                        Lưu
+                      </button>
+                      <button className="ghost-button compact" type="button" onClick={() => setEditingCategoryId("")}>
+                        <XCircle size={14} />
+                        Hủy
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="ghost-button compact" data-testid={`catalog-category-edit-${category.id}`} type="button" onClick={() => editCategory(category)}>
+                        <Edit3 size={14} />
+                        Sửa
+                      </button>
+                      <button className="danger-button compact" data-testid={`catalog-category-delete-${category.id}`} type="button" disabled={busy === `category-delete-${category.id}`} onClick={() => void deleteCategory(category)}>
+                        {busy === `category-delete-${category.id}` ? <Loader2 className="spin" size={14} /> : <Trash2 size={14} />}
+                        Xóa
+                      </button>
+                    </>
+                  )}
+                </div>
+              ]
+            };
+          })}
+        />
+      </section>
+
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Nhãn công việc</h2>
+        </div>
+        <form className="form-grid compact-form" onSubmit={submitTag}>
+          <label>
+            Tên nhãn
+            <input data-testid="catalog-tag-name" required value={tagForm.name} onChange={(event) => setTagForm({ ...tagForm, name: event.target.value })} />
+          </label>
+          <label>
+            Màu
+            <input data-testid="catalog-tag-color" type="color" value={tagForm.color} onChange={(event) => setTagForm({ ...tagForm, color: event.target.value })} />
+          </label>
+          <button className="primary-button full" data-testid="catalog-tag-create-save" type="submit" disabled={busy === "tag-create"}>
+            {busy === "tag-create" ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
+            Tạo nhãn
+          </button>
+        </form>
+        <DataTable
+          columns={["Tên", "Màu", "Cập nhật", "Thao tác"]}
+          rows={(tags.data ?? []).map((tag) => {
+            const editing = editingTagId === tag.id;
+            return {
+              key: tag.id,
+              testId: `catalog-tag-row-${tag.id}`,
+              cells: [
+                editing ? <input data-testid={`catalog-tag-edit-name-${tag.id}`} value={editingTag.name} onChange={(event) => setEditingTag({ ...editingTag, name: event.target.value })} /> : tag.name,
+                editing ? (
+                  <input data-testid={`catalog-tag-edit-color-${tag.id}`} type="color" value={editingTag.color} onChange={(event) => setEditingTag({ ...editingTag, color: event.target.value })} />
+                ) : (
+                  <span className="tag-swatch"><b style={{ background: tag.color ?? "#64748b" }} />{tag.color ?? ""}</span>
+                ),
+                formatDate(tag.updatedAt),
+                <div className="row-actions">
+                  {editing ? (
+                    <>
+                      <button className="primary-button compact" data-testid={`catalog-tag-save-${tag.id}`} type="button" disabled={busy === `tag-${tag.id}`} onClick={() => void saveTag(tag.id)}>
+                        {busy === `tag-${tag.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />}
+                        Lưu
+                      </button>
+                      <button className="ghost-button compact" type="button" onClick={() => setEditingTagId("")}>
+                        <XCircle size={14} />
+                        Hủy
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="ghost-button compact" data-testid={`catalog-tag-edit-${tag.id}`} type="button" onClick={() => editTag(tag)}>
+                        <Edit3 size={14} />
+                        Sửa
+                      </button>
+                      <button className="danger-button compact" data-testid={`catalog-tag-delete-${tag.id}`} type="button" disabled={busy === `tag-delete-${tag.id}`} onClick={() => void deleteTag(tag)}>
+                        {busy === `tag-delete-${tag.id}` ? <Loader2 className="spin" size={14} /> : <Trash2 size={14} />}
+                        Xóa
+                      </button>
+                    </>
+                  )}
+                </div>
+              ]
+            };
+          })}
+        />
+      </section>
+      {(message || formError) && (
+        <section className="panel wide compact-status" role={formError ? "alert" : "status"} data-testid="catalog-message">
+          {formError || message}
+        </section>
+      )}
     </section>
   );
 }

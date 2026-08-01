@@ -354,6 +354,7 @@ model TaskCategory {
   description String?
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
   tasks       Task[]
 
   @@map("task_categories")
@@ -365,6 +366,7 @@ model Tag {
   color     String?
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
   tasks     TaskTag[]
 
   @@map("tags")

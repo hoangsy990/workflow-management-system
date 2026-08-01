@@ -10,6 +10,7 @@ import {
   PlusCircle,
   Settings,
   ShieldCheck,
+  Tags,
   UserCircle,
   Users,
   Workflow
@@ -32,6 +33,7 @@ export type Page =
   | "approvals"
   | "users"
   | "departments"
+  | "catalogs"
   | "roles"
   | "logs"
   | "settings"
@@ -57,6 +59,7 @@ export const navItems: NavItem[] = [
   { page: "notifications", label: "Thông báo", icon: Bell },
   { page: "users", label: "Người dùng", icon: Users },
   { page: "departments", label: "Phòng ban", icon: Activity },
+  { page: "catalogs", label: "Danh mục", icon: Tags },
   { page: "roles", label: "Vai trò", icon: ShieldCheck },
   { page: "logs", label: "Nhật ký", icon: Activity },
   { page: "settings", label: "Cấu hình", icon: Settings },

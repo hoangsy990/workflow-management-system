@@ -848,6 +848,11 @@ tbody tr:hover {
   gap: 18px;
 }
 
+.compact-form {
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
 .full {
   grid-column: 1 / -1;
 }
@@ -871,6 +876,24 @@ tbody tr:hover {
   margin: 0;
   color: var(--green);
   font-weight: 700;
+}
+
+.compact-status {
+  padding: 12px 14px;
+  font-weight: 800;
+}
+
+.tag-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tag-swatch b {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
 }
 
 .profile-summary {

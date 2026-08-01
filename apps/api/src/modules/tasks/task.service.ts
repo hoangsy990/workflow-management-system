@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient, Task, TaskPriority, TaskStatus } from "@prisma/client";
 import type { AuthContext } from "../../types/fastify.js";
-import { badRequest, forbidden, notFound } from "../../http/errors.js";
+import { badRequest, conflict, forbidden, notFound } from "../../http/errors.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { enqueueNotifications } from "../notifications/notification.service.js";
 import { assertNoTaskCycle, daysRemaining, isTaskOverdue, nextStatusAfterProgress } from "./task.domain.js";
@@ -844,10 +844,211 @@ export async function addTaskComment(
   });
 }
 
+export interface TaskCategoryInput {
+  code: string;
+  name: string;
+  description?: string | null;
+}
+
+export interface TagInput {
+  name: string;
+  color?: string | null;
+}
+
+function normalizeCategoryCode(code: string) {
+  return code.trim().toUpperCase();
+}
+
+function normalizeName(name: string) {
+  return name.trim();
+}
+
 export async function listTaskCategories(db: PrismaClient) {
-  return db.taskCategory.findMany({ orderBy: { name: "asc" } });
+  return db.taskCategory.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } });
+}
+
+export async function createTaskCategory(db: PrismaClient, auth: AuthContext, input: TaskCategoryInput, ipAddress?: string) {
+  const code = normalizeCategoryCode(input.code);
+  const name = normalizeName(input.name);
+
+  return db.$transaction(async (tx) => {
+    const duplicate = await tx.taskCategory.findFirst({
+      where: { deletedAt: null, OR: [{ code }, { name: { equals: name, mode: "insensitive" } }] }
+    });
+    if (duplicate) {
+      throw conflict("Mã hoặc tên danh mục công việc đã tồn tại.");
+    }
+
+    const category = await tx.taskCategory.create({
+      data: {
+        code,
+        name,
+        description: input.description?.trim() || null
+      }
+    });
+
+    await writeAuditLog(tx, {
+      actorId: auth.userId,
+      action: "task_category.create",
+      entityType: "task_categories",
+      entityId: category.id,
+      ipAddress,
+      metadata: { code: category.code, name: category.name }
+    });
+
+    return category;
+  });
+}
+
+export async function updateTaskCategory(db: PrismaClient, auth: AuthContext, id: string, input: Partial<TaskCategoryInput>, ipAddress?: string) {
+  return db.$transaction(async (tx) => {
+    const current = await tx.taskCategory.findFirst({ where: { id, deletedAt: null } });
+    if (!current) throw notFound();
+
+    const code = input.code ? normalizeCategoryCode(input.code) : current.code;
+    const name = input.name ? normalizeName(input.name) : current.name;
+    const duplicate = await tx.taskCategory.findFirst({
+      where: {
+        deletedAt: null,
+        id: { not: id },
+        OR: [{ code }, { name: { equals: name, mode: "insensitive" } }]
+      }
+    });
+    if (duplicate) {
+      throw conflict("Mã hoặc tên danh mục công việc đã tồn tại.");
+    }
+
+    const category = await tx.taskCategory.update({
+      where: { id },
+      data: {
+        code,
+        name,
+        description: input.description === undefined ? current.description : input.description?.trim() || null
+      }
+    });
+
+    await writeAuditLog(tx, {
+      actorId: auth.userId,
+      action: "task_category.update",
+      entityType: "task_categories",
+      entityId: category.id,
+      ipAddress,
+      metadata: {
+        previous: { code: current.code, name: current.name, description: current.description },
+        next: { code: category.code, name: category.name, description: category.description }
+      }
+    });
+
+    return category;
+  });
+}
+
+export async function deleteTaskCategory(db: PrismaClient, auth: AuthContext, id: string, ipAddress?: string) {
+  return db.$transaction(async (tx) => {
+    const current = await tx.taskCategory.findFirst({ where: { id, deletedAt: null } });
+    if (!current) throw notFound();
+
+    await tx.taskCategory.update({ where: { id }, data: { deletedAt: new Date() } });
+    await writeAuditLog(tx, {
+      actorId: auth.userId,
+      action: "task_category.delete",
+      entityType: "task_categories",
+      entityId: id,
+      ipAddress,
+      metadata: { code: current.code, name: current.name }
+    });
+
+    return { ok: true };
+  });
 }
 
 export async function listTags(db: PrismaClient) {
-  return db.tag.findMany({ orderBy: { name: "asc" } });
+  return db.tag.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } });
+}
+
+export async function createTag(db: PrismaClient, auth: AuthContext, input: TagInput, ipAddress?: string) {
+  const name = normalizeName(input.name);
+
+  return db.$transaction(async (tx) => {
+    const duplicate = await tx.tag.findFirst({
+      where: { deletedAt: null, name: { equals: name, mode: "insensitive" } }
+    });
+    if (duplicate) {
+      throw conflict("Tên nhãn đã tồn tại.");
+    }
+
+    const tag = await tx.tag.create({
+      data: {
+        name,
+        color: input.color?.trim() || null
+      }
+    });
+
+    await writeAuditLog(tx, {
+      actorId: auth.userId,
+      action: "tag.create",
+      entityType: "tags",
+      entityId: tag.id,
+      ipAddress,
+      metadata: { name: tag.name, color: tag.color }
+    });
+
+    return tag;
+  });
+}
+
+export async function updateTag(db: PrismaClient, auth: AuthContext, id: string, input: Partial<TagInput>, ipAddress?: string) {
+  return db.$transaction(async (tx) => {
+    const current = await tx.tag.findFirst({ where: { id, deletedAt: null } });
+    if (!current) throw notFound();
+
+    const name = input.name ? normalizeName(input.name) : current.name;
+    const duplicate = await tx.tag.findFirst({
+      where: { deletedAt: null, id: { not: id }, name: { equals: name, mode: "insensitive" } }
+    });
+    if (duplicate) {
+      throw conflict("Tên nhãn đã tồn tại.");
+    }
+
+    const tag = await tx.tag.update({
+      where: { id },
+      data: {
+        name,
+        color: input.color === undefined ? current.color : input.color?.trim() || null
+      }
+    });
+
+    await writeAuditLog(tx, {
+      actorId: auth.userId,
+      action: "tag.update",
+      entityType: "tags",
+      entityId: tag.id,
+      ipAddress,
+      metadata: {
+        previous: { name: current.name, color: current.color },
+        next: { name: tag.name, color: tag.color }
+      }
+    });
+
+    return tag;
+  });
+}
+
+export async function deleteTag(db: PrismaClient, auth: AuthContext, id: string, ipAddress?: string) {
+  return db.$transaction(async (tx) => {
+    const current = await tx.tag.findFirst({ where: { id, deletedAt: null } });
+    if (!current) throw notFound();
+
+    await tx.tag.update({ where: { id }, data: { deletedAt: new Date() } });
+    await writeAuditLog(tx, {
+      actorId: auth.userId,
+      action: "tag.delete",
+      entityType: "tags",
+      entityId: id,
+      ipAddress,
+      metadata: { name: current.name, color: current.color }
+    });
+
+    return { ok: true };
+  });
 }

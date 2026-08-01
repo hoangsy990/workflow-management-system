@@ -333,7 +333,37 @@ export const api = {
     return result;
   },
   taskCategories: () => cachedApiRequest<Record<string, any>[]>("/task-categories"),
+  createTaskCategory: async (payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>("/task-categories", { method: "POST", body: JSON.stringify(payload) });
+    clearApiCache("/task-categories");
+    return result;
+  },
+  updateTaskCategory: async (id: string, payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>(`/task-categories/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+    clearApiCache("/task-categories");
+    return result;
+  },
+  deleteTaskCategory: async (id: string) => {
+    const result = await apiRequest<Record<string, any>>(`/task-categories/${id}`, { method: "DELETE" });
+    clearApiCache("/task-categories");
+    return result;
+  },
   tags: () => cachedApiRequest<Record<string, any>[]>("/tags"),
+  createTag: async (payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>("/tags", { method: "POST", body: JSON.stringify(payload) });
+    clearApiCache("/tags");
+    return result;
+  },
+  updateTag: async (id: string, payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>(`/tags/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+    clearApiCache("/tags");
+    return result;
+  },
+  deleteTag: async (id: string) => {
+    const result = await apiRequest<Record<string, any>>(`/tags/${id}`, { method: "DELETE" });
+    clearApiCache("/tags");
+    return result;
+  },
   tasks: (query = "") => apiRequest<Paginated<Record<string, any>>>(`/tasks${query}`),
   task: (id: string) => apiRequest<Record<string, any>>(`/tasks/${id}`),
   createTask: (payload: Record<string, unknown>) =>
