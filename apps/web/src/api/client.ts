@@ -288,6 +288,7 @@ export const api = {
   notifications: (pageSize = 8) => apiRequest<Paginated<Record<string, any>> & { unread: number }>(`/notifications?pageSize=${pageSize}`),
   readNotification: (id: string) => apiRequest<{ ok: true }>(`/notifications/${id}/read`, { method: "POST" }),
   readAllNotifications: () => apiRequest<{ ok: true }>("/notifications/read-all", { method: "POST" }),
+  globalSearch: (query: string) => apiRequest<Record<string, any>>(`/search?q=${encodeURIComponent(query)}&pageSize=5`),
   users: () => cachedApiRequest<Paginated<Record<string, any>>>("/users?pageSize=100"),
   createUser: async (payload: Record<string, unknown>) => {
     const result = await apiRequest<Record<string, any>>("/users", { method: "POST", body: JSON.stringify(payload) });

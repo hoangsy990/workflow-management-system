@@ -158,6 +158,8 @@ export default function App() {
       user={user}
       page={page}
       setPage={setPage}
+      setTaskId={setTaskId}
+      setInstanceId={setInstanceId}
       onLogout={logout}
       unread={unread}
       dark={dark}

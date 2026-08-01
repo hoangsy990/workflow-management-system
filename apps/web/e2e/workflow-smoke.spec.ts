@@ -432,6 +432,30 @@ test("offline banner hiển thị rõ khi mất kết nối", async ({ page, req
   await expect(page.getByTestId("offline-banner")).not.toBeVisible();
 });
 
+test("global search tìm và mở đúng công việc, hồ sơ, người dùng", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  const manager = await apiLogin(request, "manager");
+  const employee = await apiLogin(request, "employee");
+  const task = await createSmokeTask(request, manager, "global-search");
+  const instance = await createSmokeWorkflowInstance(request, employee, "global-search");
+
+  await openAppWithSession(page, admin);
+  await page.getByTestId("global-search-input").fill(task.title);
+  await expect(page.getByTestId(`global-search-result-tasks-${task.id}`)).toBeVisible();
+  await page.getByTestId(`global-search-result-tasks-${task.id}`).click();
+  await expect(page.getByRole("heading", { name: task.title })).toBeVisible();
+
+  await page.getByTestId("global-search-input").fill(instance.code);
+  await expect(page.getByTestId(`global-search-result-workflowInstances-${instance.id}`)).toBeVisible();
+  await page.getByTestId(`global-search-result-workflowInstances-${instance.id}`).click();
+  await expect(page.getByRole("heading", { name: instance.code })).toBeVisible();
+
+  await page.getByTestId("global-search-input").fill(employee.user.email);
+  await expect(page.getByTestId(`global-search-result-users-${employee.user.id}`)).toBeVisible();
+  await page.getByTestId(`global-search-result-users-${employee.user.id}`).click();
+  await expect(page.getByTestId("nav-users")).toHaveAttribute("aria-current", "page");
+});
+
 test("xem, thu hồi phiên thiết bị và đăng xuất tất cả", async ({ page, request }) => {
   const admin = await apiLogin(request, "admin");
   const deviceName = `Smoke device ${runId}`;

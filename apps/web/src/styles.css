@@ -305,6 +305,82 @@ legend {
   position: relative;
 }
 
+.global-search {
+  position: relative;
+  width: min(360px, 32vw);
+  min-width: 260px;
+}
+
+.global-search-field {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  padding: 0 10px;
+}
+
+.global-search-field input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 9px 0;
+}
+
+.global-search-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: min(540px, calc(100vw - 32px));
+  max-height: min(68vh, 560px);
+  display: grid;
+  gap: 12px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 12px;
+}
+
+.global-search-section {
+  display: grid;
+  gap: 6px;
+}
+
+.global-search-section > strong {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.global-search-section button {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.global-search-section button:hover,
+.global-search-section button:focus-visible {
+  border-color: var(--primary);
+  background: var(--panel-soft);
+}
+
+.global-search-section small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .session-popover {
   position: absolute;
   top: calc(100% + 10px);
@@ -1943,6 +2019,10 @@ progress {
     grid-template-columns: repeat(3, minmax(240px, 1fr));
   }
 
+  .global-search {
+    width: min(320px, 42vw);
+  }
+
   .related-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1963,7 +2043,26 @@ progress {
   }
 
   .topbar {
+    flex-wrap: wrap;
     padding: 10px 14px;
+  }
+
+  .top-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+
+  .global-search {
+    order: -1;
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .global-search-results {
+    left: 0;
+    right: auto;
+    width: calc(100vw - 28px);
   }
 
   .account-menu span,

@@ -1,6 +1,7 @@
-import { Bell, LogOut, Menu, Moon, Smartphone, Sun, UserCircle } from "lucide-react";
-import { useState } from "react";
+import { Bell, Loader2, LogOut, Menu, Moon, Search, Smartphone, Sun, UserCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 import { api, ApiUser } from "../api/client";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { cls, formatDate } from "../lib/format";
 import { mobileNav, navItems, Page } from "../navigation";
 
@@ -17,6 +18,8 @@ export function AppShell({
   user,
   page,
   setPage,
+  setTaskId,
+  setInstanceId,
   children,
   onLogout,
   unread,
@@ -27,6 +30,8 @@ export function AppShell({
   user: ApiUser;
   page: Page;
   setPage: (page: Page) => void;
+  setTaskId: (id: string) => void;
+  setInstanceId: (id: string) => void;
   children: React.ReactNode;
   onLogout: () => void;
   unread: number;
@@ -43,12 +48,84 @@ export function AppShell({
   const [revokingSessionId, setRevokingSessionId] = useState("");
   const [confirmingLogoutAll, setConfirmingLogoutAll] = useState(false);
   const [revokingAll, setRevokingAll] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResult, setSearchResult] = useState<Record<string, any> | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const debouncedSearchTerm = useDebouncedValue(searchTerm.trim(), 300);
+  const searchGroups = [
+    { key: "tasks", label: "Công việc", items: searchResult?.tasks ?? [] },
+    { key: "workflowInstances", label: "Hồ sơ quy trình", items: searchResult?.workflowInstances ?? [] },
+    { key: "users", label: "Người dùng", items: searchResult?.users ?? [] }
+  ];
+  const hasSearchResults = searchGroups.some((group) => group.items.length > 0);
+  const searchOpen = searchTerm.trim().length >= 2;
+
+  useEffect(() => {
+    if (debouncedSearchTerm.length < 2) {
+      setSearchResult(null);
+      setSearchError("");
+      setSearchLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSearchLoading(true);
+    setSearchError("");
+    api
+      .globalSearch(debouncedSearchTerm)
+      .then((result) => {
+        if (!cancelled) setSearchResult(result);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setSearchResult(null);
+          setSearchError(err instanceof Error ? err.message : "Không tìm kiếm được dữ liệu.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSearchLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedSearchTerm]);
 
   function goToPage(nextPage: Page) {
     setPage(nextPage);
     setMobileMenuOpen(false);
     setSessionsOpen(false);
     setConfirmingLogoutAll(false);
+    setSearchTerm("");
+    setSearchResult(null);
+    setSearchError("");
+  }
+
+  function openSearchItem(type: string, item: Record<string, any>) {
+    if (type === "tasks") {
+      setTaskId(item.id);
+      goToPage("taskDetail");
+      return;
+    }
+    if (type === "workflowInstances") {
+      setInstanceId(item.id);
+      goToPage("instanceDetail");
+      return;
+    }
+    goToPage("users");
+  }
+
+  function searchItemTitle(type: string, item: Record<string, any>) {
+    if (type === "tasks") return `${item.code} - ${item.title}`;
+    if (type === "workflowInstances") return `${item.code} - ${item.template?.name ?? "Hồ sơ quy trình"}`;
+    return `${item.fullName} - ${item.employeeCode}`;
+  }
+
+  function searchItemMeta(type: string, item: Record<string, any>) {
+    if (type === "tasks") return [item.status, item.department?.name].filter(Boolean).join(" · ");
+    if (type === "workflowInstances") return [item.status, item.currentStep?.name].filter(Boolean).join(" · ");
+    return [item.email, item.department?.name, item.title].filter(Boolean).join(" · ");
   }
 
   async function loadSessions() {
@@ -147,6 +224,49 @@ export function AppShell({
             <span id="page-title">{activeItem?.label ?? "Dashboard"}</span>
           </div>
           <div className="top-actions">
+            <div className="global-search" role="search">
+              <label className="global-search-field" htmlFor="global-search-input">
+                <Search size={16} />
+                <span className="sr-only">Tìm kiếm toàn hệ thống</span>
+                <input
+                  id="global-search-input"
+                  data-testid="global-search-input"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Tìm công việc, hồ sơ, người dùng..."
+                  autoComplete="off"
+                  aria-controls="global-search-results"
+                  aria-expanded={searchOpen}
+                />
+                {searchLoading && <Loader2 className="spin" size={15} aria-hidden="true" />}
+              </label>
+              {searchOpen && (
+                <div className="global-search-results" id="global-search-results" data-testid="global-search-results" role="listbox">
+                  {searchError && <p className="form-error">{searchError}</p>}
+                  {!searchError && !searchLoading && !hasSearchResults && <p className="empty-text tight">Không tìm thấy kết quả phù hợp.</p>}
+                  {searchGroups.map((group) =>
+                    group.items.length > 0 ? (
+                      <div className="global-search-section" key={group.key}>
+                        <strong>{group.label}</strong>
+                        {group.items.map((item: Record<string, any>) => (
+                          <button
+                            key={`${group.key}-${item.id}`}
+                            type="button"
+                            role="option"
+                            data-testid={`global-search-result-${group.key}-${item.id}`}
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => openSearchItem(group.key, item)}
+                          >
+                            <span>{searchItemTitle(group.key, item)}</span>
+                            <small>{searchItemMeta(group.key, item)}</small>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null
+                  )}
+                </div>
+              )}
+            </div>
             <span className={cls("sync-pill", online ? "online" : "offline")} role="status" aria-live="polite">
               <Smartphone size={14} />
               {online ? "Đang kết nối" : "Mất kết nối"}

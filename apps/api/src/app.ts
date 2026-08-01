@@ -15,6 +15,7 @@ import { dashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
 import { identityRoutes } from "./modules/identity/identity.routes.js";
 import { notificationRoutes } from "./modules/notifications/notification.routes.js";
 import { runDeadlineNotificationScan } from "./modules/notifications/notification.service.js";
+import { searchRoutes } from "./modules/search/search.routes.js";
 import { settingsRoutes } from "./modules/settings/settings.routes.js";
 import { taskRoutes } from "./modules/tasks/task.routes.js";
 import { uploadRoutes } from "./modules/uploads/upload.routes.js";
@@ -113,6 +114,7 @@ export async function createApp() {
     await api.register(dashboardRoutes);
     await api.register(auditRoutes);
     await api.register(settingsRoutes);
+    await api.register(searchRoutes);
   }, { prefix: "/api/v1" });
 
   const runDeadlineScan = () => {
