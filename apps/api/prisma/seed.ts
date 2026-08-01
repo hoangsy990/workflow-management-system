@@ -823,6 +823,60 @@ async function main() {
       }
     }),
     prisma.systemSetting.upsert({
+      where: { key: "workflow.template.auto_activate" },
+      update: {},
+      create: {
+        key: "workflow.template.auto_activate",
+        value: true,
+        description: "Tự động kích hoạt phiên bản mẫu quy trình khi tạo từ builder."
+      }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "workflow.step.default_deadline_amount" },
+      update: {},
+      create: {
+        key: "workflow.step.default_deadline_amount",
+        value: 1,
+        description: "Số giờ/ngày xử lý mặc định cho bước quy trình mới."
+      }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "workflow.step.default_deadline_unit" },
+      update: {},
+      create: {
+        key: "workflow.step.default_deadline_unit",
+        value: "DAY",
+        description: "Đơn vị hạn xử lý mặc định cho bước quy trình mới: HOUR hoặc DAY."
+      }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "workflow.step.default_reminder_before_hours" },
+      update: {},
+      create: {
+        key: "workflow.step.default_reminder_before_hours",
+        value: 24,
+        description: "Số giờ nhắc trước hạn mặc định cho bước quy trình mới."
+      }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "workflow.step.default_approval_mode" },
+      update: {},
+      create: {
+        key: "workflow.step.default_approval_mode",
+        value: "SEQUENTIAL",
+        description: "Kiểu duyệt mặc định cho bước quy trình mới."
+      }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "workflow.step.default_completion_rule" },
+      update: {},
+      create: {
+        key: "workflow.step.default_completion_rule",
+        value: "ALL",
+        description: "Điều kiện hoàn thành mặc định cho bước quy trình mới."
+      }
+    }),
+    prisma.systemSetting.upsert({
       where: { key: "file.upload.max_mb" },
       update: {},
       create: {

@@ -119,6 +119,9 @@ interface WorkflowTemplateRecord {
       completionRule?: string | null;
       minCount?: number | null;
       minPercent?: number | null;
+      deadlineAmount?: number | null;
+      deadlineUnit?: string | null;
+      reminderBeforeHours?: number | null;
     }>;
     transitions?: Array<{
       fromStep?: { code: string };
@@ -953,6 +956,88 @@ test("cấu hình mã tự động áp dụng cho task và hồ sơ quy trình",
         key: "auto_code.workflow_instance.padding",
         value: 4,
         description: "Số chữ số thứ tự trong mã hồ sơ quy trình."
+      })
+    ]);
+  }
+});
+
+test("admin cấu hình mặc định quy trình và builder áp dụng", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  const code = `CFG_${runId.replace(/[^A-Za-z0-9]/g, "_").toUpperCase()}`;
+
+  try {
+    await openAppWithSession(page, admin);
+    await page.getByTestId("nav-settings").click();
+    await page.getByTestId("settings-workflow-auto-activate").check();
+    await page.getByTestId("settings-workflow-default-deadline-amount").fill("3");
+    await page.getByTestId("settings-workflow-default-deadline-unit").selectOption("HOUR");
+    await page.getByTestId("settings-workflow-default-reminder-hours").fill("2");
+    await page.getByTestId("settings-workflow-default-approval-mode").selectOption("PARALLEL");
+    await page.getByTestId("settings-workflow-default-completion-rule").selectOption("ANY");
+    await page.getByTestId("settings-workflow-config-save").click();
+    await expect(page.getByTestId("settings-message")).toContainText("quy trình");
+
+    const settings = await apiGet<Array<Record<string, any>>>(request, admin, "/system-settings");
+    const valueOf = (key: string) => settings.find((setting) => setting.key === key)?.value;
+    expect(valueOf("workflow.step.default_deadline_amount")).toBe(3);
+    expect(valueOf("workflow.step.default_deadline_unit")).toBe("HOUR");
+    expect(valueOf("workflow.step.default_reminder_before_hours")).toBe(2);
+    expect(valueOf("workflow.step.default_approval_mode")).toBe("PARALLEL");
+    expect(valueOf("workflow.step.default_completion_rule")).toBe("ANY");
+
+    await page.getByTestId("nav-workflowTemplates").click();
+    await page.getByTestId("workflow-template-create").click();
+    await expect(page.getByTestId("workflow-step-approval-mode-0")).toHaveValue("PARALLEL");
+    await expect(page.getByTestId("workflow-step-completion-rule-0")).toHaveValue("ANY");
+    await expect(page.getByTestId("workflow-step-deadline-amount-0")).toHaveValue("3");
+    await expect(page.getByTestId("workflow-step-deadline-unit-0")).toHaveValue("HOUR");
+    await expect(page.getByTestId("workflow-preview-step-1")).toContainText("Nhắc trước 2 giờ");
+
+    await page.getByTestId("workflow-template-code").fill(code);
+    await page.getByTestId("workflow-template-name").fill(`Workflow config ${runId}`);
+    const createResponse = page.waitForResponse((response) => response.url().endsWith("/workflow-templates") && response.request().method() === "POST");
+    await page.getByTestId("workflow-template-save").click();
+    const created = (await (await createResponse).json()) as WorkflowTemplateRecord;
+    const firstApprovalStep = created.versions?.[0]?.steps?.find((step) => step.code === "manager");
+    expect(created.versions?.[0]?.status).toBe("ACTIVE");
+    expect(firstApprovalStep).toMatchObject({
+      approvalMode: "PARALLEL",
+      completionRule: "ANY",
+      deadlineAmount: 3,
+      deadlineUnit: "HOUR",
+      reminderBeforeHours: 2
+    });
+  } finally {
+    await Promise.all([
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "workflow.template.auto_activate",
+        value: true,
+        description: "Tự động kích hoạt phiên bản mẫu quy trình khi tạo từ builder."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "workflow.step.default_deadline_amount",
+        value: 1,
+        description: "Số giờ/ngày xử lý mặc định cho bước quy trình mới."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "workflow.step.default_deadline_unit",
+        value: "DAY",
+        description: "Đơn vị hạn xử lý mặc định cho bước quy trình mới: HOUR hoặc DAY."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "workflow.step.default_reminder_before_hours",
+        value: 24,
+        description: "Số giờ nhắc trước hạn mặc định cho bước quy trình mới."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "workflow.step.default_approval_mode",
+        value: "SEQUENTIAL",
+        description: "Kiểu duyệt mặc định cho bước quy trình mới."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "workflow.step.default_completion_rule",
+        value: "ALL",
+        description: "Điều kiện hoàn thành mặc định cho bước quy trình mới."
       })
     ]);
   }

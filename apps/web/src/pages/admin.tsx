@@ -1554,6 +1554,14 @@ export function SettingsPage() {
     workflowPrefix: "WF",
     workflowPadding: "4"
   });
+  const [workflowConfigForm, setWorkflowConfigForm] = useState({
+    autoActivateTemplate: true,
+    defaultDeadlineAmount: "1",
+    defaultDeadlineUnit: "DAY",
+    defaultReminderBeforeHours: "24",
+    defaultApprovalMode: "SEQUENTIAL",
+    defaultCompletionRule: "ALL"
+  });
   const [fileConfigForm, setFileConfigForm] = useState({
     maxMb: "20",
     mimeTypes: defaultFileUploadMimeTypes.join("\n")
@@ -1587,6 +1595,14 @@ export function SettingsPage() {
     });
     setTaskConfigForm({
       redoResetProgress: settingBooleanValue(data, "task.redo.reset_progress", false)
+    });
+    setWorkflowConfigForm({
+      autoActivateTemplate: settingBooleanValue(data, "workflow.template.auto_activate", true),
+      defaultDeadlineAmount: settingValue(data, "workflow.step.default_deadline_amount", "1"),
+      defaultDeadlineUnit: settingValue(data, "workflow.step.default_deadline_unit", "DAY"),
+      defaultReminderBeforeHours: settingValue(data, "workflow.step.default_reminder_before_hours", "24"),
+      defaultApprovalMode: settingValue(data, "workflow.step.default_approval_mode", "SEQUENTIAL"),
+      defaultCompletionRule: settingValue(data, "workflow.step.default_completion_rule", "ALL")
     });
     const rawMimeTypes = data.find((setting) => setting.key === "file.upload.allowed_mime_types")?.value;
     setFileConfigForm({
@@ -1682,6 +1698,71 @@ export function SettingsPage() {
       await reload();
     } catch (err) {
       setSettingError(err instanceof Error ? err.message : "Không lưu được cấu hình mã tự động.");
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function saveWorkflowConfig(event: FormEvent) {
+    event.preventDefault();
+    setSaving("workflow-config");
+    setSettingMessage("");
+    setSettingError("");
+    const deadlineAmount = Number(workflowConfigForm.defaultDeadlineAmount);
+    const reminderBeforeHours = Number(workflowConfigForm.defaultReminderBeforeHours);
+    const deadlineUnits = new Set(["HOUR", "DAY"]);
+    const approvalModes = new Set(["SEQUENTIAL", "PARALLEL"]);
+    const completionRules = new Set(["ALL", "ANY", "MIN_COUNT", "MIN_PERCENT"]);
+    if (
+      !Number.isFinite(deadlineAmount) ||
+      deadlineAmount < 0 ||
+      !Number.isFinite(reminderBeforeHours) ||
+      reminderBeforeHours < 0 ||
+      !deadlineUnits.has(workflowConfigForm.defaultDeadlineUnit) ||
+      !approvalModes.has(workflowConfigForm.defaultApprovalMode) ||
+      !completionRules.has(workflowConfigForm.defaultCompletionRule)
+    ) {
+      setSaving("");
+      setSettingError("Vui lòng nhập cấu hình quy trình hợp lệ.");
+      return;
+    }
+    try {
+      await Promise.all([
+        api.saveSetting({
+          key: "workflow.template.auto_activate",
+          value: workflowConfigForm.autoActivateTemplate,
+          description: "Tự động kích hoạt phiên bản mẫu quy trình khi tạo từ builder."
+        }),
+        api.saveSetting({
+          key: "workflow.step.default_deadline_amount",
+          value: Math.floor(deadlineAmount),
+          description: "Số giờ/ngày xử lý mặc định cho bước quy trình mới."
+        }),
+        api.saveSetting({
+          key: "workflow.step.default_deadline_unit",
+          value: workflowConfigForm.defaultDeadlineUnit,
+          description: "Đơn vị hạn xử lý mặc định cho bước quy trình mới."
+        }),
+        api.saveSetting({
+          key: "workflow.step.default_reminder_before_hours",
+          value: Math.floor(reminderBeforeHours),
+          description: "Số giờ nhắc trước hạn mặc định cho bước quy trình mới."
+        }),
+        api.saveSetting({
+          key: "workflow.step.default_approval_mode",
+          value: workflowConfigForm.defaultApprovalMode,
+          description: "Kiểu duyệt mặc định cho bước quy trình mới."
+        }),
+        api.saveSetting({
+          key: "workflow.step.default_completion_rule",
+          value: workflowConfigForm.defaultCompletionRule,
+          description: "Điều kiện hoàn thành mặc định cho bước quy trình mới."
+        })
+      ]);
+      setSettingMessage("Đã lưu cấu hình quy trình.");
+      await reload();
+    } catch (err) {
+      setSettingError(err instanceof Error ? err.message : "Không lưu được cấu hình quy trình.");
     } finally {
       setSaving("");
     }
@@ -1932,6 +2013,82 @@ export function SettingsPage() {
         <button className="primary-button" data-testid="settings-auto-code-save" type="submit" disabled={saving === "auto-code"}>
           {saving === "auto-code" && <Loader2 className="spin" size={16} />}
           Lưu mã tự động
+        </button>
+      </form>
+
+      <form className="panel form-stack" data-testid="settings-workflow-config-form" onSubmit={saveWorkflowConfig}>
+        <div className="panel-head">
+          <h2>Cấu hình quy trình</h2>
+        </div>
+        <label className="toggle-line">
+          <input
+            data-testid="settings-workflow-auto-activate"
+            type="checkbox"
+            checked={workflowConfigForm.autoActivateTemplate}
+            onChange={(event) => setWorkflowConfigForm({ ...workflowConfigForm, autoActivateTemplate: event.target.checked })}
+          />
+          Tự động kích hoạt mẫu sau khi tạo
+        </label>
+        <div className="form-grid compact-form">
+          <label>
+            SLA bước mặc định
+            <input
+              data-testid="settings-workflow-default-deadline-amount"
+              type="number"
+              min="0"
+              value={workflowConfigForm.defaultDeadlineAmount}
+              onChange={(event) => setWorkflowConfigForm({ ...workflowConfigForm, defaultDeadlineAmount: event.target.value })}
+            />
+          </label>
+          <label>
+            Đơn vị SLA
+            <select
+              data-testid="settings-workflow-default-deadline-unit"
+              value={workflowConfigForm.defaultDeadlineUnit}
+              onChange={(event) => setWorkflowConfigForm({ ...workflowConfigForm, defaultDeadlineUnit: event.target.value })}
+            >
+              <option value="HOUR">Giờ</option>
+              <option value="DAY">Ngày</option>
+            </select>
+          </label>
+          <label>
+            Nhắc trước hạn (giờ)
+            <input
+              data-testid="settings-workflow-default-reminder-hours"
+              type="number"
+              min="0"
+              value={workflowConfigForm.defaultReminderBeforeHours}
+              onChange={(event) => setWorkflowConfigForm({ ...workflowConfigForm, defaultReminderBeforeHours: event.target.value })}
+            />
+          </label>
+          <label>
+            Kiểu duyệt mặc định
+            <select
+              data-testid="settings-workflow-default-approval-mode"
+              value={workflowConfigForm.defaultApprovalMode}
+              onChange={(event) => setWorkflowConfigForm({ ...workflowConfigForm, defaultApprovalMode: event.target.value })}
+            >
+              <option value="SEQUENTIAL">Tuần tự</option>
+              <option value="PARALLEL">Đồng thời</option>
+            </select>
+          </label>
+          <label>
+            Rule hoàn thành
+            <select
+              data-testid="settings-workflow-default-completion-rule"
+              value={workflowConfigForm.defaultCompletionRule}
+              onChange={(event) => setWorkflowConfigForm({ ...workflowConfigForm, defaultCompletionRule: event.target.value })}
+            >
+              <option value="ALL">Tất cả</option>
+              <option value="ANY">Một người</option>
+              <option value="MIN_COUNT">Tối thiểu số lượng</option>
+              <option value="MIN_PERCENT">Tối thiểu tỷ lệ</option>
+            </select>
+          </label>
+        </div>
+        <button className="primary-button" data-testid="settings-workflow-config-save" type="submit" disabled={saving === "workflow-config"}>
+          {saving === "workflow-config" && <Loader2 className="spin" size={16} />}
+          Lưu cấu hình quy trình
         </button>
       </form>
 

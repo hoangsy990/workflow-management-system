@@ -145,6 +145,7 @@ type WorkflowApprovalStepDraft = {
   minPercent: number;
   deadlineAmount: number;
   deadlineUnit: string;
+  reminderBeforeHours: number;
   conditionalNext: boolean;
   conditionFieldCode: string;
   conditionOperator: string;
@@ -398,6 +399,7 @@ function newApprovalStep(index: number): WorkflowApprovalStepDraft {
     minPercent: 50,
     deadlineAmount: 1,
     deadlineUnit: "DAY",
+    reminderBeforeHours: 24,
     conditionalNext: false,
     conditionFieldCode: "amount",
     conditionOperator: "gt",
@@ -825,7 +827,60 @@ function workflowStepCompletionPreview(step: WorkflowApprovalStepDraft) {
   return `${mode} · tất cả cùng duyệt`;
 }
 
+function workflowSetting(settings: Record<string, any>[] | null | undefined, key: string) {
+  return settings?.find((setting) => setting.key === key)?.value;
+}
+
+function workflowNumberSetting(settings: Record<string, any>[] | null | undefined, key: string, fallback: number) {
+  const value = workflowSetting(settings, key);
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function workflowStringSetting(settings: Record<string, any>[] | null | undefined, key: string, fallback: string, allowed: string[]) {
+  const value = String(workflowSetting(settings, key) ?? fallback);
+  return allowed.includes(value) ? value : fallback;
+}
+
+function workflowBooleanSetting(settings: Record<string, any>[] | null | undefined, key: string, fallback: boolean) {
+  const value = workflowSetting(settings, key);
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") return value === "true";
+  return fallback;
+}
+
+function workflowBuilderDefaults(settings: Record<string, any>[] | null | undefined) {
+  const completionRule = workflowStringSetting(settings, "workflow.step.default_completion_rule", "ALL", [
+    "ALL",
+    "ANY",
+    "MIN_COUNT",
+    "MIN_PERCENT"
+  ]);
+  return {
+    autoActivateTemplate: workflowBooleanSetting(settings, "workflow.template.auto_activate", true),
+    deadlineAmount: Math.max(0, Math.floor(workflowNumberSetting(settings, "workflow.step.default_deadline_amount", 1))),
+    deadlineUnit: workflowStringSetting(settings, "workflow.step.default_deadline_unit", "DAY", ["HOUR", "DAY"]),
+    reminderBeforeHours: Math.max(0, Math.floor(workflowNumberSetting(settings, "workflow.step.default_reminder_before_hours", 24))),
+    approvalMode: workflowStringSetting(settings, "workflow.step.default_approval_mode", "SEQUENTIAL", ["SEQUENTIAL", "PARALLEL"]),
+    completionRule
+  };
+}
+
+function applyWorkflowStepDefaults(step: WorkflowApprovalStepDraft, defaults: ReturnType<typeof workflowBuilderDefaults>) {
+  return {
+    ...step,
+    approvalMode: defaults.approvalMode,
+    completionRule: defaults.completionRule,
+    deadlineAmount: defaults.deadlineAmount,
+    deadlineUnit: defaults.deadlineUnit,
+    reminderBeforeHours: defaults.reminderBeforeHours,
+    minCount: defaults.completionRule === "MIN_COUNT" ? Math.max(1, step.minCount) : step.minCount,
+    minPercent: defaults.completionRule === "MIN_PERCENT" ? Math.max(1, step.minPercent) : step.minPercent
+  };
+}
+
 export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
+  const workflowSettings = useAsyncData<Record<string, any>[]>(() => api.settings().catch(() => []), []);
   const [form, setForm] = useState({
     code: "",
     name: "",
@@ -835,8 +890,26 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
   const [fields, setFields] = useState<WorkflowFieldDraft[]>([newWorkflowField(1), newWorkflowField(2)]);
   const [approvalSteps, setApprovalSteps] = useState<WorkflowApprovalStepDraft[]>([newApprovalStep(1)]);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
+  const [workflowDefaultsApplied, setWorkflowDefaultsApplied] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const defaults = workflowBuilderDefaults(workflowSettings.data);
+
+  useEffect(() => {
+    if (workflowDefaultsApplied || !workflowSettings.data) return;
+    setApprovalSteps((current) =>
+      current.map((step) => {
+        const stillUsingInitialDefaults =
+          step.approvalMode === "SEQUENTIAL" &&
+          step.completionRule === "ALL" &&
+          step.deadlineAmount === 1 &&
+          step.deadlineUnit === "DAY" &&
+          step.reminderBeforeHours === 24;
+        return stillUsingInitialDefaults ? applyWorkflowStepDefaults(step, defaults) : step;
+      })
+    );
+    setWorkflowDefaultsApplied(true);
+  }, [defaults, workflowDefaultsApplied, workflowSettings.data]);
 
   function updateField(id: string, patch: Partial<WorkflowFieldDraft>) {
     setFields((current) => current.map((field) => (field.id === id ? { ...field, ...patch } : field)));
@@ -916,6 +989,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
       resolverLabel: optionLabel(resolverTypeOptions, step.resolverType),
       completionLabel: workflowStepCompletionPreview(step),
       deadlineLabel: step.deadlineAmount > 0 ? `${step.deadlineAmount} ${step.deadlineUnit === "HOUR" ? "giờ" : "ngày"}` : "Không đặt hạn",
+      reminderLabel: step.reminderBeforeHours > 0 ? `Nhắc trước ${step.reminderBeforeHours} giờ` : "Không nhắc trước hạn",
       conditionLabel
     };
   });
@@ -955,7 +1029,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
         name: form.name.trim(),
         category: form.category.trim() || undefined,
         description: form.description.trim() || undefined,
-        activate: true,
+        activate: defaults.autoActivateTemplate,
         fields: fields.map((field, index) => {
           const defaultResult = parseWorkflowFieldDefault(field);
           const validationResult = buildWorkflowFieldValidation(field);
@@ -983,6 +1057,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
             minPercent: step.completionRule === "MIN_PERCENT" ? step.minPercent : undefined,
             deadlineAmount: step.deadlineAmount || undefined,
             deadlineUnit: step.deadlineUnit,
+            reminderBeforeHours: step.reminderBeforeHours,
             assignees: [{ resolverType: step.resolverType, orderIndex: 1 }]
           })),
           { code: "end", name: "Kết thúc", type: "END", orderIndex: normalizedSteps.length + 2 }
@@ -1173,8 +1248,18 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
                 onChange={(event) => updateStep(step.id, { minPercent: Number(event.target.value) })}
               />
             )}
-            <input type="number" min={0} value={step.deadlineAmount} onChange={(event) => updateStep(step.id, { deadlineAmount: Number(event.target.value) })} />
-            <select value={step.deadlineUnit} onChange={(event) => updateStep(step.id, { deadlineUnit: event.target.value })}>
+            <input
+              data-testid={"workflow-step-deadline-amount-" + index}
+              type="number"
+              min={0}
+              value={step.deadlineAmount}
+              onChange={(event) => updateStep(step.id, { deadlineAmount: Number(event.target.value) })}
+            />
+            <select
+              data-testid={"workflow-step-deadline-unit-" + index}
+              value={step.deadlineUnit}
+              onChange={(event) => updateStep(step.id, { deadlineUnit: event.target.value })}
+            >
               <option value="HOUR">{"Giờ"}</option>
               <option value="DAY">{"Ngày"}</option>
             </select>
@@ -1221,7 +1306,12 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
             ))}
           </div>
         )}
-        <button className="ghost-button compact" data-testid="workflow-step-add" type="button" onClick={() => setApprovalSteps((current) => [...current, newApprovalStep(current.length + 1)])}>
+        <button
+          className="ghost-button compact"
+          data-testid="workflow-step-add"
+          type="button"
+          onClick={() => setApprovalSteps((current) => [...current, applyWorkflowStepDefaults(newApprovalStep(current.length + 1), defaults)])}
+        >
           <Plus size={16} />
           {"Thêm bước"}
         </button>
@@ -1300,6 +1390,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
                     {step.code} · {step.resolverLabel}
                   </p>
                   <small>{step.completionLabel}</small>
+                  <small>{step.reminderLabel}</small>
                   <small>{step.conditionLabel}</small>
                 </article>
               ))}
