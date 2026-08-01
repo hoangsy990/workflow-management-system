@@ -419,6 +419,39 @@ test("mobile bottom nav ưu tiên luồng chính và mở trang thông báo", as
   await expect(page.getByTestId("task-create-title")).toBeVisible();
 });
 
+test("mobile mở bộ lọc công việc dạng bottom sheet và lọc bằng API thật", async ({ page, request }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const manager = await apiLogin(request, "manager");
+  const employee = await apiLogin(request, "employee");
+  const task = await createSmokeTask(request, manager, "mobile-filter");
+
+  await openAppWithSession(page, employee);
+  await page.getByTestId("bottom-nav-myTasks").click();
+  await page.getByTestId("task-filter-toggle").click();
+
+  const panel = page.getByTestId("task-filter-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel).toHaveAttribute("role", "dialog");
+  await expect(page.getByTestId("task-filter-close")).toBeVisible();
+
+  const filteredResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname.endsWith("/tasks") && url.searchParams.get("code") === task.code;
+  });
+  await page.getByTestId("task-filter-code").fill(task.code);
+  const response = await filteredResponse;
+  expect(response.ok(), await response.text()).toBeTruthy();
+
+  await page.getByTestId("task-filter-apply").click();
+  await expect(panel).not.toBeVisible();
+  await expect(page.getByTestId("task-filter-toggle")).toContainText("(1)");
+  await expect(page.getByTestId(`task-row-${task.id}-mobile`)).toBeVisible();
+
+  await page.getByTestId("task-filter-toggle").click();
+  await page.getByTestId("task-filter-backdrop").click({ position: { x: 20, y: 20 } });
+  await expect(panel).not.toBeVisible();
+});
+
 test("offline banner hiển thị rõ khi mất kết nối", async ({ page, request, context }) => {
   const admin = await apiLogin(request, "admin");
   await openAppWithSession(page, admin);

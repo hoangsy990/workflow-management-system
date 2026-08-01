@@ -1,5 +1,5 @@
 import { Download, Loader2, Plus, RotateCcw, Search, SlidersHorizontal, Star, Upload, XCircle } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock, MultiCheck } from "../components/common";
 import { useAsyncData } from "../hooks/useAsyncData";
@@ -153,6 +153,9 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
   const [status, setStatus] = useState("");
   const [myTaskView, setMyTaskView] = useState<MyTaskView>("assignee");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [compactFilters, setCompactFilters] = useState(() =>
+    typeof window === "undefined" ? false : window.matchMedia("(max-width: 860px)").matches
+  );
   const [filters, setFilters] = useState<TaskFilters>(defaultTaskFilters);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState("dueDate");
@@ -164,6 +167,8 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
   const departments = useAsyncData(() => api.departments(), []);
   const categories = useAsyncData(() => api.taskCategories(), []);
   const tags = useAsyncData(() => api.tags(), []);
+  const filterPanelRef = useRef<HTMLDivElement>(null);
+  const filterPanelTitleId = `task-filter-title-${mode}`;
   const lockedStatus = mode === "mine" ? myTaskTabs.find((tab) => tab.key === myTaskView)?.lockedStatus : undefined;
   const debouncedKeyword = useDebouncedValue(keyword.trim(), 350);
   const debouncedCode = useDebouncedValue(filters.code.trim(), 350);
@@ -214,6 +219,23 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
   const categoryOptions = categories.data ?? [];
   const tagOptions = tags.data ?? [];
   const startableStatuses = new Set(["DRAFT", "TODO", "PAUSED"]);
+  const activeFilterCount = useMemo(
+    () =>
+      [
+        filters.code,
+        filters.creatorId,
+        filters.assigneeId,
+        filters.managerId,
+        filters.departmentId,
+        filters.priority,
+        filters.categoryId,
+        filters.tagId,
+        filters.from,
+        filters.to,
+        filters.overdue ? "overdue" : ""
+      ].filter(Boolean).length,
+    [filters]
+  );
 
   function openTask(task: Record<string, any>) {
     setTaskId(task.id);
@@ -308,6 +330,33 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
     }
   }, [currentPage, pagination]);
 
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 860px)");
+    const syncCompactFilters = () => setCompactFilters(media.matches);
+
+    syncCompactFilters();
+    media.addEventListener("change", syncCompactFilters);
+    return () => media.removeEventListener("change", syncCompactFilters);
+  }, []);
+
+  useEffect(() => {
+    if (!filtersOpen || !compactFilters) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFiltersOpen(false);
+    };
+
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    window.setTimeout(() => filterPanelRef.current?.focus(), 0);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [compactFilters, filtersOpen]);
+
   function selectMyTaskView(nextView: MyTaskView) {
     setMyTaskView(nextView);
     if (myTaskTabs.find((tab) => tab.key === nextView)?.lockedStatus) {
@@ -384,10 +433,12 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
             data-testid="task-filter-toggle"
             type="button"
             aria-expanded={filtersOpen}
+            aria-controls="task-filter-panel"
+            aria-haspopup={compactFilters ? "dialog" : undefined}
             onClick={() => setFiltersOpen((current) => !current)}
           >
             <SlidersHorizontal size={16} />
-            Bộ lọc
+            Bộ lọc{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
           </button>
           <button className="primary-button compact" data-testid="task-create-open" type="button" onClick={() => setPage("newTask")}>
             <Plus size={16} />
@@ -416,7 +467,32 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
         </div>
       )}
       {filtersOpen && (
-        <div className="filter-panel" data-testid="task-filter-panel">
+        <>
+          {compactFilters && (
+            <button
+              className="filter-backdrop"
+              data-testid="task-filter-backdrop"
+              type="button"
+              aria-label="Đóng bộ lọc"
+              onClick={() => setFiltersOpen(false)}
+            />
+          )}
+          <div
+            className="filter-panel"
+            data-testid="task-filter-panel"
+            id="task-filter-panel"
+            ref={filterPanelRef}
+            role={compactFilters ? "dialog" : "region"}
+            aria-modal={compactFilters ? true : undefined}
+            aria-labelledby={filterPanelTitleId}
+            tabIndex={compactFilters ? -1 : undefined}
+          >
+          <div className="filter-panel-head">
+            <h3 id={filterPanelTitleId}>Bộ lọc công việc</h3>
+            <button className="icon-button mobile-only" data-testid="task-filter-close" type="button" aria-label="Đóng bộ lọc" onClick={() => setFiltersOpen(false)}>
+              <XCircle size={18} />
+            </button>
+          </div>
           <div className="filter-grid">
             <label>
               Mã công việc
@@ -546,13 +622,17 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
               Công việc quá hạn
             </label>
           </div>
-          <div className="form-actions">
+          <div className="form-actions filter-actions">
             <button className="ghost-button compact" data-testid="task-filter-reset" type="button" onClick={resetFilters}>
               <RotateCcw size={16} />
               Xóa lọc
             </button>
+            <button className="primary-button compact mobile-only" data-testid="task-filter-apply" type="button" onClick={() => setFiltersOpen(false)}>
+              Áp dụng
+            </button>
           </div>
         </div>
+        </>
       )}
       <DataTable
         columns={[

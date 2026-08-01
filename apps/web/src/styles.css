@@ -652,6 +652,22 @@ legend {
   background: var(--panel-soft);
 }
 
+.filter-backdrop {
+  display: none;
+}
+
+.filter-panel-head {
+  display: none;
+}
+
+.filter-actions {
+  align-items: center;
+}
+
+.mobile-only {
+  display: none;
+}
+
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(170px, 1fr));
@@ -2137,6 +2153,72 @@ progress {
   .filter-grid,
   .permission-layout {
     grid-template-columns: 1fr;
+  }
+
+  .filter-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: block;
+    border: 0;
+    background: rgb(15 23 42 / 46%);
+    padding: 0;
+  }
+
+  .filter-panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 61;
+    max-height: min(82vh, 720px);
+    overflow: auto;
+    margin: 0;
+    padding: 14px 14px max(14px, env(safe-area-inset-bottom));
+    border-radius: 8px 8px 0 0;
+    background: var(--panel);
+    box-shadow: 0 -16px 40px rgb(15 23 42 / 24%);
+  }
+
+  .filter-panel:focus {
+    outline: none;
+  }
+
+  .filter-panel:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--primary) 36%, white);
+    outline-offset: -6px;
+  }
+
+  .filter-panel-head {
+    position: sticky;
+    top: -14px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: -14px -14px 12px;
+    padding: 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+
+  .filter-panel-head h3 {
+    margin: 0;
+    font-size: 18px;
+  }
+
+  .filter-actions {
+    position: sticky;
+    bottom: calc(-1 * max(14px, env(safe-area-inset-bottom)));
+    margin: 2px -14px calc(-1 * max(14px, env(safe-area-inset-bottom)));
+    padding: 12px 14px max(14px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--panel);
+  }
+
+  .mobile-only {
+    display: inline-flex;
   }
 
   .permission-insights {
