@@ -470,10 +470,15 @@ test("mobile mở bộ lọc công việc dạng bottom sheet và lọc bằng A
   await expect(panel).not.toBeVisible();
   await expect(page.getByTestId("task-filter-toggle")).toContainText("(1)");
   await expect(page.getByTestId(`task-row-${task.id}-mobile`)).toBeVisible();
+  await expect(page.getByTestId(`task-row-${task.id}-mobile-actions`)).toBeVisible();
 
   await page.getByTestId("task-filter-toggle").click();
   await page.getByTestId("task-filter-backdrop").click({ position: { x: 20, y: 20 } });
   await expect(panel).not.toBeVisible();
+
+  await page.getByTestId(`task-mobile-open-${task.id}`).scrollIntoViewIfNeeded();
+  await page.getByTestId(`task-mobile-open-${task.id}`).click();
+  await expect(page.getByRole("heading", { name: task.title })).toBeVisible();
 });
 
 test("offline banner hiển thị rõ khi mất kết nối", async ({ page, request, context }) => {

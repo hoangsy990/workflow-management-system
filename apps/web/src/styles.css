@@ -841,6 +841,44 @@ tbody tr:hover {
   background: var(--panel);
 }
 
+.mobile-card-content {
+  display: grid;
+  gap: 8px;
+}
+
+.mobile-card.swipe-enabled {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  padding: 0;
+  scrollbar-width: thin;
+}
+
+.mobile-card.swipe-enabled .mobile-card-content {
+  min-width: 100%;
+  padding: 12px;
+  scroll-snap-align: start;
+}
+
+.mobile-swipe-actions {
+  display: flex;
+  min-width: max-content;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-left: 1px solid var(--line);
+  background: var(--panel-soft);
+  scroll-snap-align: end;
+}
+
+.mobile-swipe-actions button {
+  min-height: 40px;
+  align-self: center;
+  white-space: nowrap;
+}
+
 .mobile-card span {
   display: grid;
   gap: 2px;

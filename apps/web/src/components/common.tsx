@@ -6,6 +6,8 @@ interface DataTableRow {
   cells: ReactNode[];
   onClick?: () => void;
   testId?: string;
+  mobileActions?: ReactNode;
+  hideMobileColumnIndexes?: number[];
 }
 
 export function LoadingBlock() {
@@ -68,7 +70,7 @@ export function DataTable({ columns, rows }: { columns: string[]; rows: DataTabl
         {rows.map((row) => (
           <div
             key={row.key}
-            className="mobile-card"
+            className={`mobile-card ${row.mobileActions ? "swipe-enabled" : ""}`}
             data-testid={row.testId ? `${row.testId}-mobile` : undefined}
             role={row.onClick ? "button" : undefined}
             tabIndex={row.onClick ? 0 : undefined}
@@ -84,12 +86,25 @@ export function DataTable({ columns, rows }: { columns: string[]; rows: DataTabl
                 : undefined
             }
           >
-            {row.cells.map((cell, index) => (
-              <span key={`${row.key}-mobile-${columns[index]}`}>
-                <small>{columns[index]}</small>
-                <b>{cell}</b>
-              </span>
-            ))}
+            <div className="mobile-card-content">
+              {row.cells.map((cell, index) =>
+                row.hideMobileColumnIndexes?.includes(index) ? null : (
+                  <span key={`${row.key}-mobile-${columns[index]}`}>
+                    <small>{columns[index]}</small>
+                    <b>{cell}</b>
+                  </span>
+                )
+              )}
+            </div>
+            {row.mobileActions && (
+              <div
+                className="mobile-swipe-actions"
+                data-testid={row.testId ? `${row.testId}-mobile-actions` : undefined}
+                onClick={(event) => event.stopPropagation()}
+              >
+                {row.mobileActions}
+              </div>
+            )}
           </div>
         ))}
       </div>

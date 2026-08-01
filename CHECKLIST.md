@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=127`, `PARTIAL=115`, `TODO=18`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `48.8%`, tính trọng số partial `71.0%`.
+**Tiến độ hiện tại:** `DONE=128`, `PARTIAL=115`, `TODO=17`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `49.2%`, tính trọng số partial `71.3%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `MOBILE-SWIPE-ACTIONS` | Bổ sung action rail dạng swipe cho mobile cards của `DataTable`, TaskList có nút nhanh `Mở`/`Bắt đầu`/`Tiếp tục` riêng trên mobile và ẩn cột thao tác khỏi card để không lặp nội dung. Chuyển checklist `Swipe actions` sang DONE. | `pnpm --filter @workflow/web lint`, `docker compose up -d --build web`, targeted mobile filter smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 41/41, `docker builder prune -af`; Docker images `1.124GB`, volumes `83.65MB`, build cache `0B`. |
 | 01/08/2026 | `WORKFLOW-SETTINGS-PANEL` | Bổ sung seed và panel `Cấu hình quy trình` trong Settings cho auto activate template, SLA mặc định, đơn vị SLA, nhắc trước hạn, approval mode và completion rule mặc định; workflow builder đọc settings để áp cho bước đầu/bước mới và payload template. Chuyển checklist `Cấu hình quy trình` sang DONE, `Ngày làm việc/ngày nghỉ/SLA` sang PARTIAL. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, `pnpm docker:seed`, query PostgreSQL xác nhận `6` workflow settings, targeted workflow settings smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 41/41, `docker builder prune -af`; Docker images `1.124GB`, volumes `83.39MB`, build cache `0B`. |
 | 01/08/2026 | `WORKFLOW-PREVIEW-DEVICES` | Bổ sung chế độ preview PC/Mobile trong workflow builder bằng segmented control có icon, class trạng thái desktop/mobile và khung preview mobile 390px để kiểm tra form/flow trên màn nhỏ trước khi lưu. Chuyển checklist `Preview PC/mobile` sang DONE. | `pnpm --filter @workflow/web lint`, `docker compose up -d --build web`, targeted builder smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 40/40, `docker builder prune -af`; Docker images `1.124GB`, volumes `83.14MB`, build cache `0B`. |
 | 01/08/2026 | `WORKFLOW-BUILDER-PREVIEW` | Bổ sung preview quy trình ngay trong màn tạo mẫu: xem trước thông tin mẫu, biểu mẫu nhập liệu, default/validation/options, bước xử lý, resolver, rule hoàn thành, SLA và điều kiện chuyển bước trước khi lưu. Chuyển checklist `Preview quy trình` sang DONE. | `pnpm --filter @workflow/web lint`, `docker compose up -d --build web`, targeted builder smoke 1/1, `pnpm test`, `pnpm build`, `pnpm smoke:web` 40/40, `docker builder prune -af`; Docker images `1.124GB`, volumes `82.84MB`, build cache `0B`. |
@@ -471,7 +472,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Mobile filter bottom sheet/fullscreen/drawer | `DONE` | TaskList dùng bottom sheet trên viewport nhỏ, có backdrop, nút đóng/áp dụng, khóa cuộn nền, Escape, `role=dialog` và smoke test lọc bằng API thật. |
 | Detail mobile chia section/tab | `PARTIAL` | Có section tuần tự; chưa tabs/section navigation chuyên biệt. |
 | Approval mobile thao tác một tay, nút cách xa, confirm/reason | `PARTIAL` | Có confirm/prompt; cần UI mobile riêng. |
-| Swipe actions | `TODO` | Chưa có. |
+| Swipe actions | `DONE` | Mobile task cards có action rail dạng swipe với nút `Mở`/`Bắt đầu`/`Tiếp tục`; smoke test viewport mobile kiểm action rail và mở đúng chi tiết công việc. |
 | Camera/file preview/compress/progress/cancel/retry | `PARTIAL` | File picker/upload có; camera/compress/progress/cancel/retry chưa. |
 
 ## 29. Trợ năng và khả năng sử dụng

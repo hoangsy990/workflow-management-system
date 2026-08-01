@@ -280,6 +280,33 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
       key: task.id,
       testId: `task-row-${task.id}`,
       onClick: () => openTask(task),
+      hideMobileColumnIndexes: [11],
+      mobileActions: (
+        <>
+          <button
+            className="ghost-button compact"
+            data-testid={`task-mobile-open-${task.id}`}
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              openTask(task);
+            }}
+          >
+            Mở
+          </button>
+          <button
+            className="primary-button compact"
+            data-testid={`task-mobile-start-${task.id}`}
+            type="button"
+            disabled={!startableStatuses.has(task.status) || statusUpdatingId === task.id}
+            title={startableStatuses.has(task.status) ? "Chuyển sang Đang thực hiện" : "Chỉ áp dụng cho Bản nháp/Chưa thực hiện/Tạm dừng"}
+            onClick={(event) => void startTask(task, event)}
+          >
+            {statusUpdatingId === task.id && <Loader2 className="spin" size={14} />}
+            {task.status === "PAUSED" ? "Tiếp tục" : "Bắt đầu"}
+          </button>
+        </>
+      ),
       cells: [
         task.code,
         task.title,
