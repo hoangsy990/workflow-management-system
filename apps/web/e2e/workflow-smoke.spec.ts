@@ -1014,6 +1014,95 @@ test("cấu hình tệp upload áp dụng cho UI và API task attachment", async
   }
 });
 
+test("admin cấu hình thông báo, email, bảo mật và backup trên UI", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  const smtpHost = `smtp-${runId}.workflow.local`;
+  const fromAddress = `notify-${runId.replace(/[^a-zA-Z0-9]/g, "")}@workflow.local`;
+
+  try {
+    await openAppWithSession(page, admin);
+    await page.getByTestId("nav-settings").click();
+    await page.getByTestId("settings-notification-push").check();
+    await page.getByTestId("settings-notification-email").check();
+    await page.getByTestId("settings-deadline-reminder-hours").fill("12");
+    await page.getByTestId("settings-email-smtp-host").fill(smtpHost);
+    await page.getByTestId("settings-email-smtp-port").fill("2525");
+    await page.getByTestId("settings-email-from-address").fill(fromAddress);
+    await page.getByTestId("settings-security-max-failed").fill("7");
+    await page.getByTestId("settings-security-lock-minutes").fill("20");
+    await page.getByTestId("settings-backup-schedule").fill("0 1 * * 1");
+    await page.getByTestId("settings-backup-retention-days").fill("45");
+    await page.getByTestId("settings-ops-config-save").click();
+    await expect(page.getByTestId("settings-message")).toContainText("thông báo, email, bảo mật và backup");
+
+    const settings = await apiGet<Array<Record<string, any>>>(request, admin, "/system-settings");
+    const valueOf = (key: string) => settings.find((setting) => setting.key === key)?.value;
+    expect(valueOf("notification.push.enabled")).toBe(true);
+    expect(valueOf("notification.email.enabled")).toBe(true);
+    expect(valueOf("notification.deadline_reminder_hours")).toBe(12);
+    expect(valueOf("email.smtp.host")).toBe(smtpHost);
+    expect(valueOf("email.smtp.port")).toBe(2525);
+    expect(valueOf("email.from_address")).toBe(fromAddress);
+    expect(valueOf("security.login.max_failed_attempts")).toBe(7);
+    expect(valueOf("security.login.lock_minutes")).toBe(20);
+    expect(valueOf("backup.database.schedule")).toBe("0 1 * * 1");
+    expect(valueOf("backup.retention_days")).toBe(45);
+  } finally {
+    await Promise.all([
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "notification.push.enabled",
+        value: false,
+        description: "Bật khả năng gửi push notification khi adapter được cấu hình."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "notification.email.enabled",
+        value: false,
+        description: "Bật khả năng gửi email notification khi SMTP được cấu hình."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "notification.deadline_reminder_hours",
+        value: 24,
+        description: "Số giờ nhắc trước hạn mặc định cho công việc/quy trình."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "email.smtp.host",
+        value: "",
+        description: "Máy chủ SMTP dùng cho email notification."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "email.smtp.port",
+        value: 587,
+        description: "Cổng SMTP."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "email.from_address",
+        value: "no-reply@workflow.local",
+        description: "Địa chỉ gửi email mặc định."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "security.login.max_failed_attempts",
+        value: 5,
+        description: "Số lần đăng nhập sai tối đa trước khi trì hoãn/khóa."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "security.login.lock_minutes",
+        value: 15,
+        description: "Số phút trì hoãn/khóa sau nhiều lần đăng nhập sai."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "backup.database.schedule",
+        value: "0 2 * * *",
+        description: "Lịch backup database dạng cron."
+      }),
+      apiPut<Record<string, any>>(request, admin, "/system-settings", {
+        key: "backup.retention_days",
+        value: 30,
+        description: "Số ngày giữ bản backup."
+      })
+    ]);
+  }
+});
+
 test("admin creates workflow template with dynamic builder", async ({ page, request }) => {
   const admin = await apiLogin(request, "admin");
   const employee = await apiLogin(request, "employee");

@@ -1558,6 +1558,21 @@ export function SettingsPage() {
     maxMb: "20",
     mimeTypes: defaultFileUploadMimeTypes.join("\n")
   });
+  const [opsConfigForm, setOpsConfigForm] = useState({
+    inAppNotifications: true,
+    pushNotifications: false,
+    emailNotifications: false,
+    deadlineReminderHours: "24",
+    smtpHost: "",
+    smtpPort: "587",
+    smtpFrom: "no-reply@workflow.local",
+    smtpTls: true,
+    maxFailedLogins: "5",
+    lockMinutes: "15",
+    backupSchedule: "0 2 * * *",
+    backupRetentionDays: "30",
+    backupUploads: true
+  });
   const [saving, setSaving] = useState("");
   const [settingMessage, setSettingMessage] = useState("");
   const [settingError, setSettingError] = useState("");
@@ -1581,6 +1596,21 @@ export function SettingsPage() {
         : typeof rawMimeTypes === "string"
           ? rawMimeTypes
           : defaultFileUploadMimeTypes.join("\n")
+    });
+    setOpsConfigForm({
+      inAppNotifications: settingBooleanValue(data, "notification.in_app.enabled", true),
+      pushNotifications: settingBooleanValue(data, "notification.push.enabled", false),
+      emailNotifications: settingBooleanValue(data, "notification.email.enabled", false),
+      deadlineReminderHours: settingValue(data, "notification.deadline_reminder_hours", "24"),
+      smtpHost: settingValue(data, "email.smtp.host", ""),
+      smtpPort: settingValue(data, "email.smtp.port", "587"),
+      smtpFrom: settingValue(data, "email.from_address", "no-reply@workflow.local"),
+      smtpTls: settingBooleanValue(data, "email.smtp.tls", true),
+      maxFailedLogins: settingValue(data, "security.login.max_failed_attempts", "5"),
+      lockMinutes: settingValue(data, "security.login.lock_minutes", "15"),
+      backupSchedule: settingValue(data, "backup.database.schedule", "0 2 * * *"),
+      backupRetentionDays: settingValue(data, "backup.retention_days", "30"),
+      backupUploads: settingBooleanValue(data, "backup.uploads.enabled", true)
     });
   }, [data]);
 
@@ -1698,6 +1728,109 @@ export function SettingsPage() {
       await reload();
     } catch (err) {
       setSettingError(err instanceof Error ? err.message : "Không lưu được cấu hình tệp upload.");
+    } finally {
+      setSaving("");
+    }
+  }
+
+  async function saveOpsConfig(event: FormEvent) {
+    event.preventDefault();
+    setSaving("ops-config");
+    setSettingMessage("");
+    setSettingError("");
+    const deadlineReminderHours = Number(opsConfigForm.deadlineReminderHours);
+    const smtpPort = Number(opsConfigForm.smtpPort);
+    const maxFailedLogins = Number(opsConfigForm.maxFailedLogins);
+    const lockMinutes = Number(opsConfigForm.lockMinutes);
+    const backupRetentionDays = Number(opsConfigForm.backupRetentionDays);
+    if (
+      !Number.isFinite(deadlineReminderHours) ||
+      deadlineReminderHours < 1 ||
+      !Number.isFinite(smtpPort) ||
+      smtpPort < 1 ||
+      !Number.isFinite(maxFailedLogins) ||
+      maxFailedLogins < 1 ||
+      !Number.isFinite(lockMinutes) ||
+      lockMinutes < 1 ||
+      !Number.isFinite(backupRetentionDays) ||
+      backupRetentionDays < 1
+    ) {
+      setSaving("");
+      setSettingError("Vui lòng nhập số hợp lệ cho nhắc hạn, SMTP, bảo mật và backup.");
+      return;
+    }
+    try {
+      await Promise.all([
+        api.saveSetting({
+          key: "notification.in_app.enabled",
+          value: opsConfigForm.inAppNotifications,
+          description: "Bật trung tâm thông báo trong ứng dụng."
+        }),
+        api.saveSetting({
+          key: "notification.push.enabled",
+          value: opsConfigForm.pushNotifications,
+          description: "Bật khả năng gửi push notification cho mobile/desktop khi adapter được cấu hình."
+        }),
+        api.saveSetting({
+          key: "notification.email.enabled",
+          value: opsConfigForm.emailNotifications,
+          description: "Bật khả năng gửi email notification khi SMTP được cấu hình."
+        }),
+        api.saveSetting({
+          key: "notification.deadline_reminder_hours",
+          value: Math.floor(deadlineReminderHours),
+          description: "Số giờ nhắc trước hạn mặc định cho công việc/quy trình."
+        }),
+        api.saveSetting({
+          key: "email.smtp.host",
+          value: opsConfigForm.smtpHost.trim(),
+          description: "Máy chủ SMTP dùng cho email notification."
+        }),
+        api.saveSetting({
+          key: "email.smtp.port",
+          value: Math.floor(smtpPort),
+          description: "Cổng SMTP."
+        }),
+        api.saveSetting({
+          key: "email.from_address",
+          value: opsConfigForm.smtpFrom.trim(),
+          description: "Địa chỉ gửi email mặc định."
+        }),
+        api.saveSetting({
+          key: "email.smtp.tls",
+          value: opsConfigForm.smtpTls,
+          description: "Sử dụng TLS khi kết nối SMTP."
+        }),
+        api.saveSetting({
+          key: "security.login.max_failed_attempts",
+          value: Math.floor(maxFailedLogins),
+          description: "Số lần đăng nhập sai tối đa trước khi trì hoãn/khóa."
+        }),
+        api.saveSetting({
+          key: "security.login.lock_minutes",
+          value: Math.floor(lockMinutes),
+          description: "Số phút trì hoãn/khóa sau nhiều lần đăng nhập sai."
+        }),
+        api.saveSetting({
+          key: "backup.database.schedule",
+          value: opsConfigForm.backupSchedule.trim(),
+          description: "Lịch backup database dạng cron."
+        }),
+        api.saveSetting({
+          key: "backup.retention_days",
+          value: Math.floor(backupRetentionDays),
+          description: "Số ngày giữ bản backup."
+        }),
+        api.saveSetting({
+          key: "backup.uploads.enabled",
+          value: opsConfigForm.backupUploads,
+          description: "Có backup thư mục upload cùng database hay không."
+        })
+      ]);
+      setSettingMessage("Đã lưu cấu hình thông báo, email, bảo mật và backup.");
+      await reload();
+    } catch (err) {
+      setSettingError(err instanceof Error ? err.message : "Không lưu được cấu hình vận hành.");
     } finally {
       setSaving("");
     }
@@ -1828,6 +1961,156 @@ export function SettingsPage() {
         <button className="primary-button" data-testid="settings-file-config-save" type="submit" disabled={saving === "file-config"}>
           {saving === "file-config" && <Loader2 className="spin" size={16} />}
           Lưu cấu hình tệp
+        </button>
+      </form>
+
+      <form className="panel wide form-stack" data-testid="settings-ops-form" onSubmit={saveOpsConfig}>
+        <div className="panel-head">
+          <h2>Thông báo, email, bảo mật và backup</h2>
+        </div>
+        <fieldset>
+          <legend>Thông báo</legend>
+          <div className="form-grid compact-form">
+            <label className="toggle-line">
+              <input
+                data-testid="settings-notification-in-app"
+                type="checkbox"
+                checked={opsConfigForm.inAppNotifications}
+                onChange={(event) => setOpsConfigForm({ ...opsConfigForm, inAppNotifications: event.target.checked })}
+              />
+              Bật thông báo trong ứng dụng
+            </label>
+            <label className="toggle-line">
+              <input
+                data-testid="settings-notification-push"
+                type="checkbox"
+                checked={opsConfigForm.pushNotifications}
+                onChange={(event) => setOpsConfigForm({ ...opsConfigForm, pushNotifications: event.target.checked })}
+              />
+              Cho phép push mobile/desktop
+            </label>
+            <label className="toggle-line">
+              <input
+                data-testid="settings-notification-email"
+                type="checkbox"
+                checked={opsConfigForm.emailNotifications}
+                onChange={(event) => setOpsConfigForm({ ...opsConfigForm, emailNotifications: event.target.checked })}
+              />
+              Cho phép gửi email
+            </label>
+            <label>
+              Số giờ nhắc trước hạn
+              <input
+                data-testid="settings-deadline-reminder-hours"
+                type="number"
+                min="1"
+                value={opsConfigForm.deadlineReminderHours}
+                onChange={(event) => setOpsConfigForm({ ...opsConfigForm, deadlineReminderHours: event.target.value })}
+              />
+            </label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Email SMTP</legend>
+          <div className="form-grid compact-form">
+            <label>
+              SMTP host
+              <input
+                data-testid="settings-email-smtp-host"
+                value={opsConfigForm.smtpHost}
+                onChange={(event) => setOpsConfigForm({ ...opsConfigForm, smtpHost: event.target.value })}
+              />
+            </label>
+            <label>
+              SMTP port
+              <input
+                data-testid="settings-email-smtp-port"
+                type="number"
+                min="1"
+                value={opsConfigForm.smtpPort}
+                onChange={(event) => setOpsConfigForm({ ...opsConfigForm, smtpPort: event.target.value })}
+              />
+            </label>
+            <label>
+              Email gửi mặc định
+              <input
+                data-testid="settings-email-from-address"
+                type="email"
+                value={opsConfigForm.smtpFrom}
+                onChange={(event) => setOpsConfigForm({ ...opsConfigForm, smtpFrom: event.target.value })}
+              />
+            </label>
+            <label className="toggle-line">
+              <input
+                data-testid="settings-email-smtp-tls"
+                type="checkbox"
+                checked={opsConfigForm.smtpTls}
+                onChange={(event) => setOpsConfigForm({ ...opsConfigForm, smtpTls: event.target.checked })}
+              />
+              Dùng TLS
+            </label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Bảo mật đăng nhập</legend>
+          <div className="form-grid compact-form">
+            <label>
+              Số lần sai tối đa
+              <input
+                data-testid="settings-security-max-failed"
+                type="number"
+                min="1"
+                value={opsConfigForm.maxFailedLogins}
+                onChange={(event) => setOpsConfigForm({ ...opsConfigForm, maxFailedLogins: event.target.value })}
+              />
+            </label>
+            <label>
+              Số phút khóa/trì hoãn
+              <input
+                data-testid="settings-security-lock-minutes"
+                type="number"
+                min="1"
+                value={opsConfigForm.lockMinutes}
+                onChange={(event) => setOpsConfigForm({ ...opsConfigForm, lockMinutes: event.target.value })}
+              />
+            </label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Backup</legend>
+          <div className="form-grid compact-form">
+            <label>
+              Lịch backup database
+              <input
+                data-testid="settings-backup-schedule"
+                value={opsConfigForm.backupSchedule}
+                onChange={(event) => setOpsConfigForm({ ...opsConfigForm, backupSchedule: event.target.value })}
+              />
+            </label>
+            <label>
+              Số ngày giữ backup
+              <input
+                data-testid="settings-backup-retention-days"
+                type="number"
+                min="1"
+                value={opsConfigForm.backupRetentionDays}
+                onChange={(event) => setOpsConfigForm({ ...opsConfigForm, backupRetentionDays: event.target.value })}
+              />
+            </label>
+            <label className="toggle-line">
+              <input
+                data-testid="settings-backup-uploads"
+                type="checkbox"
+                checked={opsConfigForm.backupUploads}
+                onChange={(event) => setOpsConfigForm({ ...opsConfigForm, backupUploads: event.target.checked })}
+              />
+              Backup thư mục upload
+            </label>
+          </div>
+        </fieldset>
+        <button className="primary-button" data-testid="settings-ops-config-save" type="submit" disabled={saving === "ops-config"}>
+          {saving === "ops-config" && <Loader2 className="spin" size={16} />}
+          Lưu cấu hình vận hành
         </button>
       </form>
 

@@ -849,6 +849,71 @@ async function main() {
         ],
         description: "Danh sách MIME type được phép upload cho task và workflow."
       }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "notification.in_app.enabled" },
+      update: {},
+      create: { key: "notification.in_app.enabled", value: true, description: "Bật trung tâm thông báo trong ứng dụng." }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "notification.push.enabled" },
+      update: {},
+      create: { key: "notification.push.enabled", value: false, description: "Bật khả năng gửi push notification khi adapter được cấu hình." }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "notification.email.enabled" },
+      update: {},
+      create: { key: "notification.email.enabled", value: false, description: "Bật khả năng gửi email notification khi SMTP được cấu hình." }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "notification.deadline_reminder_hours" },
+      update: {},
+      create: { key: "notification.deadline_reminder_hours", value: 24, description: "Số giờ nhắc trước hạn mặc định cho công việc/quy trình." }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "email.smtp.host" },
+      update: {},
+      create: { key: "email.smtp.host", value: "", description: "Máy chủ SMTP dùng cho email notification." }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "email.smtp.port" },
+      update: {},
+      create: { key: "email.smtp.port", value: 587, description: "Cổng SMTP." }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "email.from_address" },
+      update: {},
+      create: { key: "email.from_address", value: "no-reply@workflow.local", description: "Địa chỉ gửi email mặc định." }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "email.smtp.tls" },
+      update: {},
+      create: { key: "email.smtp.tls", value: true, description: "Sử dụng TLS khi kết nối SMTP." }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "security.login.max_failed_attempts" },
+      update: {},
+      create: { key: "security.login.max_failed_attempts", value: 5, description: "Số lần đăng nhập sai tối đa trước khi trì hoãn/khóa." }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "security.login.lock_minutes" },
+      update: {},
+      create: { key: "security.login.lock_minutes", value: 15, description: "Số phút trì hoãn/khóa sau nhiều lần đăng nhập sai." }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "backup.database.schedule" },
+      update: {},
+      create: { key: "backup.database.schedule", value: "0 2 * * *", description: "Lịch backup database dạng cron." }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "backup.retention_days" },
+      update: {},
+      create: { key: "backup.retention_days", value: 30, description: "Số ngày giữ bản backup." }
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: "backup.uploads.enabled" },
+      update: {},
+      create: { key: "backup.uploads.enabled", value: true, description: "Có backup thư mục upload cùng database hay không." }
     })
   ]);
 
