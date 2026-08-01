@@ -378,6 +378,62 @@ async function main() {
     await evaluateTask(prisma, managerAuth, task4.id, { accepted: true, rating: 5, comment: "Hoàn thành tốt." });
   }
 
+  if (!(await prisma.task.findFirst({ where: { title: "Demo task cha: Chuẩn bị họp giao ban", deletedAt: null } }))) {
+    const parentTask = await createTask(prisma, managerAuth, {
+      title: "Demo task cha: Chuẩn bị họp giao ban",
+      description: "Task cha dùng để kiểm tra quan hệ công việc con và tự tính tiến độ.",
+      managerId: manager.id,
+      assigneeIds: [employees[0]!.id],
+      followerIds: [admin.id],
+      departmentId: hrDepartment.id,
+      startDate: new Date(),
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      priority: "NORMAL",
+      categoryId: categories[0]!.id,
+      tagIds: [tags[2]!.id],
+      requiresReview: true,
+      autoCalculateParentProgress: true
+    });
+    const childAgenda = await createTask(prisma, managerAuth, {
+      title: "Demo task con: Chuẩn bị nội dung họp",
+      description: "Tổng hợp agenda và tài liệu cần trao đổi.",
+      managerId: manager.id,
+      assigneeIds: [employees[2]!.id],
+      followerIds: [admin.id],
+      departmentId: hrDepartment.id,
+      parentTaskId: parentTask.id,
+      startDate: new Date(),
+      dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+      priority: "HIGH",
+      categoryId: categories[0]!.id,
+      tagIds: [tags[2]!.id],
+      requiresReview: false
+    });
+    const childMinutes = await createTask(prisma, managerAuth, {
+      title: "Demo task con: Chuẩn bị biên bản họp",
+      description: "Tạo mẫu biên bản và danh sách người tham dự.",
+      managerId: manager.id,
+      assigneeIds: [employees[3]!.id],
+      followerIds: [admin.id],
+      departmentId: hrDepartment.id,
+      parentTaskId: parentTask.id,
+      startDate: new Date(),
+      dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+      priority: "NORMAL",
+      categoryId: categories[0]!.id,
+      tagIds: [tags[1]!.id],
+      requiresReview: false
+    });
+    await updateTaskProgress(prisma, auth(employees[2]!.id, ["task.comment"], ["employee"], employees[2]!.fullName), childAgenda.id, {
+      progress: 50,
+      note: "Đã chuẩn bị nửa đầu nội dung agenda."
+    });
+    await updateTaskProgress(prisma, auth(employees[3]!.id, ["task.comment"], ["employee"], employees[3]!.fullName), childMinutes.id, {
+      progress: 100,
+      note: "Đã chuẩn bị xong mẫu biên bản."
+    });
+  }
+
   if ((await prisma.workflowTemplate.count()) === 0) {
     const paymentTemplate = await createWorkflowTemplate(prisma, adminAuth, {
       code: "PAYMENT",
