@@ -474,6 +474,26 @@ function collectDepartmentDescendantIds(departments: Record<string, any>[], pare
   return result;
 }
 
+function groupUsersByDepartment(users: Record<string, any>[]) {
+  const map = new Map<string, Record<string, any>[]>();
+  for (const user of users) {
+    const departmentId = user.department?.id;
+    if (!departmentId) continue;
+    map.set(departmentId, [...(map.get(departmentId) ?? []), user]);
+  }
+  return map;
+}
+
+function groupTeamsByDepartment(teams: Record<string, any>[]) {
+  const map = new Map<string, Record<string, any>[]>();
+  for (const team of teams) {
+    const departmentId = team.department?.id;
+    if (!departmentId) continue;
+    map.set(departmentId, [...(map.get(departmentId) ?? []), team]);
+  }
+  return map;
+}
+
 export function DepartmentsPage() {
   const { data, loading, error, reload } = useAsyncData(() => api.departments(), []);
   const users = useAsyncData(() => api.users(), []);
@@ -497,6 +517,8 @@ export function DepartmentsPage() {
   const usersList = useMemo(() => users.data?.data ?? [], [users.data]);
   const teamsList = useMemo(() => teamData.data ?? [], [teamData.data]);
   const departmentRows = useMemo(() => flattenDepartments(departments), [departments]);
+  const usersByDepartment = useMemo(() => groupUsersByDepartment(usersList), [usersList]);
+  const teamsByDepartment = useMemo(() => groupTeamsByDepartment(teamsList), [teamsList]);
   const selectedDepartment = useMemo(() => departments.find((department) => department.id === selectedId), [departments, selectedId]);
   const selectedTeam = useMemo(() => teamsList.find((team) => team.id === selectedTeamId), [teamsList, selectedTeamId]);
   const descendantIds = useMemo(() => (selectedId ? collectDepartmentDescendantIds(departments, selectedId) : new Set<string>()), [departments, selectedId]);
@@ -650,6 +672,51 @@ export function DepartmentsPage() {
           {"Lưu phòng ban"}
         </button>
       </form>
+
+      <section className="panel wide" data-testid="organization-chart">
+        <div className="panel-head wrap">
+          <div>
+            <h2>Sơ đồ tổ chức</h2>
+            <p>Hiển thị cây phòng ban, quản lý, nhân sự và nhóm làm việc từ dữ liệu thật.</p>
+          </div>
+          <span className="status-chip">{departmentRows.length} phòng ban</span>
+        </div>
+        {departmentRows.length === 0 ? (
+          <p className="empty-text">Chưa có phòng ban.</p>
+        ) : (
+          <div className="org-chart">
+            {departmentRows.map(({ department, depth }) => {
+              const departmentUsers = usersByDepartment.get(department.id) ?? [];
+              const departmentTeams = teamsByDepartment.get(department.id) ?? [];
+              return (
+                <button
+                  key={department.id}
+                  type="button"
+                  className={cls("org-node", selectedId === department.id && "active")}
+                  style={{ paddingLeft: `${14 + depth * 22}px` }}
+                  data-testid={`organization-node-${department.id}`}
+                  onClick={() => setSelectedId(department.id)}
+                >
+                  <span className="org-node-line" />
+                  <span className="org-node-main">
+                    <strong>{department.name}</strong>
+                    <small>
+                      {department.code}
+                      {department.parent?.name ? ` · thuộc ${department.parent.name}` : " · cấp gốc"}
+                    </small>
+                  </span>
+                  <span className="org-node-meta">
+                    <span>QL: {department.manager?.fullName ?? "Chưa gán"}</span>
+                    <span>{departmentUsers.length || department._count?.users || 0} nhân sự</span>
+                    <span>{departmentTeams.length} nhóm</span>
+                    <span>{department._count?.tasks ?? 0} công việc</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <section className="panel wide">
         <div className="panel-head wrap">

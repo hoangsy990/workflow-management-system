@@ -714,6 +714,9 @@ test("admin updates department structure on UI", async ({ page, request }) => {
 
   await openAppWithSession(page, admin);
   await page.getByTestId("nav-departments").click();
+  await expect(page.getByTestId("organization-chart")).toContainText(target!.name);
+  await expect(page.getByTestId(`organization-node-${target!.id}`)).toContainText(target!.code);
+  await page.getByTestId(`organization-node-${target!.id}`).click();
   const row = page.locator(`tr[data-testid="department-row-${target!.id}"]`);
   await expect(row).toBeVisible();
   await row.click();
