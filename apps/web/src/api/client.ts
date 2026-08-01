@@ -292,6 +292,7 @@ export const api = {
   reportsSummary: (query = "") => apiRequest<Record<string, any>>(`/reports/summary${query}`),
   reportsDrilldown: (query = "") => apiRequest<Paginated<Record<string, any>> & { entity: string; bucket: string; value?: string }>(`/reports/drilldown${query}`),
   exportReportsCsv: (query = "") => apiBlobRequest(`/reports/export.csv${query}`),
+  exportReportsXlsx: (query = "") => apiBlobRequest(`/reports/export.xlsx${query}`),
   users: () => cachedApiRequest<Paginated<Record<string, any>>>("/users?pageSize=100"),
   createUser: async (payload: Record<string, unknown>) => {
     const result = await apiRequest<Record<string, any>>("/users", { method: "POST", body: JSON.stringify(payload) });

@@ -715,6 +715,19 @@ test("báo cáo lọc phía server theo phòng ban, trạng thái, ưu tiên và
   expect(
     exportLogs.data.some((log) => log.actor?.id === manager.user.id && Number((log.metadata as Record<string, any> | undefined)?.taskCount ?? 0) > 0)
   ).toBe(true);
+
+  const excelDownload = page.waitForEvent("download");
+  await page.getByTestId("report-export-xlsx").click();
+  const downloadedExcel = await excelDownload;
+  expect(downloadedExcel.suggestedFilename()).toContain(".xlsx");
+  await expect(page.getByTestId("report-export-message")).toContainText("Excel");
+
+  const excelLogs = await apiGet<Paginated<Record<string, any>>>(
+    request,
+    admin,
+    "/activity-logs?pageSize=20&action=report.export.xlsx&entityType=reports"
+  );
+  expect(excelLogs.data.some((log) => log.actor?.id === manager.user.id)).toBe(true);
 });
 
 test("scheduler gửi thông báo task và bước phê duyệt sắp hạn/quá hạn", async ({ request }) => {

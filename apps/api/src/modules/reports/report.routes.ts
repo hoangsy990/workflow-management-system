@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { Prisma, TaskPriority, TaskStatus, WorkflowInstanceStatus } from "@prisma/client";
 import { z } from "zod";
+import type { AuthContext } from "../../types/fastify.js";
 import { badRequest } from "../../http/errors.js";
 import { prisma } from "../../prisma.js";
 import { parseQuery } from "../../http/validation.js";
@@ -8,6 +9,7 @@ import { requireAuth } from "../auth/auth.guard.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { visibleTaskWhere } from "../tasks/task.service.js";
 import { visibleWorkflowInstanceWhere } from "../workflows/workflow.service.js";
+import { makeXlsx } from "./xlsx.js";
 
 const reportQuerySchema = z.object({
   departmentId: z.string().uuid().optional(),
@@ -180,6 +182,99 @@ function toCsv(rows: unknown[][]) {
   return `\uFEFF${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
 }
 
+type ExportTask = {
+  code: string;
+  title: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  progress: number;
+  dueDate: Date | null;
+  createdAt: Date;
+  department: { name: string } | null;
+  assignees: Array<{ user: { fullName: string } }>;
+};
+
+type ExportWorkflow = {
+  code: string;
+  status: WorkflowInstanceStatus;
+  createdAt: Date;
+  template: { name: string };
+  requester: { fullName: string; department: { name: string } | null };
+  currentStep: { name: string } | null;
+};
+
+async function loadReportExportData(auth: AuthContext, query: z.infer<typeof reportQuerySchema>) {
+  const taskWhere: Prisma.TaskWhereInput = {
+    AND: [await visibleTaskWhere(prisma, auth), taskReportFilters(query)]
+  };
+  const workflowWhere: Prisma.WorkflowInstanceWhereInput = {
+    AND: [visibleWorkflowInstanceWhere(auth), workflowReportFilters(query)]
+  };
+  const [tasks, workflows] = await Promise.all([
+    prisma.task.findMany({
+      where: taskWhere,
+      take: 5000,
+      orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+      include: {
+        department: { select: { name: true } },
+        assignees: { include: { user: { select: { fullName: true } } } }
+      }
+    }),
+    prisma.workflowInstance.findMany({
+      where: workflowWhere,
+      take: 5000,
+      orderBy: { createdAt: "desc" },
+      include: {
+        template: { select: { name: true } },
+        requester: { select: { fullName: true, department: { select: { name: true } } } },
+        currentStep: { select: { name: true } }
+      }
+    })
+  ]);
+  return { tasks, workflows };
+}
+
+function exportRows(tasks: ExportTask[], workflows: ExportWorkflow[]) {
+  return [
+    ["Loại", "Mã", "Tên/Mẫu", "Trạng thái", "Ưu tiên/Bước", "Phòng ban/Người tạo", "Người liên quan", "Tiến độ", "Ngày"],
+    ...tasks.map((task) => [
+      "Công việc",
+      task.code,
+      task.title,
+      task.status,
+      task.priority,
+      task.department?.name ?? "",
+      task.assignees.map((assignee) => assignee.user.fullName).join("; "),
+      `${task.progress}%`,
+      csvDate(task.dueDate ?? task.createdAt)
+    ]),
+    ...workflows.map((instance) => [
+      "Hồ sơ quy trình",
+      instance.code,
+      instance.template.name,
+      instance.status,
+      instance.currentStep?.name ?? "",
+      instance.requester.department?.name ?? "",
+      instance.requester.fullName,
+      "",
+      csvDate(instance.createdAt)
+    ])
+  ];
+}
+
+async function auditReportExport(auth: AuthContext, requestIp: string, format: "csv" | "xlsx", query: z.infer<typeof reportQuerySchema>, counts: { taskCount: number; workflowCount: number }) {
+  await writeAuditLog(prisma, {
+    actorId: auth.userId,
+    action: `report.export.${format}`,
+    entityType: "reports",
+    ipAddress: requestIp,
+    metadata: {
+      filters: serializeReportFilters(query),
+      ...counts
+    }
+  });
+}
+
 export async function reportRoutes(app: FastifyInstance) {
   app.get("/reports/summary", { preHandler: requireAuth }, async (request) => {
     const auth = request.auth!;
@@ -289,76 +384,29 @@ export async function reportRoutes(app: FastifyInstance) {
   app.get("/reports/export.csv", { preHandler: requireAuth }, async (request, reply) => {
     const auth = request.auth!;
     const query = parseQuery(request, reportQuerySchema);
-    const taskWhere: Prisma.TaskWhereInput = {
-      AND: [await visibleTaskWhere(prisma, auth), taskReportFilters(query)]
-    };
-    const workflowWhere: Prisma.WorkflowInstanceWhereInput = {
-      AND: [visibleWorkflowInstanceWhere(auth), workflowReportFilters(query)]
-    };
-    const [tasks, workflows] = await Promise.all([
-      prisma.task.findMany({
-        where: taskWhere,
-        take: 5000,
-        orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-        include: {
-          department: { select: { name: true } },
-          assignees: { include: { user: { select: { fullName: true } } } }
-        }
-      }),
-      prisma.workflowInstance.findMany({
-        where: workflowWhere,
-        take: 5000,
-        orderBy: { createdAt: "desc" },
-        include: {
-          template: { select: { name: true } },
-          requester: { select: { fullName: true, department: { select: { name: true } } } },
-          currentStep: { select: { name: true } }
-        }
-      })
-    ]);
-    const rows: unknown[][] = [
-      ["Loại", "Mã", "Tên/Mẫu", "Trạng thái", "Ưu tiên/Bước", "Phòng ban/Người tạo", "Người liên quan", "Tiến độ", "Ngày"],
-      ...tasks.map((task) => [
-        "Công việc",
-        task.code,
-        task.title,
-        task.status,
-        task.priority,
-        task.department?.name ?? "",
-        task.assignees.map((assignee) => assignee.user.fullName).join("; "),
-        `${task.progress}%`,
-        csvDate(task.dueDate ?? task.createdAt)
-      ]),
-      ...workflows.map((instance) => [
-        "Hồ sơ quy trình",
-        instance.code,
-        instance.template.name,
-        instance.status,
-        instance.currentStep?.name ?? "",
-        instance.requester.department?.name ?? "",
-        instance.requester.fullName,
-        "",
-        csvDate(instance.createdAt)
-      ])
-    ];
-
-    await writeAuditLog(prisma, {
-      actorId: auth.userId,
-      action: "report.export.csv",
-      entityType: "reports",
-      ipAddress: request.ip,
-      metadata: {
-        filters: serializeReportFilters(query),
-        taskCount: tasks.length,
-        workflowCount: workflows.length
-      }
-    });
+    const { tasks, workflows } = await loadReportExportData(auth, query);
+    const rows = exportRows(tasks, workflows);
+    await auditReportExport(auth, request.ip, "csv", query, { taskCount: tasks.length, workflowCount: workflows.length });
 
     const fileName = `workflow-report-${new Date().toISOString().slice(0, 10)}.csv`;
     return reply
       .type("text/csv; charset=utf-8")
       .header("Content-Disposition", `attachment; filename="${encodeURIComponent(fileName)}"`)
       .send(toCsv(rows));
+  });
+
+  app.get("/reports/export.xlsx", { preHandler: requireAuth }, async (request, reply) => {
+    const auth = request.auth!;
+    const query = parseQuery(request, reportQuerySchema);
+    const { tasks, workflows } = await loadReportExportData(auth, query);
+    const rows = exportRows(tasks, workflows);
+    await auditReportExport(auth, request.ip, "xlsx", query, { taskCount: tasks.length, workflowCount: workflows.length });
+
+    const fileName = `workflow-report-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    return reply
+      .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+      .header("Content-Disposition", `attachment; filename="${encodeURIComponent(fileName)}"`)
+      .send(makeXlsx(rows));
   });
 
   app.get("/reports/drilldown", { preHandler: requireAuth }, async (request) => {

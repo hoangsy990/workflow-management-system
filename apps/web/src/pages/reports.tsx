@@ -66,7 +66,7 @@ function buildDrilldownQuery(baseQuery: string, drilldown: ReportDrilldown | nul
 export function ReportsPage({ setPage, setTaskId, setInstanceId }: ReportsPageProps) {
   const [filters, setFilters] = useState(emptyReportFilters);
   const [drilldown, setDrilldown] = useState<ReportDrilldown | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<"" | "csv" | "xlsx">("");
   const [exportMessage, setExportMessage] = useState("");
   const [exportError, setExportError] = useState("");
   const departments = useAsyncData(() => api.departments(), []);
@@ -86,25 +86,25 @@ export function ReportsPage({ setPage, setTaskId, setInstanceId }: ReportsPagePr
     setDrilldown(null);
   }, [query]);
 
-  async function downloadCsv() {
-    setExporting(true);
+  async function downloadReport(format: "csv" | "xlsx") {
+    setExporting(format);
     setExportMessage("");
     setExportError("");
     try {
-      const { blob, filename } = await api.exportReportsCsv(query);
+      const { blob, filename } = format === "csv" ? await api.exportReportsCsv(query) : await api.exportReportsXlsx(query);
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = filename || "workflow-report.csv";
+      link.download = filename || `workflow-report.${format}`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      setExportMessage("Đã tạo file CSV báo cáo.");
+      setExportMessage(format === "csv" ? "Đã tạo file CSV báo cáo." : "Đã tạo file Excel báo cáo.");
     } catch (err) {
-      setExportError(err instanceof Error ? err.message : "Không xuất được báo cáo CSV.");
+      setExportError(err instanceof Error ? err.message : "Không xuất được báo cáo.");
     } finally {
-      setExporting(false);
+      setExporting("");
     }
   }
 
@@ -124,8 +124,12 @@ export function ReportsPage({ setPage, setTaskId, setInstanceId }: ReportsPagePr
               <Printer size={15} />
               In
             </button>
-            <button className="primary-button compact" type="button" data-testid="report-export-csv" disabled={exporting} onClick={() => void downloadCsv()}>
-              {exporting ? <Loader2 className="spin" size={15} /> : <Download size={15} />}
+            <button className="primary-button compact" type="button" data-testid="report-export-xlsx" disabled={Boolean(exporting)} onClick={() => void downloadReport("xlsx")}>
+              {exporting === "xlsx" ? <Loader2 className="spin" size={15} /> : <Download size={15} />}
+              Tải Excel
+            </button>
+            <button className="ghost-button compact" type="button" data-testid="report-export-csv" disabled={Boolean(exporting)} onClick={() => void downloadReport("csv")}>
+              {exporting === "csv" ? <Loader2 className="spin" size={15} /> : <Download size={15} />}
               Tải CSV
             </button>
             <button className="ghost-button compact" type="button" data-testid="report-filter-reset" onClick={() => setFilters(emptyReportFilters)}>
