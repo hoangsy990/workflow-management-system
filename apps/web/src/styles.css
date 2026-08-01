@@ -398,6 +398,21 @@ legend {
   color: var(--danger);
 }
 
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--danger) 30%, var(--line));
+  background: color-mix(in srgb, var(--danger) 10%, var(--panel));
+  color: var(--danger);
+  padding: 10px 22px;
+  font-weight: 700;
+}
+
+.offline-banner span {
+  overflow-wrap: anywhere;
+}
+
 .icon-button {
   width: 36px;
   height: 36px;
@@ -1982,6 +1997,11 @@ progress {
 
   .content {
     padding: 14px;
+  }
+
+  .offline-banner {
+    padding: 10px 14px;
+    align-items: flex-start;
   }
 
   .mobile-menu-panel {

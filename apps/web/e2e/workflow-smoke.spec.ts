@@ -419,6 +419,19 @@ test("mobile bottom nav ưu tiên luồng chính và mở trang thông báo", as
   await expect(page.getByTestId("task-create-title")).toBeVisible();
 });
 
+test("offline banner hiển thị rõ khi mất kết nối", async ({ page, request, context }) => {
+  const admin = await apiLogin(request, "admin");
+  await openAppWithSession(page, admin);
+
+  await context.setOffline(true);
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await expect(page.getByTestId("offline-banner")).toBeVisible();
+
+  await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect(page.getByTestId("offline-banner")).not.toBeVisible();
+});
+
 test("xem, thu hồi phiên thiết bị và đăng xuất tất cả", async ({ page, request }) => {
   const admin = await apiLogin(request, "admin");
   const deviceName = `Smoke device ${runId}`;

@@ -289,6 +289,13 @@ export function AppShell({
           </nav>
         )}
 
+        {!online && (
+          <div className="offline-banner" role="status" aria-live="polite" data-testid="offline-banner">
+            <Smartphone size={16} />
+            <span>Mất kết nối mạng. Các thao tác an toàn sẽ chờ bạn kết nối lại trước khi gửi.</span>
+          </div>
+        )}
+
         <main className="content" id="main-content" aria-labelledby="page-title" tabIndex={-1}>
           {children}
         </main>
