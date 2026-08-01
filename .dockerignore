@@ -15,4 +15,9 @@ work
 *.tsbuildinfo
 apps/web/src-tauri/target
 apps/web/src-tauri/gen
-
+apps/web/.vite
+apps/web/test-results
+apps/web/playwright-report
+**/.cache
+**/.turbo
+**/.vite

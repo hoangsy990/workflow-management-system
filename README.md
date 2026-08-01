@@ -46,6 +46,28 @@ C:\Program Files\Docker\Docker\resources\bin
 
 Sau khi sửa PATH, mở lại terminal rồi chạy `docker --version`.
 
+### Dọn dung lượng Docker
+
+Nếu Docker Desktop báo dung lượng lớn sau nhiều lần build, phần phình ra thường là build cache. Lệnh dưới chỉ dọn cache build, không xóa database volume hoặc thư mục upload đang dùng:
+
+```bash
+pnpm docker:clean
+```
+
+Trên Windows, nếu công cụ đo ổ đĩa vẫn thấy `C:\Users\<user>\AppData\Local\Docker\wsl\disk\docker_data.vhdx` rất lớn sau khi dọn cache, đó là file ổ đĩa ảo WSL chưa tự co lại. Hãy mở PowerShell bằng quyền Administrator rồi chạy:
+
+```powershell
+pnpm docker:compact
+```
+
+Lệnh này dừng Docker/WSL tạm thời, compact file VHDX bằng `diskpart`, rồi bật lại Docker Compose. Dữ liệu database và upload vẫn nằm trong Docker volume, không bị xóa.
+
+Nếu muốn xóa thêm image không còn container nào dùng:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/clean-docker.ps1 -IncludeUnusedImages
+```
+
 Nếu cần seed trong container API:
 
 ```bash

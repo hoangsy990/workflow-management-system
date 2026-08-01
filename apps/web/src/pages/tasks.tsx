@@ -603,7 +603,7 @@ export function TaskList({ mode, setPage, setTaskId }: TaskPageProps & { mode: "
 }
 
 export function Kanban({ setPage, setTaskId }: TaskPageProps) {
-  const { data, loading, error, reload } = useAsyncData(() => api.tasks("?pageSize=100"), []);
+  const { data, loading, error, reload } = useAsyncData(() => api.tasks("?pageSize=100&sortBy=createdAt&sortOrder=desc"), []);
   const statuses = ["TODO", "IN_PROGRESS", "PAUSED", "PENDING_REVIEW", "DONE", "CANCELLED"];
   const [pendingMove, setPendingMove] = useState<{ task: Record<string, any>; status: string } | null>(null);
   const [kanbanBusy, setKanbanBusy] = useState(false);

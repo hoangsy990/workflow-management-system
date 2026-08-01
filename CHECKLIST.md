@@ -12,10 +12,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=101`, `PARTIAL=123`, `TODO=36`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `38.8%`, tính trọng số partial `62.5%`.
+**Tiến độ hiện tại:** `DONE=102`, `PARTIAL=123`, `TODO=35`, `WAITING=0`, `BLOCKED=0`, `TOTAL=260`; hoàn thành nghiêm ngặt `39.2%`, tính trọng số partial `62.9%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 01/08/2026 | `DOCKER-SIZE-CLEANUP` | Dọn Docker build cache trên máy dev từ `14.22GB` xuống `0B`, tối ưu Dockerfile để image API chỉ mang dependency production của `@workflow/api`, giữ Prisma CLI trong dependency production cho migrate deploy, không gọi `pnpm` trong runtime, thêm `.dockerignore` cho cache/test artifacts, thêm script `pnpm docker:clean`/`pnpm docker:compact` và chỉnh Kanban lấy 100 task mới nhất theo `createdAt desc` đúng giới hạn API để không mất card mới khi DB tích lũy nhiều smoke data. Chuyển checklist `Docker resource cleanup command` sang DONE. | `pnpm install --lockfile-only`, `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, API/web health pass, targeted Kanban smoke 1/1, `pnpm smoke:web` 30/30, `docker builder prune -af`. Docker đang dùng: images `1.124GB`, volumes `77.05MB`, build cache `0B`, API writable `49.2kB`; file `docker_data.vhdx` còn `19.13GB` và cần `pnpm docker:compact` trong PowerShell Admin để compact vật lý. |
 | 30/07/2026 | `PUBLIC-8099-ANDROID-APK` | Đổi Docker web public port sang `8099`, build web với API relative `/api/v1`, thêm nginx reverse proxy `/api/` tới API container để test từ xa không bị dính `localhost`, mở CORS cho Tauri mobile, thêm cấu hình API URL runtime ở màn đăng nhập và build lại APK Android arm64 unsigned trỏ mặc định `http://192.168.10.238:8099/api/v1`. Script Android nhận `-ApiUrl` và bật cleartext cho bản test HTTP. Trạng thái tổng chưa đổi vì Android vẫn cần QA thiết bị thật/signing/push production. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, `curl http://localhost:8099/health`, `curl http://localhost:8099/api/v1/auth/me`, targeted login smoke 1/1, `pnpm smoke:web` 30/30, `scripts/build-android-arm64.ps1 -ApiUrl http://192.168.10.238:8099/api/v1`. |
 | 30/07/2026 | `TASK-SEARCH-DEBOUNCE` | Bổ sung hook `useDebouncedValue` và áp cho ô tìm kiếm từ khóa/mã công việc trong TaskList để giảm gọi API khi gõ liên tục; select/date/filter khác vẫn phản hồi tức thời. Chuyển checklist `Debounce search` sang DONE. | `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted task filter smoke 1/1, `pnpm smoke:web` 30/30. |
 | 30/07/2026 | `PROFILE-RELATED-WORK` | Bổ sung dữ liệu liên quan trong hồ sơ cá nhân: API `/profile/related` gom công việc liên quan, hồ sơ tôi tạo và hồ sơ chờ tôi phê duyệt theo scope quyền backend; UI profile hiển thị metric + danh sách recent responsive; smoke test tạo task/workflow thật rồi assert API/UI đọc được dữ liệu. Chuyển `User profile đầy đủ` và `Thiết bị đăng nhập/hoạt động gần đây/task/workflow liên quan` sang DONE. | `pnpm lint`, `pnpm test`, `pnpm build` qua Docker build, `docker compose up -d --build`, targeted profile-related smoke 1/1, `pnpm smoke:web` 30/30. |
@@ -290,6 +291,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Script khởi tạo | `DONE` | `init:dev`, Docker scripts. |
 | Dockerfile + Docker Compose app/database | `DONE` | Build/run đã fix và QA. |
 | Hướng dẫn Docker/dev/prod/backup | `DONE` | README có. Cần cập nhật checklist link và note Docker hiện đã chạy được. |
+| Docker resource cleanup command | `DONE` | Thêm `pnpm docker:clean` để dọn build cache an toàn và `pnpm docker:compact` để compact `docker_data.vhdx` trên Windows PowerShell Admin; đã dọn cache local từ `14.22GB` xuống `0B` trước khi rebuild. |
 | Health-check endpoint | `DONE` | `/health`. |
 | CI pipeline lint/test/build | `DONE` | GitHub Actions có job `verify` chạy install/prisma generate/lint/typecheck/test/build và job `smoke-web` chạy Docker Compose seed + Playwright smoke. |
 
@@ -509,7 +511,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản và dashboard theo quyền đã có; data scope nâng cao/field permission chưa có cấu hình riêng. |
 | Reports, drill-down, export theo quyền | `TODO` | Chưa có. |
 | Audit config changes | `PARTIAL` | Settings save có route permission; audit config cần rà. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk public `8099` + Android APK đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted login smoke 1/1, `pnpm smoke:web` 30/30 và build APK arm64 unsigned. Responsive còn cần QA sâu trên thiết bị thật. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk Docker cleanup + Kanban stability đã pass `pnpm lint`, `pnpm test`, `pnpm build`, `docker compose up -d --build`, targeted Kanban smoke 1/1 và `pnpm smoke:web` 30/30. Responsive vẫn cần QA sâu trên thiết bị thật/Edge/iOS. |
 
 ## Việc ưu tiên tiếp theo
 
