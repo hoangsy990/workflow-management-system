@@ -927,10 +927,12 @@ function applyWorkflowStepDefaults(step: WorkflowApprovalStepDraft, defaults: Re
 export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
   const workflowSettings = useAsyncData<Record<string, any>[]>(() => api.settings().catch(() => []), []);
   const roles = useAsyncData<RoleSummary[]>(() => api.roles() as Promise<RoleSummary[]>, []);
+  const users = useAsyncData(() => api.users(), []);
   const [form, setForm] = useState({
     code: "",
     name: "",
     category: "",
+    managerId: "",
     description: "",
     starterRoleCodes: [] as string[]
   });
@@ -942,6 +944,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
   const [loading, setLoading] = useState(false);
   const defaults = workflowBuilderDefaults(workflowSettings.data);
   const roleNameByCode = useMemo(() => new Map((roles.data ?? []).map((role) => [role.code, role.name])), [roles.data]);
+  const userOptions = users.data?.data ?? [];
 
   useEffect(() => {
     if (workflowDefaultsApplied || !workflowSettings.data) return;
@@ -1053,6 +1056,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
     form.starterRoleCodes.length > 0
       ? form.starterRoleCodes.map((roleCode) => roleNameByCode.get(roleCode) ?? roleCode).join(", ")
       : "Tất cả người có quyền tạo hồ sơ";
+  const managerName = userOptions.find((user: Record<string, any>) => user.id === form.managerId)?.fullName ?? "Chưa chọn";
 
   const previewSteps = approvalSteps.map((step, index) => {
     const nextStep = approvalSteps[index + 1];
@@ -1112,6 +1116,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
         name: form.name.trim(),
         category: form.category.trim() || undefined,
         description: form.description.trim() || undefined,
+        managerId: form.managerId || undefined,
         activate: defaults.autoActivateTemplate,
         allowedStarters: form.starterRoleCodes.length > 0 ? { roleCodes: form.starterRoleCodes } : undefined,
         fields: fields.map((field, index) => {
@@ -1175,6 +1180,17 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
         <label>
           {"Danh mục"}
           <input value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} />
+        </label>
+        <label>
+          {"Người quản lý quy trình"}
+          <select data-testid="workflow-template-manager" value={form.managerId} onChange={(event) => setForm({ ...form, managerId: event.target.value })}>
+            <option value="">{"Chưa chọn"}</option>
+            {userOptions.map((user: Record<string, any>) => (
+              <option key={user.id} value={user.id}>
+                {user.fullName}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           {"Mô tả"}
@@ -1445,6 +1461,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
           <div>
             <strong>{form.name.trim() || "Mẫu quy trình mới"}</strong>
             <span>{form.code.trim() || "WORKFLOW_CODE"}</span>
+            <small>Quản lý: {managerName}</small>
             <small>Khởi tạo: {starterRoleLabel}</small>
           </div>
           <div className="builder-preview-tools">

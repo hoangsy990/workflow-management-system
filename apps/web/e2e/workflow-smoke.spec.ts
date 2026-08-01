@@ -104,6 +104,7 @@ interface WorkflowTemplateRecord {
   id: string;
   code: string;
   name: string;
+  manager?: { id: string; fullName: string } | null;
   versions?: Array<{
     id: string;
     versionNo: number;
@@ -1318,6 +1319,7 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   await page.getByTestId("workflow-template-create").click();
   await page.getByTestId("workflow-template-code").fill(code);
   await page.getByTestId("workflow-template-name").fill(name);
+  await page.getByTestId("workflow-template-manager").selectOption(manager.user.id);
   await expect(page.getByTestId("workflow-template-starter-role-employee")).toBeVisible();
   await page.getByTestId("workflow-template-starter-role-employee").check();
   await page.getByTestId("workflow-field-default-0").fill(defaultPurpose);
@@ -1362,6 +1364,7 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   const purposeField = created.versions?.[0]?.fields?.find((field) => field.code === "purpose");
   const amountField = created.versions?.[0]?.fields?.find((field) => field.code === "amount");
   const noteField = created.versions?.[0]?.fields?.find((field) => field.code === "smoke_note");
+  expect(created.manager?.id).toBe(manager.user.id);
   expect(created.versions?.[0]?.allowedStarters).toMatchObject({ roleCodes: ["employee"] });
   expect(condition).toMatchObject({ fieldCode: "amount", operator: "gt", compareValue: 50000000 });
   expect(minCountStep).toMatchObject({ approvalMode: "PARALLEL", completionRule: "MIN_COUNT", minCount: 1 });
