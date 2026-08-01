@@ -1,14 +1,27 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { api, ApiUser, getStoredSession, setStoredSession } from "./api/client";
 import { LoadingBlock } from "./components/common";
 import { AppShell } from "./components/layout";
 import { Page } from "./navigation";
 import { Login } from "./pages/auth";
-import { Dashboard } from "./pages/dashboard";
-import { DepartmentsPage, LogsPage, RolesPage, SettingsPage, UsersPage } from "./pages/admin";
-import { CalendarPage, Kanban, TaskDetail, TaskForm, TaskList } from "./pages/tasks";
-import { NewWorkflowInstance, WorkflowBuilder, WorkflowInstanceDetail, WorkflowInstances, WorkflowTemplates } from "./pages/workflows";
-import { ProfilePage } from "./pages/profile";
+
+const Dashboard = lazy(() => import("./pages/dashboard").then((module) => ({ default: module.Dashboard })));
+const DepartmentsPage = lazy(() => import("./pages/admin").then((module) => ({ default: module.DepartmentsPage })));
+const LogsPage = lazy(() => import("./pages/admin").then((module) => ({ default: module.LogsPage })));
+const RolesPage = lazy(() => import("./pages/admin").then((module) => ({ default: module.RolesPage })));
+const SettingsPage = lazy(() => import("./pages/admin").then((module) => ({ default: module.SettingsPage })));
+const UsersPage = lazy(() => import("./pages/admin").then((module) => ({ default: module.UsersPage })));
+const CalendarPage = lazy(() => import("./pages/tasks").then((module) => ({ default: module.CalendarPage })));
+const Kanban = lazy(() => import("./pages/tasks").then((module) => ({ default: module.Kanban })));
+const TaskDetail = lazy(() => import("./pages/tasks").then((module) => ({ default: module.TaskDetail })));
+const TaskForm = lazy(() => import("./pages/tasks").then((module) => ({ default: module.TaskForm })));
+const TaskList = lazy(() => import("./pages/tasks").then((module) => ({ default: module.TaskList })));
+const NewWorkflowInstance = lazy(() => import("./pages/workflows").then((module) => ({ default: module.NewWorkflowInstance })));
+const WorkflowBuilder = lazy(() => import("./pages/workflows").then((module) => ({ default: module.WorkflowBuilder })));
+const WorkflowInstanceDetail = lazy(() => import("./pages/workflows").then((module) => ({ default: module.WorkflowInstanceDetail })));
+const WorkflowInstances = lazy(() => import("./pages/workflows").then((module) => ({ default: module.WorkflowInstances })));
+const WorkflowTemplates = lazy(() => import("./pages/workflows").then((module) => ({ default: module.WorkflowTemplates })));
+const ProfilePage = lazy(() => import("./pages/profile").then((module) => ({ default: module.ProfilePage })));
 
 export default function App() {
   const [user, setUser] = useState<ApiUser | null>(null);
@@ -148,7 +161,7 @@ export default function App() {
       setDark={setDark}
       online={online}
     >
-      {renderPage()}
+      <Suspense fallback={<LoadingBlock />}>{renderPage()}</Suspense>
     </AppShell>
   );
 }
