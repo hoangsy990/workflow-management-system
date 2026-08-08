@@ -616,6 +616,19 @@ legend {
   min-width: 92px;
 }
 
+.search-inline {
+  display: grid;
+  gap: 4px;
+  min-width: min(100%, 280px);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.search-inline input {
+  min-width: 0;
+}
+
 .view-tabs {
   display: flex;
   gap: 8px;

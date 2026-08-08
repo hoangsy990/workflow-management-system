@@ -1,4 +1,4 @@
-import { Edit3, Loader2, Plus, Save, Trash2, Upload, XCircle } from "lucide-react";
+import { Download, Edit3, Loader2, Plus, Save, Trash2, Upload, XCircle } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock, MultiCheck } from "../components/common";
@@ -1402,9 +1402,11 @@ const emptySharedCatalogForm = {
   name: "",
   description: "",
   status: "ACTIVE",
+  scopeDepartmentId: "",
+  managerId: "",
   fieldsText: "code|Mã|SHORT_TEXT|required\nname|Tên|SHORT_TEXT|required"
 };
-const emptySharedCatalogItemForm = { catalogId: "", code: "", name: "", status: "ACTIVE" };
+const emptySharedCatalogItemForm = { catalogId: "", code: "", name: "", status: "ACTIVE", scopeDepartmentId: "", managerId: "" };
 
 function parseSharedCatalogFields(value: string) {
   return value
@@ -1431,14 +1433,33 @@ function formatSharedCatalogFields(fields: Record<string, any>[] | undefined) {
     .join("\n");
 }
 
+function escapeCsvValue(value: unknown) {
+  const text = String(value ?? "");
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadCsv(filename: string, rows: unknown[][]) {
+  const csv = rows.map((row) => row.map(escapeCsvValue).join(",")).join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export function CatalogsPage() {
   const categories = useAsyncData(() => api.taskCategories(), []);
   const tags = useAsyncData(() => api.tags(), []);
   const sharedCatalogs = useAsyncData(() => api.sharedCatalogs().catch(() => []), []);
+  const departments = useAsyncData(() => api.departments().catch(() => []), []);
+  const users = useAsyncData(() => api.users().catch(() => ({ data: [] })), []);
   const [categoryForm, setCategoryForm] = useState({ ...emptyCategoryForm });
   const [tagForm, setTagForm] = useState({ ...emptyTagForm });
   const [sharedCatalogForm, setSharedCatalogForm] = useState({ ...emptySharedCatalogForm });
   const [sharedCatalogItemForm, setSharedCatalogItemForm] = useState({ ...emptySharedCatalogItemForm });
+  const [sharedCatalogKeyword, setSharedCatalogKeyword] = useState("");
   const [editingCategoryId, setEditingCategoryId] = useState("");
   const [editingCategory, setEditingCategory] = useState({ ...emptyCategoryForm });
   const [editingTagId, setEditingTagId] = useState("");
@@ -1451,11 +1472,57 @@ export function CatalogsPage() {
   const [message, setMessage] = useState("");
   const [formError, setFormError] = useState("");
 
-  const loading = categories.loading || tags.loading || sharedCatalogs.loading;
-  const error = categories.error || tags.error || sharedCatalogs.error;
+  const departmentOptions = departments.data ?? [];
+  const userOptions = users.data?.data ?? [];
+  const filteredSharedCatalogs = useMemo(() => {
+    const keyword = sharedCatalogKeyword.trim().toLowerCase();
+    if (!keyword) return sharedCatalogs.data ?? [];
+    return (sharedCatalogs.data ?? []).filter((catalog) => {
+      const haystack = [
+        catalog.code,
+        catalog.name,
+        catalog.description,
+        catalog.status,
+        catalog.scopeDepartment?.name,
+        catalog.manager?.fullName,
+        ...(catalog.items ?? []).flatMap((item: Record<string, any>) => [item.code, item.name, item.status, item.scopeDepartment?.name, item.manager?.fullName])
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(keyword);
+    });
+  }, [sharedCatalogKeyword, sharedCatalogs.data]);
+
+  const loading = categories.loading || tags.loading || sharedCatalogs.loading || departments.loading || users.loading;
+  const error = categories.error || tags.error || sharedCatalogs.error || departments.error || users.error;
 
   async function reloadCatalogs() {
     await Promise.all([categories.reload(), tags.reload(), sharedCatalogs.reload()]);
+  }
+
+  function exportSharedCatalogsCsv() {
+    const rows: unknown[][] = [
+      ["catalog_code", "catalog_name", "catalog_status", "scope_department", "manager", "item_code", "item_name", "item_status", "item_scope_department", "item_manager"]
+    ];
+    for (const catalog of filteredSharedCatalogs) {
+      const items = catalog.items?.length ? catalog.items : [null];
+      for (const item of items) {
+        rows.push([
+          catalog.code,
+          catalog.name,
+          catalog.status,
+          catalog.scopeDepartment?.name ?? "",
+          catalog.manager?.fullName ?? "",
+          item?.code ?? "",
+          item?.name ?? "",
+          item?.status ?? "",
+          item?.scopeDepartment?.name ?? "",
+          item?.manager?.fullName ?? ""
+        ]);
+      }
+    }
+    downloadCsv(`shared-catalogs-${new Date().toISOString().slice(0, 10)}.csv`, rows);
   }
 
   async function submitCategory(event: FormEvent) {
@@ -1507,6 +1574,8 @@ export function CatalogsPage() {
         name: sharedCatalogForm.name,
         description: sharedCatalogForm.description || undefined,
         status: sharedCatalogForm.status,
+        scopeDepartmentId: sharedCatalogForm.scopeDepartmentId || null,
+        managerId: sharedCatalogForm.managerId || null,
         fields: parseSharedCatalogFields(sharedCatalogForm.fieldsText)
       });
       setSharedCatalogForm({ ...emptySharedCatalogForm });
@@ -1532,7 +1601,9 @@ export function CatalogsPage() {
       await api.createSharedCatalogItem(sharedCatalogItemForm.catalogId, {
         code: sharedCatalogItemForm.code,
         name: sharedCatalogItemForm.name,
-        status: sharedCatalogItemForm.status
+        status: sharedCatalogItemForm.status,
+        scopeDepartmentId: sharedCatalogItemForm.scopeDepartmentId || null,
+        managerId: sharedCatalogItemForm.managerId || null
       });
       setSharedCatalogItemForm({ ...emptySharedCatalogItemForm });
       setMessage("Da them gia tri danh muc tuy chinh.");
@@ -1551,6 +1622,8 @@ export function CatalogsPage() {
       name: catalog.name ?? "",
       description: catalog.description ?? "",
       status: catalog.status ?? "ACTIVE",
+      scopeDepartmentId: catalog.scopeDepartmentId ?? catalog.scopeDepartment?.id ?? "",
+      managerId: catalog.managerId ?? catalog.manager?.id ?? "",
       fieldsText: formatSharedCatalogFields(catalog.fields)
     });
   }
@@ -1561,7 +1634,9 @@ export function CatalogsPage() {
       catalogId,
       code: item.code ?? "",
       name: item.name ?? "",
-      status: item.status ?? "ACTIVE"
+      status: item.status ?? "ACTIVE",
+      scopeDepartmentId: item.scopeDepartmentId ?? item.scopeDepartment?.id ?? "",
+      managerId: item.managerId ?? item.manager?.id ?? ""
     });
   }
 
@@ -1628,6 +1703,8 @@ export function CatalogsPage() {
         name: editingSharedCatalog.name,
         description: editingSharedCatalog.description || null,
         status: editingSharedCatalog.status,
+        scopeDepartmentId: editingSharedCatalog.scopeDepartmentId || null,
+        managerId: editingSharedCatalog.managerId || null,
         fields: parseSharedCatalogFields(editingSharedCatalog.fieldsText)
       });
       setEditingSharedCatalogId("");
@@ -1648,7 +1725,9 @@ export function CatalogsPage() {
       await api.updateSharedCatalogItem(id, {
         code: editingSharedCatalogItem.code,
         name: editingSharedCatalogItem.name,
-        status: editingSharedCatalogItem.status
+        status: editingSharedCatalogItem.status,
+        scopeDepartmentId: editingSharedCatalogItem.scopeDepartmentId || null,
+        managerId: editingSharedCatalogItem.managerId || null
       });
       setEditingSharedCatalogItemId("");
       setMessage("Da cap nhat gia tri danh muc.");
@@ -1921,6 +2000,32 @@ export function CatalogsPage() {
                 <option value="INACTIVE">Tam dung</option>
               </select>
             </label>
+            <label>
+              Pham vi phong ban
+              <select
+                data-testid="shared-catalog-scope-department"
+                value={sharedCatalogForm.scopeDepartmentId}
+                onChange={(event) => setSharedCatalogForm({ ...sharedCatalogForm, scopeDepartmentId: event.target.value })}
+              >
+                <option value="">Toan cong ty</option>
+                {departmentOptions.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Quan ly catalog
+              <select data-testid="shared-catalog-manager" value={sharedCatalogForm.managerId} onChange={(event) => setSharedCatalogForm({ ...sharedCatalogForm, managerId: event.target.value })}>
+                <option value="">Chua gan</option>
+                {userOptions.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.fullName}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="full">
               Mo ta
               <textarea value={sharedCatalogForm.description} onChange={(event) => setSharedCatalogForm({ ...sharedCatalogForm, description: event.target.value })} />
@@ -1982,15 +2087,57 @@ export function CatalogsPage() {
                 <option value="INACTIVE">Tam dung</option>
               </select>
             </label>
+            <label>
+              Pham vi gia tri
+              <select
+                data-testid="shared-catalog-item-scope-department"
+                value={sharedCatalogItemForm.scopeDepartmentId}
+                onChange={(event) => setSharedCatalogItemForm({ ...sharedCatalogItemForm, scopeDepartmentId: event.target.value })}
+              >
+                <option value="">Theo catalog</option>
+                {departmentOptions.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Quan ly gia tri
+              <select data-testid="shared-catalog-item-manager" value={sharedCatalogItemForm.managerId} onChange={(event) => setSharedCatalogItemForm({ ...sharedCatalogItemForm, managerId: event.target.value })}>
+                <option value="">Theo catalog</option>
+                {userOptions.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.fullName}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button className="primary-button full" data-testid="shared-catalog-item-create-save" type="submit" disabled={busy === "shared-catalog-item-create"}>
               {busy === "shared-catalog-item-create" ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
               Them gia tri
             </button>
           </form>
         </div>
+        <div className="toolbar wrap">
+          <label className="search-inline">
+            Tim catalog
+            <input
+              data-testid="shared-catalog-search"
+              placeholder="Ma, ten, phong ban, quan ly..."
+              value={sharedCatalogKeyword}
+              onChange={(event) => setSharedCatalogKeyword(event.target.value)}
+            />
+          </label>
+          <button className="ghost-button compact" data-testid="shared-catalog-export-csv" type="button" onClick={exportSharedCatalogsCsv}>
+            <Download size={16} />
+            Xuat CSV
+          </button>
+          <span className="status-chip">{filteredSharedCatalogs.length}/{sharedCatalogs.data?.length ?? 0}</span>
+        </div>
         <DataTable
-          columns={["Ma", "Ten", "Trang thai", "Fields", "Items", "Thao tac"]}
-          rows={(sharedCatalogs.data ?? []).map((catalog) => {
+          columns={["Ma", "Ten", "Trang thai", "Pham vi", "Quan ly", "Fields", "Items", "Thao tac"]}
+          rows={filteredSharedCatalogs.map((catalog) => {
             const editing = editingSharedCatalogId === catalog.id;
             return {
               key: catalog.id,
@@ -2015,6 +2162,34 @@ export function CatalogsPage() {
                   statusLabels[catalog.status] ?? catalog.status
                 ),
                 editing ? (
+                  <select
+                    data-testid={`shared-catalog-edit-scope-department-${catalog.id}`}
+                    value={editingSharedCatalog.scopeDepartmentId}
+                    onChange={(event) => setEditingSharedCatalog({ ...editingSharedCatalog, scopeDepartmentId: event.target.value })}
+                  >
+                    <option value="">Toan cong ty</option>
+                    {departmentOptions.map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {department.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  catalog.scopeDepartment?.name ?? "Toan cong ty"
+                ),
+                editing ? (
+                  <select data-testid={`shared-catalog-edit-manager-${catalog.id}`} value={editingSharedCatalog.managerId} onChange={(event) => setEditingSharedCatalog({ ...editingSharedCatalog, managerId: event.target.value })}>
+                    <option value="">Chua gan</option>
+                    {userOptions.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.fullName}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  catalog.manager?.fullName ?? "Chua gan"
+                ),
+                editing ? (
                   <textarea
                     data-testid={`shared-catalog-edit-fields-${catalog.id}`}
                     rows={4}
@@ -2037,6 +2212,30 @@ export function CatalogsPage() {
                               <option value="ACTIVE">Dang dung</option>
                               <option value="INACTIVE">Tam dung</option>
                             </select>
+                            <select
+                              data-testid={`shared-catalog-item-edit-scope-department-${item.id}`}
+                              value={editingSharedCatalogItem.scopeDepartmentId}
+                              onChange={(event) => setEditingSharedCatalogItem({ ...editingSharedCatalogItem, scopeDepartmentId: event.target.value })}
+                            >
+                              <option value="">Theo catalog</option>
+                              {departmentOptions.map((department) => (
+                                <option key={department.id} value={department.id}>
+                                  {department.name}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              data-testid={`shared-catalog-item-edit-manager-${item.id}`}
+                              value={editingSharedCatalogItem.managerId}
+                              onChange={(event) => setEditingSharedCatalogItem({ ...editingSharedCatalogItem, managerId: event.target.value })}
+                            >
+                              <option value="">Theo catalog</option>
+                              {userOptions.map((user) => (
+                                <option key={user.id} value={user.id}>
+                                  {user.fullName}
+                                </option>
+                              ))}
+                            </select>
                             <button className="primary-button compact" data-testid={`shared-catalog-item-save-${item.id}`} type="button" disabled={busy === `shared-catalog-item-${item.id}`} onClick={() => void saveSharedCatalogItem(item.id)}>
                               {busy === `shared-catalog-item-${item.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />}
                               Luu
@@ -2051,6 +2250,8 @@ export function CatalogsPage() {
                               <strong>{item.code}</strong> - {item.name}
                             </span>
                             <span className="status-chip">{statusLabels[item.status] ?? item.status}</span>
+                            <span>{item.scopeDepartment?.name ?? "Theo catalog"}</span>
+                            <span>{item.manager?.fullName ?? "Theo catalog"}</span>
                             <button className="ghost-button compact" data-testid={`shared-catalog-item-edit-${item.id}`} type="button" onClick={() => editSharedCatalogItem(item, catalog.id)}>
                               <Edit3 size={14} />
                               Sua

@@ -70,7 +70,17 @@ export async function listSharedCatalogs(db: Db, auth: AuthContext) {
       items: {
         where: { deletedAt: null },
         orderBy: { name: "asc" },
-        select: { id: true, code: true, name: true, status: true, updatedAt: true }
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          status: true,
+          updatedAt: true,
+          scopeDepartmentId: true,
+          managerId: true,
+          scopeDepartment: { select: { id: true, code: true, name: true } },
+          manager: { select: { id: true, fullName: true } }
+        }
       },
       scopeDepartment: { select: { id: true, code: true, name: true } },
       manager: { select: { id: true, fullName: true } },
@@ -313,6 +323,7 @@ export async function deleteSharedCatalogItem(db: PrismaClient, auth: AuthContex
 }
 
 export async function listSharedCatalogOptions(db: Db, auth: AuthContext, catalogIdOrCode: string) {
+  const itemScopeWhere = hasPermission(auth, "catalog.manage") ? {} : { OR: departmentScopeFilter(auth.departmentId) };
   const catalog = await db.sharedCatalog.findFirst({
     where: {
       ...visibleCatalogWhere(auth),
@@ -323,7 +334,7 @@ export async function listSharedCatalogOptions(db: Db, auth: AuthContext, catalo
         where: {
           deletedAt: null,
           status: "ACTIVE",
-          OR: departmentScopeFilter(auth.departmentId)
+          ...itemScopeWhere
         },
         orderBy: { name: "asc" }
       }

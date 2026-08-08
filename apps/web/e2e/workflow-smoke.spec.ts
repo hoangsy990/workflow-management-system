@@ -1003,6 +1003,10 @@ test("admin quản lý danh mục và nhãn công việc trên UI", async ({ pag
 
 test("admin CRUD shared catalog va item tren UI", async ({ page, request }) => {
   const admin = await apiLogin(request, "admin");
+  const departments = await apiGet<DepartmentRecord[]>(request, admin, "/departments");
+  const users = await apiGet<Paginated<UserRecord>>(request, admin, "/users?pageSize=100");
+  const department = departments[0];
+  const managerUser = users.data.find((user) => user.email === accounts.manager.email) ?? users.data[0];
   const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
   const catalogCode = `CAT_${suffix}`;
   const catalogName = `Catalog ${suffix}`;
@@ -1010,6 +1014,8 @@ test("admin CRUD shared catalog va item tren UI", async ({ page, request }) => {
   const itemCode = `ITEM_${suffix}`;
   const itemName = `Gia tri ${suffix}`;
   const updatedItemName = `Gia tri ${suffix} update`;
+  expect(department, "Seed department is required").toBeTruthy();
+  expect(managerUser, "Seed manager user is required").toBeTruthy();
 
   await openAppWithSession(page, admin);
   await page.getByTestId("nav-catalogs").click();
@@ -1017,17 +1023,23 @@ test("admin CRUD shared catalog va item tren UI", async ({ page, request }) => {
   await page.getByTestId("shared-catalog-code").fill(catalogCode);
   await page.getByTestId("shared-catalog-name").fill(catalogName);
   await page.getByTestId("shared-catalog-status").selectOption("ACTIVE");
+  await page.getByTestId("shared-catalog-scope-department").selectOption(department!.id);
+  await page.getByTestId("shared-catalog-manager").selectOption(managerUser!.id);
   await page.getByTestId("shared-catalog-fields").fill("amount|So tien|CURRENCY|required");
   const catalogCreateResponse = page.waitForResponse((response) => response.url().endsWith("/shared-catalogs") && response.request().method() === "POST");
   await page.getByTestId("shared-catalog-create-save").click();
   const catalog = (await (await catalogCreateResponse).json()) as Record<string, any>;
   const catalogRow = page.locator(`tr[data-testid="shared-catalog-row-${catalog.id}"]`);
   await expect(catalogRow).toBeVisible();
+  await expect(catalogRow).toContainText(department!.name);
+  await expect(catalogRow).toContainText(managerUser!.fullName);
 
   await page.getByTestId("shared-catalog-item-catalog").selectOption(catalog.id);
   await page.getByTestId("shared-catalog-item-code").fill(itemCode);
   await page.getByTestId("shared-catalog-item-name").fill(itemName);
   await page.getByTestId("shared-catalog-item-status").selectOption("ACTIVE");
+  await page.getByTestId("shared-catalog-item-scope-department").selectOption(department!.id);
+  await page.getByTestId("shared-catalog-item-manager").selectOption(managerUser!.id);
   const itemCreateResponse = page.waitForResponse(
     (response) => response.url().includes(`/shared-catalogs/${catalog.id}/items`) && response.request().method() === "POST"
   );
@@ -1035,10 +1047,20 @@ test("admin CRUD shared catalog va item tren UI", async ({ page, request }) => {
   const item = (await (await itemCreateResponse).json()) as Record<string, any>;
   const itemRow = catalogRow.getByTestId(`shared-catalog-item-row-${item.id}`);
   await expect(itemRow).toBeVisible();
+  await expect(itemRow).toContainText(department!.name);
+  await expect(itemRow).toContainText(managerUser!.fullName);
+
+  await page.getByTestId("shared-catalog-search").fill(catalogCode);
+  await expect(catalogRow).toBeVisible();
+  const catalogExport = page.waitForEvent("download");
+  await page.getByTestId("shared-catalog-export-csv").click();
+  expect((await catalogExport).suggestedFilename()).toContain("shared-catalogs");
 
   await catalogRow.getByTestId(`shared-catalog-edit-${catalog.id}`).click();
   await catalogRow.getByTestId(`shared-catalog-edit-name-${catalog.id}`).fill(updatedCatalogName);
   await catalogRow.getByTestId(`shared-catalog-edit-status-${catalog.id}`).selectOption("ACTIVE");
+  await catalogRow.getByTestId(`shared-catalog-edit-scope-department-${catalog.id}`).selectOption(department!.id);
+  await catalogRow.getByTestId(`shared-catalog-edit-manager-${catalog.id}`).selectOption(managerUser!.id);
   const catalogUpdateResponse = page.waitForResponse((response) => response.url().includes(`/shared-catalogs/${catalog.id}`) && response.request().method() === "PATCH");
   await catalogRow.getByTestId(`shared-catalog-save-${catalog.id}`).click();
   await catalogUpdateResponse;
@@ -1047,6 +1069,8 @@ test("admin CRUD shared catalog va item tren UI", async ({ page, request }) => {
   await itemRow.getByTestId(`shared-catalog-item-edit-${item.id}`).click();
   await itemRow.getByTestId(`shared-catalog-item-edit-name-${item.id}`).fill(updatedItemName);
   await itemRow.getByTestId(`shared-catalog-item-edit-status-${item.id}`).selectOption("ACTIVE");
+  await itemRow.getByTestId(`shared-catalog-item-edit-scope-department-${item.id}`).selectOption(department!.id);
+  await itemRow.getByTestId(`shared-catalog-item-edit-manager-${item.id}`).selectOption(managerUser!.id);
   const itemUpdateResponse = page.waitForResponse((response) => response.url().includes(`/shared-catalog-items/${item.id}`) && response.request().method() === "PATCH");
   await itemRow.getByTestId(`shared-catalog-item-save-${item.id}`).click();
   await itemUpdateResponse;
