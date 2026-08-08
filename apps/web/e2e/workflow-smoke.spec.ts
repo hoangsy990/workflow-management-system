@@ -1014,6 +1014,8 @@ test("admin CRUD shared catalog va item tren UI", async ({ page, request }) => {
   const itemCode = `ITEM_${suffix}`;
   const itemName = `Gia tri ${suffix}`;
   const updatedItemName = `Gia tri ${suffix} update`;
+  const importItemCode = `IMP_${suffix}`;
+  const importItemName = `Import ${suffix}`;
   expect(department, "Seed department is required").toBeTruthy();
   expect(managerUser, "Seed manager user is required").toBeTruthy();
 
@@ -1078,6 +1080,22 @@ test("admin CRUD shared catalog va item tren UI", async ({ page, request }) => {
 
   const options = await apiGet<Record<string, any>[]>(request, admin, `/shared-catalogs/${catalogCode}/options`);
   expect(options.some((option) => option.value === itemCode && option.label === updatedItemName)).toBe(true);
+
+  await page.getByTestId("shared-catalog-import-catalog").selectOption(catalog.id);
+  await page
+    .getByTestId("shared-catalog-import-csv")
+    .fill(`code,name,status,departmentCode,managerEmployeeCode\n${importItemCode},${importItemName},ACTIVE,${department!.code},${managerUser!.employeeCode}`);
+  const importPreviewResponse = page.waitForResponse((response) => response.url().includes(`/shared-catalogs/${catalog.id}/items/import`) && response.request().method() === "POST");
+  await page.getByTestId("shared-catalog-import-preview").click();
+  await importPreviewResponse;
+  await expect(page.getByTestId("shared-catalog-import-summary")).toContainText("Hop le");
+  const importApplyResponse = page.waitForResponse((response) => response.url().includes(`/shared-catalogs/${catalog.id}/items/import`) && response.request().method() === "POST");
+  await page.getByTestId("shared-catalog-import-apply").click();
+  await importApplyResponse;
+  await expect(page.getByTestId("shared-catalog-import-summary")).toContainText("Da import");
+  await expect(catalogRow).toContainText(importItemCode);
+  const importedOptions = await apiGet<Record<string, any>[]>(request, admin, `/shared-catalogs/${catalogCode}/options`);
+  expect(importedOptions.some((option) => option.value === importItemCode && option.label === importItemName)).toBe(true);
 
   page.once("dialog", async (dialog) => {
     await dialog.accept();

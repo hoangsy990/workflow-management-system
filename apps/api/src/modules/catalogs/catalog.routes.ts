@@ -8,6 +8,7 @@ import {
   createSharedCatalogItem,
   deleteSharedCatalog,
   deleteSharedCatalogItem,
+  importSharedCatalogItemsFromCsv,
   listSharedCatalogOptions,
   listSharedCatalogs,
   updateSharedCatalog,
@@ -46,6 +47,11 @@ const catalogItemSchema = z.object({
   values: z.unknown().optional()
 });
 
+const catalogItemImportSchema = z.object({
+  csv: z.string().min(1).max(1_000_000),
+  apply: z.boolean().optional()
+});
+
 export async function catalogRoutes(app: FastifyInstance) {
   app.get("/shared-catalogs", { preHandler: requireAuth }, async (request) => listSharedCatalogs(prisma, request.auth!));
 
@@ -69,6 +75,12 @@ export async function catalogRoutes(app: FastifyInstance) {
     const params = parseParams(request, idParamSchema);
     const body = parseBody(request, catalogItemSchema);
     return createSharedCatalogItem(prisma, request.auth!, params.id, body, request.ip);
+  });
+
+  app.post("/shared-catalogs/:id/items/import", { preHandler: requirePermission("catalog.manage") }, async (request) => {
+    const params = parseParams(request, idParamSchema);
+    const body = parseBody(request, catalogItemImportSchema);
+    return importSharedCatalogItemsFromCsv(prisma, request.auth!, params.id, body, request.ip);
   });
 
   app.patch("/shared-catalog-items/:id", { preHandler: requirePermission("catalog.manage") }, async (request) => {

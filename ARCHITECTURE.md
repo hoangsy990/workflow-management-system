@@ -333,7 +333,7 @@ Mobile web/Tauri không được là bản PC thu nhỏ. Cần tiếp tục:
 
 ### 9.8. Kế hoạch kiểm thử mở rộng
 
-Đã có Playwright smoke suite cho web tại `apps/web/e2e/workflow-smoke.spec.ts`, chạy bằng `pnpm smoke:web` khi Docker API/web đang bật. Suite hiện pass `43/43` case trên Docker port `8099`, phủ login, accessibility cơ bản, mobile navigation/filter/offline, dashboard, báo cáo CSV/XLSX/PDF export audit, quản trị user/department/team/category/tag/shared catalog gồm scope/search/export CSV, tạo task/upload/download/progress/evaluation/redo, workflow submit/approve/reject/request-info/return/transfer và idempotency key chống duyệt trùng. GitHub Actions chạy `verify` và `smoke-web` trên `push`/`pull_request`.
+Đã có Playwright smoke suite cho web tại `apps/web/e2e/workflow-smoke.spec.ts`, chạy bằng `pnpm smoke:web` khi Docker API/web đang bật. Suite hiện pass `43/43` case trên Docker port `8099`, phủ login, accessibility cơ bản, mobile navigation/filter/offline, dashboard, báo cáo CSV/XLSX/PDF export audit, quản trị user/department/team/category/tag/shared catalog gồm scope/search/export/import CSV, tạo task/upload/download/progress/evaluation/redo, workflow submit/approve/reject/request-info/return/transfer và idempotency key chống duyệt trùng. GitHub Actions chạy `verify` và `smoke-web` trên `push`/`pull_request`.
 
 Ngoài Vitest hiện có, cần thêm UI/e2e suite:
 

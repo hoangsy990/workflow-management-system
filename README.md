@@ -115,7 +115,7 @@ Màn `Tạo mẫu quy trình` hỗ trợ metadata versioned cho từng field: ta
 
 Khi tạo hồ sơ, web render form theo tab/section responsive, tự ẩn/hiện field theo dữ liệu đang nhập và khóa field calculated. Backend cũng áp calculated values và bỏ validation field đang bị ẩn, nên quy tắc không chỉ nằm ở giao diện. Repeating table editor nhiều dòng và nguồn select từ danh mục tùy chỉnh vẫn đang ở trạng thái phát triển tiếp.
 
-Danh mục tùy chỉnh dùng chung có schema/API nền tảng qua `/api/v1/shared-catalogs` và `/api/v1/shared-catalogs/:idOrCode/options`. Mỗi catalog có `fields`, `status`, `scopeDepartmentId`, `managerId` và item values JSON. Trang `Danh mục` có UI tạo/sửa/xóa catalog và item, picker phạm vi phòng ban/người quản lý, search và export CSV dữ liệu đang lọc. Seed development có catalog `REQUEST_TYPES`; workflow SELECT/RADIO có thể lưu nguồn này trong `validation.catalogSource`, và runtime form sẽ tải options theo catalog code để render dropdown/radio.
+Danh mục tùy chỉnh dùng chung có schema/API nền tảng qua `/api/v1/shared-catalogs` và `/api/v1/shared-catalogs/:idOrCode/options`. Mỗi catalog có `fields`, `status`, `scopeDepartmentId`, `managerId` và item values JSON. Trang `Danh mục` có UI tạo/sửa/xóa catalog và item, picker phạm vi phòng ban/người quản lý, search, export CSV dữ liệu đang lọc và import CSV item có preview/transaction. Seed development có catalog `REQUEST_TYPES`; workflow SELECT/RADIO có thể lưu nguồn này trong `validation.catalogSource`, và runtime form sẽ tải options theo catalog code để render dropdown/radio.
 
 ## Báo cáo và export
 
@@ -255,7 +255,7 @@ pnpm smoke:web
 DATABASE_URL=postgresql://workflow:workflow@localhost:5432/workflow_management?schema=public pnpm db:validate
 ```
 
-`pnpm smoke:web` chạy Playwright trên web `http://localhost:8099` và API `http://localhost:4000/api/v1`, vì vậy hãy chạy `docker compose up -d --build` trước. Docker Compose đã được kiểm tra với API, web và PostgreSQL. Lần verify gần nhất pass `43/43` smoke cases, gồm CRUD shared catalog/item với scope/search/export và report CSV/XLSX/PDF export audit. Trạng thái hiện tại được ghi lại trong [`CHECKLIST.md`](CHECKLIST.md).
+`pnpm smoke:web` chạy Playwright trên web `http://localhost:8099` và API `http://localhost:4000/api/v1`, vì vậy hãy chạy `docker compose up -d --build` trước. Docker Compose đã được kiểm tra với API, web và PostgreSQL. Lần verify gần nhất pass `43/43` smoke cases, gồm CRUD shared catalog/item với scope/search/export/import CSV và report CSV/XLSX/PDF export audit. Trạng thái hiện tại được ghi lại trong [`CHECKLIST.md`](CHECKLIST.md).
 
 ## CI GitHub Actions
 

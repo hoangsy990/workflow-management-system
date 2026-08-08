@@ -2,6 +2,11 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import type { AuthContext } from "../../types/fastify.js";
 import { conflict, notFound } from "../../http/errors.js";
 import { writeAuditLog } from "../audit/audit.service.js";
+import {
+  buildCatalogItemImportPreview,
+  parseCatalogItemImportCsv,
+  type CatalogItemImportPreviewRow
+} from "./catalog-import.js";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -44,6 +49,10 @@ function normalizeCode(value: string) {
 
 function normalizeFieldCode(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function lowerKey(value?: string | null) {
+  return (value ?? "").trim().toLowerCase();
 }
 
 function departmentScopeFilter(departmentId?: string | null) {
@@ -258,6 +267,69 @@ export async function createSharedCatalogItem(db: PrismaClient, auth: AuthContex
 
     return item;
   });
+}
+
+export async function importSharedCatalogItemsFromCsv(
+  db: PrismaClient,
+  auth: AuthContext,
+  catalogId: string,
+  input: { csv: string; apply?: boolean },
+  ipAddress?: string
+) {
+  const catalog = await db.sharedCatalog.findFirst({ where: { id: catalogId, deletedAt: null }, select: { id: true, code: true, scopeDepartmentId: true, managerId: true } });
+  if (!catalog) throw notFound("Không tìm thấy danh mục tùy chỉnh.");
+
+  const records = parseCatalogItemImportCsv(input.csv);
+  const [items, departments, users] = await Promise.all([
+    db.sharedCatalogItem.findMany({ where: { catalogId, deletedAt: null }, select: { code: true } }),
+    db.department.findMany({ where: { deletedAt: null }, select: { id: true, code: true } }),
+    db.user.findMany({ where: { deletedAt: null }, select: { id: true, employeeCode: true } })
+  ]);
+  const departmentsByCode = new Map(departments.map((department) => [lowerKey(department.code), department]));
+  const usersByCode = new Map(users.map((user) => [lowerKey(user.employeeCode), user]));
+  const preview = buildCatalogItemImportPreview(records, {
+    existingCodes: new Set(items.map((item) => lowerKey(item.code))),
+    departmentCodes: new Set(departments.map((department) => lowerKey(department.code))),
+    managerEmployeeCodes: new Set(users.map((user) => lowerKey(user.employeeCode)))
+  });
+
+  if (!input.apply || !preview.canApply) {
+    return { ...preview, applied: 0 };
+  }
+
+  const validRows = preview.rows.filter((row): row is CatalogItemImportPreviewRow & { status: "VALID" } => row.status === "VALID");
+  const created = await db.$transaction(async (tx) => {
+    for (const row of validRows) {
+      await tx.sharedCatalogItem.create({
+        data: {
+          catalogId,
+          code: normalizeCode(row.code),
+          name: row.name.trim(),
+          status: row.statusValue,
+          scopeDepartmentId: row.departmentCode ? departmentsByCode.get(lowerKey(row.departmentCode))?.id : catalog.scopeDepartmentId,
+          managerId: row.managerEmployeeCode ? usersByCode.get(lowerKey(row.managerEmployeeCode))?.id : catalog.managerId,
+          createdById: auth.userId
+        }
+      });
+    }
+
+    await writeAuditLog(tx, {
+      actorId: auth.userId,
+      action: "shared_catalog_item.import",
+      entityType: "shared_catalog_items",
+      entityId: catalogId,
+      ipAddress,
+      metadata: {
+        catalogCode: catalog.code,
+        totalRows: preview.summary.total,
+        importedRows: validRows.length
+      }
+    });
+
+    return validRows.length;
+  });
+
+  return { ...preview, applied: created };
 }
 
 export async function updateSharedCatalogItem(db: PrismaClient, auth: AuthContext, id: string, input: Partial<SharedCatalogItemInput>, ipAddress?: string) {

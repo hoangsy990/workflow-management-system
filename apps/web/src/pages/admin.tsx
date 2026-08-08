@@ -1459,6 +1459,9 @@ export function CatalogsPage() {
   const [tagForm, setTagForm] = useState({ ...emptyTagForm });
   const [sharedCatalogForm, setSharedCatalogForm] = useState({ ...emptySharedCatalogForm });
   const [sharedCatalogItemForm, setSharedCatalogItemForm] = useState({ ...emptySharedCatalogItemForm });
+  const [sharedCatalogImportForm, setSharedCatalogImportForm] = useState({ catalogId: "", csv: "" });
+  const [sharedCatalogImportFileName, setSharedCatalogImportFileName] = useState("");
+  const [sharedCatalogImportPreview, setSharedCatalogImportPreview] = useState<Record<string, any> | null>(null);
   const [sharedCatalogKeyword, setSharedCatalogKeyword] = useState("");
   const [editingCategoryId, setEditingCategoryId] = useState("");
   const [editingCategory, setEditingCategory] = useState({ ...emptyCategoryForm });
@@ -1523,6 +1526,54 @@ export function CatalogsPage() {
       }
     }
     downloadCsv(`shared-catalogs-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+  }
+
+  async function handleSharedCatalogImportFile(file?: File) {
+    if (!file) return;
+    if (file.size > 1_000_000) {
+      setFormError("File import catalog toi da 1MB.");
+      return;
+    }
+    const text = await file.text();
+    setSharedCatalogImportForm((current) => ({ ...current, csv: text }));
+    setSharedCatalogImportFileName(file.name);
+    setSharedCatalogImportPreview(null);
+  }
+
+  async function previewSharedCatalogImport() {
+    if (!sharedCatalogImportForm.catalogId || !sharedCatalogImportForm.csv.trim()) {
+      setFormError("Vui long chon catalog va nhap CSV import.");
+      return;
+    }
+    setBusy("shared-catalog-import-preview");
+    setMessage("");
+    setFormError("");
+    try {
+      const preview = await api.importSharedCatalogItems(sharedCatalogImportForm.catalogId, { csv: sharedCatalogImportForm.csv, apply: false });
+      setSharedCatalogImportPreview(preview);
+      setMessage("Da doc preview import catalog.");
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Khong doc duoc CSV import.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function applySharedCatalogImport() {
+    if (!sharedCatalogImportForm.catalogId || !sharedCatalogImportForm.csv.trim() || !sharedCatalogImportPreview?.canApply) return;
+    setBusy("shared-catalog-import-apply");
+    setMessage("");
+    setFormError("");
+    try {
+      const result = await api.importSharedCatalogItems(sharedCatalogImportForm.catalogId, { csv: sharedCatalogImportForm.csv, apply: true });
+      setSharedCatalogImportPreview(result);
+      setMessage(`Da import ${result.applied ?? 0} gia tri catalog.`);
+      await reloadCatalogs();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Khong import duoc gia tri catalog.");
+    } finally {
+      setBusy("");
+    }
   }
 
   async function submitCategory(event: FormEvent) {
@@ -2119,6 +2170,100 @@ export function CatalogsPage() {
             </button>
           </form>
         </div>
+        <section className="catalog-import-section form-stack" data-testid="shared-catalog-import-panel">
+          <div className="panel-head wrap">
+            <h3>Import gia tri catalog</h3>
+            {sharedCatalogImportFileName && <span className="status-chip">{sharedCatalogImportFileName}</span>}
+          </div>
+          <div className="form-grid compact-form">
+            <label>
+              Catalog
+              <select
+                data-testid="shared-catalog-import-catalog"
+                value={sharedCatalogImportForm.catalogId}
+                onChange={(event) => {
+                  setSharedCatalogImportForm({ ...sharedCatalogImportForm, catalogId: event.target.value });
+                  setSharedCatalogImportPreview(null);
+                }}
+              >
+                <option value="">Chon catalog</option>
+                {(sharedCatalogs.data ?? []).map((catalog) => (
+                  <option key={catalog.id} value={catalog.id}>
+                    {catalog.name} ({catalog.code})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              File CSV
+              <input data-testid="shared-catalog-import-file" type="file" accept=".csv,text/csv" onChange={(event) => void handleSharedCatalogImportFile(event.currentTarget.files?.[0])} />
+            </label>
+            <label className="full">
+              Noi dung CSV
+              <textarea
+                data-testid="shared-catalog-import-csv"
+                rows={4}
+                placeholder="code,name,status,departmentCode,managerEmployeeCode"
+                value={sharedCatalogImportForm.csv}
+                onChange={(event) => {
+                  setSharedCatalogImportForm({ ...sharedCatalogImportForm, csv: event.target.value });
+                  setSharedCatalogImportPreview(null);
+                }}
+              />
+              <small>Header ho tro: code,name,status,departmentCode,managerEmployeeCode.</small>
+            </label>
+          </div>
+          {sharedCatalogImportPreview && (
+            <div className="stack-list" data-testid="shared-catalog-import-summary">
+              <span>
+                Tong dong <strong>{sharedCatalogImportPreview.summary?.total ?? 0}</strong>
+              </span>
+              <span>
+                Hop le <strong>{sharedCatalogImportPreview.summary?.valid ?? 0}</strong>
+              </span>
+              <span>
+                Loi <strong>{sharedCatalogImportPreview.summary?.invalid ?? 0}</strong>
+              </span>
+              {typeof sharedCatalogImportPreview.applied === "number" && sharedCatalogImportPreview.applied > 0 && (
+                <span>
+                  Da import <strong>{sharedCatalogImportPreview.applied}</strong>
+                </span>
+              )}
+            </div>
+          )}
+          {sharedCatalogImportPreview?.rows?.length ? (
+            <DataTable
+              columns={["Dong", "Ma", "Ten", "Trang thai", "Loi"]}
+              rows={sharedCatalogImportPreview.rows.slice(0, 6).map((row: Record<string, any>) => ({
+                key: String(row.rowNumber),
+                testId: `shared-catalog-import-row-${row.rowNumber}`,
+                cells: [row.rowNumber, row.code, row.name, row.status, row.errors?.join("; ") || "OK"]
+              }))}
+            />
+          ) : null}
+          <div className="row-actions">
+            <button
+              className="ghost-button"
+              data-testid="shared-catalog-import-preview"
+              type="button"
+              disabled={!sharedCatalogImportForm.catalogId || !sharedCatalogImportForm.csv.trim() || busy === "shared-catalog-import-preview"}
+              onClick={() => void previewSharedCatalogImport()}
+            >
+              {busy === "shared-catalog-import-preview" ? <Loader2 className="spin" size={16} /> : <Upload size={16} />}
+              Xem truoc
+            </button>
+            <button
+              className="primary-button"
+              data-testid="shared-catalog-import-apply"
+              type="button"
+              disabled={!sharedCatalogImportPreview?.canApply || busy === "shared-catalog-import-apply"}
+              onClick={() => void applySharedCatalogImport()}
+            >
+              {busy === "shared-catalog-import-apply" ? <Loader2 className="spin" size={16} /> : <Save size={16} />}
+              Import
+            </button>
+          </div>
+        </section>
         <div className="toolbar wrap">
           <label className="search-inline">
             Tim catalog

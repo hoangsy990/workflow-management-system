@@ -391,6 +391,14 @@ export const api = {
     clearApiCache(`/shared-catalogs/${catalogId}/options`);
     return result;
   },
+  importSharedCatalogItems: async (catalogId: string, payload: { csv: string; apply?: boolean }) => {
+    const result = await apiRequest<Record<string, any>>(`/shared-catalogs/${catalogId}/items/import`, { method: "POST", body: JSON.stringify(payload) });
+    if (payload.apply) {
+      clearApiCache("/shared-catalogs");
+      clearApiCache(`/shared-catalogs/${catalogId}/options`);
+    }
+    return result;
+  },
   updateSharedCatalogItem: async (id: string, payload: Record<string, unknown>) => {
     const result = await apiRequest<Record<string, any>>(`/shared-catalog-items/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
     clearApiCache("/shared-catalogs");

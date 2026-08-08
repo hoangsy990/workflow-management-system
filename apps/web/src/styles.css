@@ -1556,6 +1556,12 @@ tbody tr:hover {
   min-width: 120px;
 }
 
+.catalog-import-section {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
 .workflow-designer {
   background: color-mix(in srgb, var(--panel-soft) 58%, var(--panel));
 }
