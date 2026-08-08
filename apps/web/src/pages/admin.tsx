@@ -1,4 +1,4 @@
-import { Edit3, Loader2, Plus, Save, Trash2, XCircle } from "lucide-react";
+import { Edit3, Loader2, Plus, Save, Trash2, Upload, XCircle } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock, MultiCheck } from "../components/common";
@@ -138,6 +138,17 @@ function buildUserEditForm(user: Record<string, any>) {
   };
 }
 
+type UserImportPreview = {
+  rows: Array<Record<string, any>>;
+  summary: {
+    total: number;
+    valid: number;
+    invalid: number;
+  };
+  canApply: boolean;
+  applied?: number;
+};
+
 export function UsersPage() {
   const { data, loading, error, reload } = useAsyncData(() => api.users(), []);
   const departments = useAsyncData(() => api.departments(), []);
@@ -150,6 +161,12 @@ export function UsersPage() {
   const [updating, setUpdating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [updateError, setUpdateError] = useState("");
+  const [importCsv, setImportCsv] = useState("");
+  const [importFileName, setImportFileName] = useState("");
+  const [importPreview, setImportPreview] = useState<UserImportPreview | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importApplying, setImportApplying] = useState(false);
+  const [importError, setImportError] = useState("");
 
   const users = useMemo(() => data?.data ?? [], [data]);
   const selectedUser = useMemo(() => users.find((user) => user.id === selectedId), [users, selectedId]);
@@ -215,6 +232,60 @@ export function UsersPage() {
     }
   }
 
+  async function loadImportFile(file?: File) {
+    setImportError("");
+    setImportPreview(null);
+    if (!file) {
+      setImportCsv("");
+      setImportFileName("");
+      return;
+    }
+    setImportFileName(file.name);
+    const lowerName = file.name.toLowerCase();
+    const isCsv = lowerName.endsWith(".csv") || file.type === "text/csv" || file.type.startsWith("text/");
+    if (!isCsv) {
+      setImportCsv("");
+      setImportError("Phiên bản này hỗ trợ CSV; XLSX sẽ được nối ở giai đoạn sau.");
+      return;
+    }
+    if (file.size > 1_000_000) {
+      setImportCsv("");
+      setImportError("File import tối đa 1MB.");
+      return;
+    }
+    setImportCsv(await file.text());
+  }
+
+  async function previewImportUsers() {
+    if (!importCsv.trim() || importLoading) return;
+    setImportLoading(true);
+    setImportError("");
+    try {
+      const preview = await api.importUsers({ csv: importCsv, apply: false });
+      setImportPreview(preview as UserImportPreview);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Không đọc được file import.");
+    } finally {
+      setImportLoading(false);
+    }
+  }
+
+  async function applyImportUsers() {
+    if (!importCsv.trim() || !importPreview?.canApply || importApplying) return;
+    if (!window.confirm("Xác nhận nhập các tài khoản hợp lệ từ file này?")) return;
+    setImportApplying(true);
+    setImportError("");
+    try {
+      const result = await api.importUsers({ csv: importCsv, apply: true });
+      setImportPreview(result as UserImportPreview);
+      await reload();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Không nhập được dữ liệu người dùng.");
+    } finally {
+      setImportApplying(false);
+    }
+  }
+
   if (loading) return <LoadingBlock />;
   if (error) return <ErrorBlock message={error} />;
 
@@ -264,6 +335,89 @@ export function UsersPage() {
           {"Lưu người dùng"}
         </button>
       </form>
+
+      <section className="panel form-stack" data-testid="user-import-panel">
+        <div className="panel-head wrap">
+          <div>
+            <h2>{"Nhập người dùng"}</h2>
+            <p>{"CSV: employeeCode, fullName, email, phone, title, departmentCode, managerEmployeeCode, roleCodes, teamCodes, password"}</p>
+          </div>
+          <Upload size={18} />
+        </div>
+        <input
+          data-testid="user-import-file"
+          type="file"
+          accept=".csv,text/csv"
+          onChange={(event) => void loadImportFile(event.target.files?.[0])}
+        />
+        {importFileName && <span className="muted-text">{importFileName}</span>}
+        <textarea
+          data-testid="user-import-csv"
+          placeholder="employeeCode,fullName,email,departmentCode,roleCodes"
+          value={importCsv}
+          onChange={(event) => {
+            setImportCsv(event.target.value);
+            setImportPreview(null);
+          }}
+        />
+        {importError && <p className="form-error">{importError}</p>}
+        {importPreview && (
+          <div className="stack-list" data-testid="user-import-summary">
+            <span>
+              {"Tổng dòng "}
+              <strong>{importPreview.summary.total}</strong>
+            </span>
+            <span>
+              {"Hợp lệ "}
+              <strong>{importPreview.summary.valid}</strong>
+            </span>
+            <span>
+              {"Lỗi "}
+              <strong>{importPreview.summary.invalid}</strong>
+            </span>
+            {typeof importPreview.applied === "number" && importPreview.applied > 0 && (
+              <span>
+                {"Đã nhập "}
+                <strong>{importPreview.applied}</strong>
+              </span>
+            )}
+          </div>
+        )}
+        {importPreview?.rows?.length ? (
+          <DataTable
+            columns={["Dòng", "Mã", "Họ tên", "Email", "Phòng ban", "Vai trò", "Trạng thái"]}
+            rows={importPreview.rows.slice(0, 8).map((row) => ({
+              key: String(row.rowNumber),
+              testId: `user-import-row-${row.rowNumber}`,
+              cells: [
+                row.rowNumber,
+                row.employeeCode,
+                row.fullName,
+                row.email,
+                row.departmentCode ?? "",
+                (row.roleCodes ?? []).join(", "),
+                row.status === "VALID" ? "Hợp lệ" : (row.errors ?? []).join(" ")
+              ]
+            }))}
+          />
+        ) : null}
+        <div className="form-actions">
+          <button className="ghost-button" data-testid="user-import-preview" type="button" disabled={!importCsv.trim() || importLoading} onClick={previewImportUsers}>
+            {importLoading && <Loader2 className="spin" size={16} />}
+            {"Xem trước"}
+          </button>
+          <button
+            className="primary-button"
+            data-testid="user-import-apply"
+            type="button"
+            disabled={!importPreview?.canApply || importApplying}
+            onClick={applyImportUsers}
+          >
+            {importApplying && <Loader2 className="spin" size={16} />}
+            {"Nhập dữ liệu"}
+          </button>
+        </div>
+      </section>
 
       <section className="panel wide">
         <div className="panel-head">
@@ -512,6 +666,9 @@ export function DepartmentsPage() {
   const [updateError, setUpdateError] = useState("");
   const [teamCreateError, setTeamCreateError] = useState("");
   const [teamUpdateError, setTeamUpdateError] = useState("");
+  const [movingDepartmentId, setMovingDepartmentId] = useState("");
+  const [moveError, setMoveError] = useState("");
+  const [moveLoading, setMoveLoading] = useState(false);
 
   const departments = useMemo(() => data ?? [], [data]);
   const usersList = useMemo(() => users.data?.data ?? [], [users.data]);
@@ -595,6 +752,28 @@ export function DepartmentsPage() {
       setUpdateError(err instanceof Error ? err.message : "Không cập nhật được phòng ban.");
     } finally {
       setUpdating(false);
+    }
+  }
+
+  async function moveDepartment(departmentId: string, parentId: string | null) {
+    if (moveLoading || departmentId === parentId) return;
+    const department = departments.find((item) => item.id === departmentId);
+    if (!department) return;
+    const descendantIds = collectDepartmentDescendantIds(departments, departmentId);
+    if (parentId && descendantIds.has(parentId)) {
+      setMoveError("Không thể chuyển phòng ban vào chính nhánh con của nó.");
+      return;
+    }
+    setMoveLoading(true);
+    setMoveError("");
+    try {
+      await api.updateDepartment(departmentId, { parentId });
+      await reload();
+    } catch (err) {
+      setMoveError(err instanceof Error ? err.message : "Không chuyển được phòng ban.");
+    } finally {
+      setMoveLoading(false);
+      setMovingDepartmentId("");
     }
   }
 
@@ -685,6 +864,19 @@ export function DepartmentsPage() {
           <p className="empty-text">Chưa có phòng ban.</p>
         ) : (
           <div className="org-chart">
+            <div
+              className={cls("org-drop-root", movingDepartmentId && "active")}
+              data-testid="organization-root-drop"
+              onDragOver={(event) => {
+                if (movingDepartmentId) event.preventDefault();
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                void moveDepartment(event.dataTransfer.getData("text/plain"), null);
+              }}
+            >
+              {"Đưa về cấp gốc"}
+            </div>
             {departmentRows.map(({ department, depth }) => {
               const departmentUsers = usersByDepartment.get(department.id) ?? [];
               const departmentTeams = teamsByDepartment.get(department.id) ?? [];
@@ -692,10 +884,27 @@ export function DepartmentsPage() {
                 <button
                   key={department.id}
                   type="button"
-                  className={cls("org-node", selectedId === department.id && "active")}
+                  className={cls("org-node", selectedId === department.id && "active", movingDepartmentId === department.id && "moving")}
                   style={{ paddingLeft: `${14 + depth * 22}px` }}
                   data-testid={`organization-node-${department.id}`}
+                  draggable
                   onClick={() => setSelectedId(department.id)}
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", department.id);
+                    setMovingDepartmentId(department.id);
+                  }}
+                  onDragEnd={() => setMovingDepartmentId("")}
+                  onDragOver={(event) => {
+                    if (movingDepartmentId && movingDepartmentId !== department.id) {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                    }
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    void moveDepartment(event.dataTransfer.getData("text/plain"), department.id);
+                  }}
                 >
                   <span className="org-node-line" />
                   <span className="org-node-main">
@@ -716,6 +925,8 @@ export function DepartmentsPage() {
             })}
           </div>
         )}
+        {moveError && <p className="form-error">{moveError}</p>}
+        {moveLoading && <p className="muted-text">{"Đang chuyển phòng ban..."}</p>}
       </section>
 
       <section className="panel wide">
@@ -1186,25 +1397,65 @@ export function LogsPage() {
 
 const emptyCategoryForm = { code: "", name: "", description: "" };
 const emptyTagForm = { name: "", color: "#2563eb" };
+const emptySharedCatalogForm = {
+  code: "",
+  name: "",
+  description: "",
+  status: "ACTIVE",
+  fieldsText: "code|Mã|SHORT_TEXT|required\nname|Tên|SHORT_TEXT|required"
+};
+const emptySharedCatalogItemForm = { catalogId: "", code: "", name: "", status: "ACTIVE" };
+
+function parseSharedCatalogFields(value: string) {
+  return value
+    .split(/\n/)
+    .map((row) => row.trim())
+    .filter(Boolean)
+    .map((row, index) => {
+      const [rawCode = "", rawName = "", rawType = "SHORT_TEXT", rawRequired = ""] = row.split("|").map((part) => part.trim());
+      return {
+        code: rawCode,
+        name: rawName || rawCode,
+        type: rawType || "SHORT_TEXT",
+        isRequired: rawRequired === "required" || rawRequired === "true" || rawRequired === "bat_buoc",
+        displayOrder: index + 1
+      };
+    });
+}
+
+function formatSharedCatalogFields(fields: Record<string, any>[] | undefined) {
+  return (fields ?? [])
+    .slice()
+    .sort((left, right) => Number(left.displayOrder ?? 0) - Number(right.displayOrder ?? 0))
+    .map((field) => [field.code, field.name, field.type ?? "SHORT_TEXT", field.isRequired ? "required" : ""].join("|").replace(/\|$/, ""))
+    .join("\n");
+}
 
 export function CatalogsPage() {
   const categories = useAsyncData(() => api.taskCategories(), []);
   const tags = useAsyncData(() => api.tags(), []);
+  const sharedCatalogs = useAsyncData(() => api.sharedCatalogs().catch(() => []), []);
   const [categoryForm, setCategoryForm] = useState({ ...emptyCategoryForm });
   const [tagForm, setTagForm] = useState({ ...emptyTagForm });
+  const [sharedCatalogForm, setSharedCatalogForm] = useState({ ...emptySharedCatalogForm });
+  const [sharedCatalogItemForm, setSharedCatalogItemForm] = useState({ ...emptySharedCatalogItemForm });
   const [editingCategoryId, setEditingCategoryId] = useState("");
   const [editingCategory, setEditingCategory] = useState({ ...emptyCategoryForm });
   const [editingTagId, setEditingTagId] = useState("");
   const [editingTag, setEditingTag] = useState({ ...emptyTagForm });
+  const [editingSharedCatalogId, setEditingSharedCatalogId] = useState("");
+  const [editingSharedCatalog, setEditingSharedCatalog] = useState({ ...emptySharedCatalogForm });
+  const [editingSharedCatalogItemId, setEditingSharedCatalogItemId] = useState("");
+  const [editingSharedCatalogItem, setEditingSharedCatalogItem] = useState({ ...emptySharedCatalogItemForm });
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [formError, setFormError] = useState("");
 
-  const loading = categories.loading || tags.loading;
-  const error = categories.error || tags.error;
+  const loading = categories.loading || tags.loading || sharedCatalogs.loading;
+  const error = categories.error || tags.error || sharedCatalogs.error;
 
   async function reloadCatalogs() {
-    await Promise.all([categories.reload(), tags.reload()]);
+    await Promise.all([categories.reload(), tags.reload(), sharedCatalogs.reload()]);
   }
 
   async function submitCategory(event: FormEvent) {
@@ -1243,6 +1494,75 @@ export function CatalogsPage() {
     } finally {
       setBusy("");
     }
+  }
+
+  async function submitSharedCatalog(event: FormEvent) {
+    event.preventDefault();
+    setBusy("shared-catalog-create");
+    setMessage("");
+    setFormError("");
+    try {
+      await api.createSharedCatalog({
+        code: sharedCatalogForm.code,
+        name: sharedCatalogForm.name,
+        description: sharedCatalogForm.description || undefined,
+        status: sharedCatalogForm.status,
+        fields: parseSharedCatalogFields(sharedCatalogForm.fieldsText)
+      });
+      setSharedCatalogForm({ ...emptySharedCatalogForm });
+      setMessage("Da tao danh muc tuy chinh.");
+      await reloadCatalogs();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Khong tao duoc danh muc tuy chinh.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function submitSharedCatalogItem(event: FormEvent) {
+    event.preventDefault();
+    if (!sharedCatalogItemForm.catalogId) {
+      setFormError("Vui long chon danh muc tuy chinh.");
+      return;
+    }
+    setBusy("shared-catalog-item-create");
+    setMessage("");
+    setFormError("");
+    try {
+      await api.createSharedCatalogItem(sharedCatalogItemForm.catalogId, {
+        code: sharedCatalogItemForm.code,
+        name: sharedCatalogItemForm.name,
+        status: sharedCatalogItemForm.status
+      });
+      setSharedCatalogItemForm({ ...emptySharedCatalogItemForm });
+      setMessage("Da them gia tri danh muc tuy chinh.");
+      await reloadCatalogs();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Khong tao duoc gia tri danh muc.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function editSharedCatalog(catalog: Record<string, any>) {
+    setEditingSharedCatalogId(catalog.id);
+    setEditingSharedCatalog({
+      code: catalog.code ?? "",
+      name: catalog.name ?? "",
+      description: catalog.description ?? "",
+      status: catalog.status ?? "ACTIVE",
+      fieldsText: formatSharedCatalogFields(catalog.fields)
+    });
+  }
+
+  function editSharedCatalogItem(item: Record<string, any>, catalogId: string) {
+    setEditingSharedCatalogItemId(item.id);
+    setEditingSharedCatalogItem({
+      catalogId,
+      code: item.code ?? "",
+      name: item.name ?? "",
+      status: item.status ?? "ACTIVE"
+    });
   }
 
   function editCategory(category: Record<string, any>) {
@@ -1298,6 +1618,48 @@ export function CatalogsPage() {
     }
   }
 
+  async function saveSharedCatalog(id: string) {
+    setBusy(`shared-catalog-${id}`);
+    setMessage("");
+    setFormError("");
+    try {
+      await api.updateSharedCatalog(id, {
+        code: editingSharedCatalog.code,
+        name: editingSharedCatalog.name,
+        description: editingSharedCatalog.description || null,
+        status: editingSharedCatalog.status,
+        fields: parseSharedCatalogFields(editingSharedCatalog.fieldsText)
+      });
+      setEditingSharedCatalogId("");
+      setMessage("Da cap nhat danh muc tuy chinh.");
+      await reloadCatalogs();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Khong cap nhat duoc danh muc tuy chinh.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function saveSharedCatalogItem(id: string) {
+    setBusy(`shared-catalog-item-${id}`);
+    setMessage("");
+    setFormError("");
+    try {
+      await api.updateSharedCatalogItem(id, {
+        code: editingSharedCatalogItem.code,
+        name: editingSharedCatalogItem.name,
+        status: editingSharedCatalogItem.status
+      });
+      setEditingSharedCatalogItemId("");
+      setMessage("Da cap nhat gia tri danh muc.");
+      await reloadCatalogs();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Khong cap nhat duoc gia tri danh muc.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function deleteCategory(category: Record<string, any>) {
     if (!window.confirm(`Xóa danh mục "${category.name}" khỏi danh sách chọn? Công việc cũ vẫn giữ lịch sử danh mục.`)) return;
     setBusy(`category-delete-${category.id}`);
@@ -1325,6 +1687,38 @@ export function CatalogsPage() {
       await reloadCatalogs();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Không xóa được nhãn công việc.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function deleteSharedCatalog(catalog: Record<string, any>) {
+    if (!window.confirm(`Xoa catalog "${catalog.name}" va an cac gia tri dang dung?`)) return;
+    setBusy(`shared-catalog-delete-${catalog.id}`);
+    setMessage("");
+    setFormError("");
+    try {
+      await api.deleteSharedCatalog(catalog.id);
+      setMessage("Da xoa danh muc tuy chinh.");
+      await reloadCatalogs();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Khong xoa duoc danh muc tuy chinh.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function deleteSharedCatalogItem(item: Record<string, any>) {
+    if (!window.confirm(`Xoa gia tri "${item.name}" khoi catalog?`)) return;
+    setBusy(`shared-catalog-item-delete-${item.id}`);
+    setMessage("");
+    setFormError("");
+    try {
+      await api.deleteSharedCatalogItem(item.id);
+      setMessage("Da xoa gia tri danh muc.");
+      await reloadCatalogs();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Khong xoa duoc gia tri danh muc.");
     } finally {
       setBusy("");
     }
@@ -1485,6 +1879,214 @@ export function CatalogsPage() {
                       <button className="danger-button compact" data-testid={`catalog-tag-delete-${tag.id}`} type="button" disabled={busy === `tag-delete-${tag.id}`} onClick={() => void deleteTag(tag)}>
                         {busy === `tag-delete-${tag.id}` ? <Loader2 className="spin" size={14} /> : <Trash2 size={14} />}
                         Xóa
+                      </button>
+                    </>
+                  )}
+                </div>
+              ]
+            };
+          })}
+        />
+      </section>
+      <section className="panel wide">
+        <div className="panel-head wrap">
+          <h2>Danh muc tuy chinh</h2>
+          <span className="status-chip">{sharedCatalogs.data?.length ?? 0} catalog</span>
+        </div>
+        <div className="catalog-admin-grid">
+          <form className="form-grid compact-form" onSubmit={submitSharedCatalog}>
+            <label>
+              Ma catalog
+              <input
+                data-testid="shared-catalog-code"
+                required
+                pattern="[A-Za-z0-9_-]{2,80}"
+                value={sharedCatalogForm.code}
+                onChange={(event) => setSharedCatalogForm({ ...sharedCatalogForm, code: event.target.value })}
+              />
+            </label>
+            <label>
+              Ten catalog
+              <input
+                data-testid="shared-catalog-name"
+                required
+                value={sharedCatalogForm.name}
+                onChange={(event) => setSharedCatalogForm({ ...sharedCatalogForm, name: event.target.value })}
+              />
+            </label>
+            <label>
+              Trang thai
+              <select data-testid="shared-catalog-status" value={sharedCatalogForm.status} onChange={(event) => setSharedCatalogForm({ ...sharedCatalogForm, status: event.target.value })}>
+                <option value="ACTIVE">Dang dung</option>
+                <option value="INACTIVE">Tam dung</option>
+              </select>
+            </label>
+            <label className="full">
+              Mo ta
+              <textarea value={sharedCatalogForm.description} onChange={(event) => setSharedCatalogForm({ ...sharedCatalogForm, description: event.target.value })} />
+            </label>
+            <label className="full">
+              Fields
+              <textarea
+                data-testid="shared-catalog-fields"
+                rows={4}
+                value={sharedCatalogForm.fieldsText}
+                onChange={(event) => setSharedCatalogForm({ ...sharedCatalogForm, fieldsText: event.target.value })}
+              />
+              <small>Moi dong: code|Ten|SHORT_TEXT/NUMBER/CURRENCY/DATE/BOOLEAN/SELECT|required</small>
+            </label>
+            <button className="primary-button full" data-testid="shared-catalog-create-save" type="submit" disabled={busy === "shared-catalog-create"}>
+              {busy === "shared-catalog-create" ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
+              Tao catalog
+            </button>
+          </form>
+          <form className="form-grid compact-form" onSubmit={submitSharedCatalogItem}>
+            <label className="full">
+              Catalog
+              <select
+                data-testid="shared-catalog-item-catalog"
+                required
+                value={sharedCatalogItemForm.catalogId}
+                onChange={(event) => setSharedCatalogItemForm({ ...sharedCatalogItemForm, catalogId: event.target.value })}
+              >
+                <option value="">Chon catalog</option>
+                {(sharedCatalogs.data ?? []).map((catalog) => (
+                  <option key={catalog.id} value={catalog.id}>
+                    {catalog.name} ({catalog.code})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Ma gia tri
+              <input
+                data-testid="shared-catalog-item-code"
+                required
+                value={sharedCatalogItemForm.code}
+                onChange={(event) => setSharedCatalogItemForm({ ...sharedCatalogItemForm, code: event.target.value })}
+              />
+            </label>
+            <label>
+              Ten hien thi
+              <input
+                data-testid="shared-catalog-item-name"
+                required
+                value={sharedCatalogItemForm.name}
+                onChange={(event) => setSharedCatalogItemForm({ ...sharedCatalogItemForm, name: event.target.value })}
+              />
+            </label>
+            <label>
+              Trang thai
+              <select data-testid="shared-catalog-item-status" value={sharedCatalogItemForm.status} onChange={(event) => setSharedCatalogItemForm({ ...sharedCatalogItemForm, status: event.target.value })}>
+                <option value="ACTIVE">Dang dung</option>
+                <option value="INACTIVE">Tam dung</option>
+              </select>
+            </label>
+            <button className="primary-button full" data-testid="shared-catalog-item-create-save" type="submit" disabled={busy === "shared-catalog-item-create"}>
+              {busy === "shared-catalog-item-create" ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
+              Them gia tri
+            </button>
+          </form>
+        </div>
+        <DataTable
+          columns={["Ma", "Ten", "Trang thai", "Fields", "Items", "Thao tac"]}
+          rows={(sharedCatalogs.data ?? []).map((catalog) => {
+            const editing = editingSharedCatalogId === catalog.id;
+            return {
+              key: catalog.id,
+              testId: `shared-catalog-row-${catalog.id}`,
+              cells: [
+                editing ? (
+                  <input data-testid={`shared-catalog-edit-code-${catalog.id}`} value={editingSharedCatalog.code} onChange={(event) => setEditingSharedCatalog({ ...editingSharedCatalog, code: event.target.value })} />
+                ) : (
+                  catalog.code
+                ),
+                editing ? (
+                  <input data-testid={`shared-catalog-edit-name-${catalog.id}`} value={editingSharedCatalog.name} onChange={(event) => setEditingSharedCatalog({ ...editingSharedCatalog, name: event.target.value })} />
+                ) : (
+                  catalog.name
+                ),
+                editing ? (
+                  <select data-testid={`shared-catalog-edit-status-${catalog.id}`} value={editingSharedCatalog.status} onChange={(event) => setEditingSharedCatalog({ ...editingSharedCatalog, status: event.target.value })}>
+                    <option value="ACTIVE">Dang dung</option>
+                    <option value="INACTIVE">Tam dung</option>
+                  </select>
+                ) : (
+                  statusLabels[catalog.status] ?? catalog.status
+                ),
+                editing ? (
+                  <textarea
+                    data-testid={`shared-catalog-edit-fields-${catalog.id}`}
+                    rows={4}
+                    value={editingSharedCatalog.fieldsText}
+                    onChange={(event) => setEditingSharedCatalog({ ...editingSharedCatalog, fieldsText: event.target.value })}
+                  />
+                ) : (
+                  catalog.fields?.length ?? 0
+                ),
+                <div className="catalog-item-list">
+                  {(catalog.items ?? []).map((item: Record<string, any>) => {
+                    const editingItem = editingSharedCatalogItemId === item.id;
+                    return (
+                      <div className="catalog-item-row" data-testid={`shared-catalog-item-row-${item.id}`} key={item.id}>
+                        {editingItem ? (
+                          <>
+                            <input data-testid={`shared-catalog-item-edit-code-${item.id}`} value={editingSharedCatalogItem.code} onChange={(event) => setEditingSharedCatalogItem({ ...editingSharedCatalogItem, code: event.target.value })} />
+                            <input data-testid={`shared-catalog-item-edit-name-${item.id}`} value={editingSharedCatalogItem.name} onChange={(event) => setEditingSharedCatalogItem({ ...editingSharedCatalogItem, name: event.target.value })} />
+                            <select data-testid={`shared-catalog-item-edit-status-${item.id}`} value={editingSharedCatalogItem.status} onChange={(event) => setEditingSharedCatalogItem({ ...editingSharedCatalogItem, status: event.target.value })}>
+                              <option value="ACTIVE">Dang dung</option>
+                              <option value="INACTIVE">Tam dung</option>
+                            </select>
+                            <button className="primary-button compact" data-testid={`shared-catalog-item-save-${item.id}`} type="button" disabled={busy === `shared-catalog-item-${item.id}`} onClick={() => void saveSharedCatalogItem(item.id)}>
+                              {busy === `shared-catalog-item-${item.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />}
+                              Luu
+                            </button>
+                            <button className="ghost-button compact" data-testid={`shared-catalog-item-cancel-${item.id}`} type="button" onClick={() => setEditingSharedCatalogItemId("")}>
+                              <XCircle size={14} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span>
+                              <strong>{item.code}</strong> - {item.name}
+                            </span>
+                            <span className="status-chip">{statusLabels[item.status] ?? item.status}</span>
+                            <button className="ghost-button compact" data-testid={`shared-catalog-item-edit-${item.id}`} type="button" onClick={() => editSharedCatalogItem(item, catalog.id)}>
+                              <Edit3 size={14} />
+                              Sua
+                            </button>
+                            <button className="danger-button compact" data-testid={`shared-catalog-item-delete-${item.id}`} type="button" disabled={busy === `shared-catalog-item-delete-${item.id}`} onClick={() => void deleteSharedCatalogItem(item)}>
+                              {busy === `shared-catalog-item-delete-${item.id}` ? <Loader2 className="spin" size={14} /> : <Trash2 size={14} />}
+                              Xoa
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {(catalog.items ?? []).length === 0 && <span className="empty-text">Chua co gia tri.</span>}
+                </div>,
+                <div className="row-actions">
+                  {editing ? (
+                    <>
+                      <button className="primary-button compact" data-testid={`shared-catalog-save-${catalog.id}`} type="button" disabled={busy === `shared-catalog-${catalog.id}`} onClick={() => void saveSharedCatalog(catalog.id)}>
+                        {busy === `shared-catalog-${catalog.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />}
+                        Luu
+                      </button>
+                      <button className="ghost-button compact" data-testid={`shared-catalog-cancel-${catalog.id}`} type="button" onClick={() => setEditingSharedCatalogId("")}>
+                        <XCircle size={14} />
+                        Huy
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="ghost-button compact" data-testid={`shared-catalog-edit-${catalog.id}`} type="button" onClick={() => editSharedCatalog(catalog)}>
+                        <Edit3 size={14} />
+                        Sua
+                      </button>
+                      <button className="danger-button compact" data-testid={`shared-catalog-delete-${catalog.id}`} type="button" disabled={busy === `shared-catalog-delete-${catalog.id}`} onClick={() => void deleteSharedCatalog(catalog)}>
+                        {busy === `shared-catalog-delete-${catalog.id}` ? <Loader2 className="spin" size={14} /> : <Trash2 size={14} />}
+                        Xoa
                       </button>
                     </>
                   )}

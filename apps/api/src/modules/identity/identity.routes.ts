@@ -10,6 +10,7 @@ import {
   createUser,
   getProfile,
   getProfileRelated,
+  importUsersFromCsv,
   listDepartments,
   listOwnActivity,
   listPermissions,
@@ -60,6 +61,11 @@ const updateUserSchema = createUserSchema
     departmentId: z.string().uuid().nullable().optional(),
     managerId: z.string().uuid().nullable().optional()
   });
+
+const importUsersSchema = z.object({
+  csv: z.string().min(1).max(1_000_000),
+  apply: z.boolean().default(false)
+});
 
 const profileUpdateSchema = z.object({
   fullName: z.string().min(2).max(120).optional(),
@@ -140,6 +146,11 @@ export async function identityRoutes(app: FastifyInstance) {
   app.post("/users", { preHandler: requirePermission("user.manage") }, async (request) => {
     const body = parseBody(request, createUserSchema);
     return createUser(prisma, request.auth!.userId, body);
+  });
+
+  app.post("/users/import", { preHandler: requirePermission("user.manage") }, async (request) => {
+    const body = parseBody(request, importUsersSchema);
+    return importUsersFromCsv(prisma, request.auth!.userId, body);
   });
 
   app.patch("/users/:id", { preHandler: requirePermission("user.manage") }, async (request) => {

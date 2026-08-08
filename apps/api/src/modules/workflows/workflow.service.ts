@@ -12,6 +12,7 @@ import { writeAuditLog } from "../audit/audit.service.js";
 import { enqueueNotifications } from "../notifications/notification.service.js";
 import { dateScopedCodePrefix, getAutoCodeConfig, nextDateScopedCode } from "../settings/auto-code.service.js";
 import {
+  applyWorkflowCalculatedValues,
   applyWorkflowDefaultValues,
   assertWorkflowVersionEditable,
   evaluateConditions,
@@ -212,6 +213,22 @@ function workflowFieldVisibleToAuth(field: { visibleToRoles?: Prisma.JsonValue |
   }
 
   return allowedRoleCodes.some((roleCode) => auth.roles.includes(roleCode));
+}
+
+function workflowEditableStepCodes(value: unknown) {
+  if (Array.isArray(value)) {
+    return stringList(value);
+  }
+  const record = asRecord(value);
+  return stringList(record.stepCodes ?? record.steps ?? record.codes);
+}
+
+function workflowFieldEditableForStep(field: { editableBySteps?: Prisma.JsonValue | null }, stepCode?: string | null) {
+  const editableStepCodes = workflowEditableStepCodes(field.editableBySteps);
+  if (!stepCode || editableStepCodes.length === 0) {
+    return true;
+  }
+  return editableStepCodes.includes(stepCode);
 }
 
 function collectEffectiveApprovedIds(
@@ -476,7 +493,20 @@ export async function createWorkflowTemplate(
 
   const allowedStarters = normalizeAllowedStarters(input.allowedStarters);
   const allowedStartersValue = hasAllowedStarterLimits(allowedStarters) ? allowedStarters : undefined;
-  const formSchema = allowedStartersValue ? { fields: input.fields, allowedStarters: allowedStartersValue } : { fields: input.fields };
+  const stepCodes = new Set(input.steps.map((step) => step.code));
+  const normalizedFields = input.fields.map((field) => {
+    const editableStepCodes = workflowEditableStepCodes(field.editableBySteps);
+    const unknownStepCode = editableStepCodes.find((stepCode) => !stepCodes.has(stepCode));
+    if (unknownStepCode) {
+      throw badRequest(`TrÆ°á»ng '${field.name}' tham chiáº¿u bÆ°á»›c cho sá»­a khÃ´ng tá»“n táº¡i.`);
+    }
+    return { ...field, editableStepCodes };
+  });
+  const schemaFields = normalizedFields.map(({ editableStepCodes, ...field }) => ({
+    ...field,
+    editableBySteps: editableStepCodes.length > 0 ? editableStepCodes : undefined
+  }));
+  const formSchema = allowedStartersValue ? { fields: schemaFields, allowedStarters: allowedStartersValue } : { fields: schemaFields };
 
   return db.$transaction(async (tx) => {
     const template = await tx.workflowTemplate.create({
@@ -503,7 +533,7 @@ export async function createWorkflowTemplate(
     });
 
     await tx.workflowFormField.createMany({
-      data: input.fields.map((field) => ({
+      data: normalizedFields.map((field) => ({
         versionId: version.id,
         name: field.name,
         code: field.code,
@@ -513,7 +543,7 @@ export async function createWorkflowTemplate(
         placeholder: field.placeholder,
         validation: field.validation as Prisma.InputJsonValue | undefined,
         displayOrder: field.displayOrder ?? 0,
-        editableBySteps: field.editableBySteps as Prisma.InputJsonValue | undefined,
+        editableBySteps: field.editableStepCodes.length > 0 ? field.editableStepCodes : undefined,
         visibleToRoles: field.visibleToRoles as Prisma.InputJsonValue | undefined
       }))
     });
@@ -702,7 +732,7 @@ export async function submitWorkflowInstance(
   const visibleFields = version.fields.filter((field) => workflowFieldVisibleToAuth(field, auth));
   const visibleFieldCodes = new Set(visibleFields.map((field) => field.code));
   const inputFormData = Object.fromEntries(Object.entries(input.formData).filter(([code]) => visibleFieldCodes.has(code)));
-  const formData = applyWorkflowDefaultValues(visibleFields, inputFormData);
+  const formData = applyWorkflowCalculatedValues(visibleFields, applyWorkflowDefaultValues(visibleFields, inputFormData));
   const formErrors = validateWorkflowFormData(visibleFields, formData);
   if (formErrors.length > 0) {
     throw badRequest(formErrors[0]!);
@@ -872,6 +902,133 @@ export async function getWorkflowInstance(db: PrismaClient, auth: AuthContext, i
       return visibleFieldCodes.has(value.fieldCode);
     })
   };
+}
+
+export async function supplementWorkflowInstance(
+  db: PrismaClient,
+  auth: AuthContext,
+  instanceId: string,
+  input: { formData: Record<string, unknown>; idempotencyKey?: string },
+  ipAddress?: string
+) {
+  if (!hasPermission(auth, "workflow.instance.create")) {
+    throw forbidden();
+  }
+
+  const scope = `workflow.supplement:${instanceId}`;
+  if (input.idempotencyKey) {
+    const existing = await db.idempotencyKey.findUnique({
+      where: { userId_key_scope: { userId: auth.userId, key: input.idempotencyKey, scope } }
+    });
+    if (existing?.response) {
+      return existing.response;
+    }
+  }
+
+  const instance = await db.workflowInstance.findUnique({
+    where: { id: instanceId },
+    include: {
+      currentStep: { include: { assignees: true } },
+      workflowVersion: {
+        include: {
+          fields: { orderBy: { displayOrder: "asc" } }
+        }
+      }
+    }
+  });
+
+  if (!instance || instance.deletedAt || !instance.currentStep) {
+    throw notFound("KhÃ´ng tÃ¬m tháº¥y há»“ sÆ¡ cáº§n bá»• sung.");
+  }
+  if (instance.requesterId !== auth.userId) {
+    throw forbidden("Chá»‰ ngÆ°á»i táº¡o há»“ sÆ¡ Ä‘Æ°á»£c ná»™p bá»• sung.");
+  }
+  if (instance.status !== "NEEDS_INFO") {
+    throw conflict("Há»“ sÆ¡ khÃ´ng á»Ÿ tráº¡ng thÃ¡i chá» bá»• sung.");
+  }
+
+  const visibleFields = instance.workflowVersion.fields.filter((field) => workflowFieldVisibleToAuth(field, auth));
+  const editableFields = visibleFields.filter((field) => workflowFieldEditableForStep(field, instance.currentStep?.code));
+  if (editableFields.length === 0) {
+    throw badRequest("BÆ°á»›c hiá»‡n táº¡i khÃ´ng cÃ³ trÆ°á»ng nÃ o Ä‘Æ°á»£c phÃ©p bá»• sung.");
+  }
+
+  const editableCodes = new Set(editableFields.map((field) => field.code));
+  const submittedCodes = Object.keys(input.formData);
+  const deniedCode = submittedCodes.find((code) => !editableCodes.has(code));
+  if (deniedCode) {
+    throw forbidden(`TrÆ°á»ng '${deniedCode}' khÃ´ng Ä‘Æ°á»£c phÃ©p sá»­a á»Ÿ bÆ°á»›c hiá»‡n táº¡i.`);
+  }
+
+  const previousFormData = asRecord(instance.formData);
+  const submittedFormData = Object.fromEntries(Object.entries(input.formData).filter(([code]) => editableCodes.has(code)));
+  const formData = applyWorkflowCalculatedValues(visibleFields, { ...previousFormData, ...submittedFormData });
+  const formErrors = validateWorkflowFormData(editableFields, formData);
+  if (formErrors.length > 0) {
+    throw badRequest(formErrors[0]!);
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.workflowInstance.update({
+      where: { id: instanceId },
+      data: {
+        status: "IN_PROGRESS",
+        formData: formData as Prisma.InputJsonValue,
+        version: { increment: 1 }
+      }
+    });
+
+    for (const field of editableFields) {
+      if (!Object.prototype.hasOwnProperty.call(submittedFormData, field.code)) {
+        continue;
+      }
+      await tx.workflowInstanceValue.upsert({
+        where: {
+          instanceId_fieldCode: {
+            instanceId,
+            fieldCode: field.code
+          }
+        },
+        update: {
+          value: (formData[field.code] ?? null) as Prisma.InputJsonValue
+        },
+        create: {
+          instanceId,
+          fieldId: field.id,
+          fieldCode: field.code,
+          value: (formData[field.code] ?? null) as Prisma.InputJsonValue
+        }
+      });
+    }
+
+    await startStep(tx, instanceId, instance.currentStep!, {
+      requesterId: instance.requesterId,
+      formData
+    });
+
+    await writeAuditLog(tx, {
+      actorId: auth.userId,
+      action: "workflow.instance.supplement",
+      entityType: "workflow_instances",
+      entityId: instanceId,
+      ipAddress,
+      metadata: { fieldCodes: Object.keys(submittedFormData) }
+    });
+
+    const response = { id: updated.id, code: updated.code, status: updated.status };
+    if (input.idempotencyKey) {
+      await tx.idempotencyKey.create({
+        data: {
+          userId: auth.userId,
+          key: input.idempotencyKey,
+          scope,
+          response
+        }
+      });
+    }
+
+    return response;
+  });
 }
 
 async function completeStepAndMoveNext(
@@ -1133,6 +1290,10 @@ export async function actOnWorkflowInstance(
       response = await tx.workflowInstance.update({
         where: { id: instanceId },
         data: { status: "NEEDS_INFO", version: { increment: 1 } }
+      });
+      await tx.workflowInstanceStep.update({
+        where: { id: instanceStep.id },
+        data: { status: "NEEDS_INFO", completedAt: new Date() }
       });
       await enqueueNotifications(tx, [
         {

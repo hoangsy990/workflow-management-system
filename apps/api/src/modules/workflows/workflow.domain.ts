@@ -68,6 +68,70 @@ function validationOptions(value: unknown) {
   return Array.isArray(value) ? value.filter((option): option is string => typeof option === "string" && option.trim() !== "") : [];
 }
 
+function stringList(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "") : [];
+}
+
+function workflowFieldVisibleByValues(field: WorkflowFieldDefinition, values: Record<string, unknown>) {
+  const validation = asValidationRecord(field.validation);
+  const visibleWhen = asValidationRecord(validation.visibleWhen);
+  const fieldCode = typeof visibleWhen.fieldCode === "string" ? visibleWhen.fieldCode : "";
+  const operator = typeof visibleWhen.operator === "string" ? visibleWhen.operator : "";
+  if (!fieldCode || !operator) {
+    return true;
+  }
+
+  return evaluateCondition(
+    {
+      fieldCode,
+      operator,
+      compareValue: visibleWhen.compareValue,
+      groupType: visibleWhen.groupType === "OR" ? "OR" : "AND"
+    },
+    values
+  );
+}
+
+function calculatedNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) {
+    return Number(value);
+  }
+  return undefined;
+}
+
+function calculateWorkflowFieldValue(field: WorkflowFieldDefinition, values: Record<string, unknown>) {
+  const validation = asValidationRecord(field.validation);
+  const calculation = asValidationRecord(validation.calculation);
+  const operator = typeof calculation.operator === "string" ? calculation.operator : "";
+  const fieldCodes = stringList(calculation.fieldCodes);
+  if (fieldCodes.length === 0 || (field.type !== "NUMBER" && field.type !== "CURRENCY")) {
+    return undefined;
+  }
+
+  const numbers = fieldCodes.map((code) => calculatedNumber(values[code]));
+  if (numbers.some((value) => value === undefined)) {
+    return undefined;
+  }
+  const safeNumbers = numbers as number[];
+
+  if (operator === "SUM") {
+    return safeNumbers.reduce((sum, value) => sum + value, 0);
+  }
+  if (operator === "DIFFERENCE") {
+    return safeNumbers.slice(1).reduce((result, value) => result - value, safeNumbers[0] ?? 0);
+  }
+  if (operator === "PRODUCT") {
+    return safeNumbers.reduce((result, value) => result * value, 1);
+  }
+  if (operator === "RATIO") {
+    return safeNumbers.slice(1).reduce((result, value) => (value === 0 ? Number.NaN : result / value), safeNumbers[0] ?? 0);
+  }
+  return undefined;
+}
+
 export function applyWorkflowDefaultValues(fields: WorkflowFieldDefinition[], values: Record<string, unknown>) {
   const nextValues = { ...values };
 
@@ -83,15 +147,32 @@ export function applyWorkflowDefaultValues(fields: WorkflowFieldDefinition[], va
   return nextValues;
 }
 
+export function applyWorkflowCalculatedValues(fields: WorkflowFieldDefinition[], values: Record<string, unknown>) {
+  const nextValues = { ...values };
+
+  for (const field of fields) {
+    const calculated = calculateWorkflowFieldValue(field, nextValues);
+    if (calculated !== undefined && Number.isFinite(calculated)) {
+      nextValues[field.code] = calculated;
+    }
+  }
+
+  return nextValues;
+}
+
 export function validateWorkflowFormData(fields: WorkflowFieldDefinition[], values: Record<string, unknown>): string[] {
   const errors: string[] = [];
+  const effectiveValues = applyWorkflowCalculatedValues(fields, values);
 
   for (const field of fields) {
     if (field.type === "HEADING") {
       continue;
     }
+    if (!workflowFieldVisibleByValues(field, effectiveValues)) {
+      continue;
+    }
 
-    const value = values[field.code];
+    const value = effectiveValues[field.code];
     if (field.isRequired && isEmptyValue(value)) {
       errors.push(`Trường '${field.name}' là bắt buộc.`);
       continue;

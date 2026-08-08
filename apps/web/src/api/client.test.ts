@@ -1,5 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, apiRequest, clearApiCache, getApiUrl, getStoredSession, setApiUrl, setStoredSession } from "./client";
+import {
+  api,
+  apiRequest,
+  clearApiCache,
+  getApiUrl,
+  getStoredSession,
+  hydrateStoredSession,
+  setApiUrl,
+  setStoredSession,
+  setStoredSessionAsync
+} from "./client";
+import { resetSessionTextCacheForTest } from "./session-storage";
 
 const storage = new Map<string, string>();
 
@@ -13,7 +24,12 @@ function jsonResponse(body: unknown, status = 200) {
 beforeEach(() => {
   storage.clear();
   clearApiCache();
+  resetSessionTextCacheForTest();
   vi.restoreAllMocks();
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: undefined
+  });
 
   Object.defineProperty(globalThis, "sessionStorage", {
     configurable: true,
@@ -120,5 +136,33 @@ describe("apiRequest", () => {
     await expect(api.departments()).resolves.toHaveLength(2);
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("uses the native secure session bridge when it is available", async () => {
+    const secureStore = { value: null as string | null };
+    const bridge = {
+      get: vi.fn(() => secureStore.value),
+      set: vi.fn((value: string | null) => {
+        secureStore.value = value;
+      }),
+      remove: vi.fn(() => {
+        secureStore.value = null;
+      })
+    };
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: { __WORKFLOW_SECURE_SESSION__: bridge }
+    });
+
+    await setStoredSessionAsync({ accessToken: "native-access", refreshToken: "native-refresh" });
+
+    expect(storage.get("workflow.session")).toBeUndefined();
+    expect(bridge.set).toHaveBeenCalledTimes(1);
+    expect(secureStore.value).toContain("native-access");
+    await expect(hydrateStoredSession()).resolves.toEqual({ accessToken: "native-access", refreshToken: "native-refresh" });
+
+    await setStoredSessionAsync(null);
+    expect(bridge.remove).toHaveBeenCalledTimes(1);
+    expect(getStoredSession()).toBeNull();
   });
 });

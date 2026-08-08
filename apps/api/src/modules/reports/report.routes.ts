@@ -9,6 +9,7 @@ import { requireAuth } from "../auth/auth.guard.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { visibleTaskWhere } from "../tasks/task.service.js";
 import { visibleWorkflowInstanceWhere } from "../workflows/workflow.service.js";
+import { makePdf } from "./pdf.js";
 import { makeXlsx } from "./xlsx.js";
 
 const reportQuerySchema = z.object({
@@ -262,7 +263,7 @@ function exportRows(tasks: ExportTask[], workflows: ExportWorkflow[]) {
   ];
 }
 
-async function auditReportExport(auth: AuthContext, requestIp: string, format: "csv" | "xlsx", query: z.infer<typeof reportQuerySchema>, counts: { taskCount: number; workflowCount: number }) {
+async function auditReportExport(auth: AuthContext, requestIp: string, format: "csv" | "xlsx" | "pdf", query: z.infer<typeof reportQuerySchema>, counts: { taskCount: number; workflowCount: number }) {
   await writeAuditLog(prisma, {
     actorId: auth.userId,
     action: `report.export.${format}`,
@@ -407,6 +408,20 @@ export async function reportRoutes(app: FastifyInstance) {
       .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
       .header("Content-Disposition", `attachment; filename="${encodeURIComponent(fileName)}"`)
       .send(makeXlsx(rows));
+  });
+
+  app.get("/reports/export.pdf", { preHandler: requireAuth }, async (request, reply) => {
+    const auth = request.auth!;
+    const query = parseQuery(request, reportQuerySchema);
+    const { tasks, workflows } = await loadReportExportData(auth, query);
+    const rows = exportRows(tasks, workflows);
+    await auditReportExport(auth, request.ip, "pdf", query, { taskCount: tasks.length, workflowCount: workflows.length });
+
+    const fileName = `workflow-report-${new Date().toISOString().slice(0, 10)}.pdf`;
+    return reply
+      .type("application/pdf")
+      .header("Content-Disposition", `attachment; filename="${encodeURIComponent(fileName)}"`)
+      .send(makePdf(rows, "Workflow Management System - Report"));
   });
 
   app.get("/reports/drilldown", { preHandler: requireAuth }, async (request) => {

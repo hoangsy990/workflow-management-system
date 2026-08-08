@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { DataTable, ErrorBlock, LoadingBlock } from "../components/common";
 import { formatDate, statusLabels } from "../lib/format";
@@ -17,6 +17,33 @@ const emptyDashboardFilters = {
   to: ""
 };
 
+const dashboardWidgetOptions = [
+  ["metrics", "Thẻ tổng quan"],
+  ["attention", "Công việc cần chú ý"],
+  ["status", "Thống kê trạng thái"],
+  ["departments", "Thống kê phòng ban"],
+  ["instances", "Hồ sơ gần nhất"],
+  ["notifications", "Thông báo"]
+] as const;
+
+type DashboardWidgetKey = (typeof dashboardWidgetOptions)[number][0];
+
+const defaultDashboardWidgets = dashboardWidgetOptions.map(([key]) => key);
+const dashboardWidgetStorageKey = "workflow.dashboard.widgets";
+
+function loadDashboardWidgets(): DashboardWidgetKey[] {
+  try {
+    const stored = localStorage.getItem(dashboardWidgetStorageKey);
+    const parsed = stored ? (JSON.parse(stored) as unknown) : null;
+    if (!Array.isArray(parsed)) return defaultDashboardWidgets;
+    const allowed = new Set(defaultDashboardWidgets);
+    const selected = parsed.filter((item): item is DashboardWidgetKey => typeof item === "string" && allowed.has(item as DashboardWidgetKey));
+    return selected.length > 0 ? selected : defaultDashboardWidgets;
+  } catch {
+    return defaultDashboardWidgets;
+  }
+}
+
 function chartWidth(count: number, max: number) {
   if (count <= 0 || max <= 0) return "0%";
   return `${Math.max(6, Math.round((count / max) * 100))}%`;
@@ -24,6 +51,7 @@ function chartWidth(count: number, max: number) {
 
 export function Dashboard({ setPage, setTaskId, setInstanceId }: DashboardProps) {
   const [filters, setFilters] = useState(emptyDashboardFilters);
+  const [visibleWidgets, setVisibleWidgets] = useState<DashboardWidgetKey[]>(loadDashboardWidgets);
   const departments = useAsyncData(() => api.departments(), []);
   const dashboardQuery = useMemo(() => {
     const params = new URLSearchParams();
@@ -35,6 +63,10 @@ export function Dashboard({ setPage, setTaskId, setInstanceId }: DashboardProps)
   }, [filters.departmentId, filters.from, filters.to]);
   const { data, loading, error } = useAsyncData(() => api.dashboard(dashboardQuery), [dashboardQuery]);
   const notifications = useAsyncData(() => api.notifications(), []);
+
+  useEffect(() => {
+    localStorage.setItem(dashboardWidgetStorageKey, JSON.stringify(visibleWidgets));
+  }, [visibleWidgets]);
 
   if (loading) return <LoadingBlock />;
   if (error) return <ErrorBlock message={error} />;
@@ -56,6 +88,19 @@ export function Dashboard({ setPage, setTaskId, setInstanceId }: DashboardProps)
     ["Chờ tôi duyệt", cards.approvalPendingMine, "approvals"],
     ["Hồ sơ tôi tạo", cards.myInstances, "workflowInstances"]
   ] as const;
+  const visibleWidgetSet = new Set(visibleWidgets);
+
+  function toggleWidget(key: DashboardWidgetKey, checked: boolean) {
+    setVisibleWidgets((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(key);
+      } else {
+        next.delete(key);
+      }
+      return next.size > 0 ? dashboardWidgetOptions.map(([optionKey]) => optionKey).filter((optionKey) => next.has(optionKey)) : current;
+    });
+  }
 
   return (
     <section className="page-grid">
@@ -109,15 +154,40 @@ export function Dashboard({ setPage, setTaskId, setInstanceId }: DashboardProps)
         </div>
       </section>
 
-      <div className="metric-grid">
-        {cardItems.map(([label, value, target]) => (
-          <button key={label} className="metric-card" type="button" onClick={() => setPage(target)}>
-            <span>{label}</span>
-            <strong>{value ?? 0}</strong>
+      <section className="panel wide">
+        <div className="panel-head wrap">
+          <h2>Tùy chỉnh dashboard</h2>
+          <button className="ghost-button compact" type="button" data-testid="dashboard-widget-reset" onClick={() => setVisibleWidgets(defaultDashboardWidgets)}>
+            Khôi phục
           </button>
-        ))}
-      </div>
+        </div>
+        <div className="dashboard-widget-picker" data-testid="dashboard-widget-picker">
+          {dashboardWidgetOptions.map(([key, label]) => (
+            <label className="toggle-line compact-toggle" key={key}>
+              <input
+                type="checkbox"
+                data-testid={`dashboard-widget-${key}`}
+                checked={visibleWidgetSet.has(key)}
+                onChange={(event) => toggleWidget(key, event.target.checked)}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      </section>
 
+      {visibleWidgetSet.has("metrics") && (
+        <div className="metric-grid" data-testid="dashboard-metrics">
+          {cardItems.map(([label, value, target]) => (
+            <button key={label} className="metric-card" type="button" onClick={() => setPage(target)}>
+              <span>{label}</span>
+              <strong>{value ?? 0}</strong>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {visibleWidgetSet.has("attention") && (
       <section className="panel wide">
         <div className="panel-head">
           <h2>Công việc cần chú ý</h2>
@@ -134,7 +204,9 @@ export function Dashboard({ setPage, setTaskId, setInstanceId }: DashboardProps)
           }))}
         />
       </section>
+      )}
 
+      {visibleWidgetSet.has("status") && (
       <section className="panel">
         <div className="panel-head">
           <h2>Thống kê trạng thái</h2>
@@ -155,7 +227,9 @@ export function Dashboard({ setPage, setTaskId, setInstanceId }: DashboardProps)
           )}
         </div>
       </section>
+      )}
 
+      {visibleWidgetSet.has("departments") && (
       <section className="panel">
         <div className="panel-head">
           <h2>Thống kê phòng ban</h2>
@@ -179,7 +253,9 @@ export function Dashboard({ setPage, setTaskId, setInstanceId }: DashboardProps)
           )}
         </div>
       </section>
+      )}
 
+      {visibleWidgetSet.has("instances") && (
       <section className="panel">
         <div className="panel-head">
           <h2>Hồ sơ gần nhất</h2>
@@ -201,7 +277,9 @@ export function Dashboard({ setPage, setTaskId, setInstanceId }: DashboardProps)
           ))}
         </div>
       </section>
+      )}
 
+      {visibleWidgetSet.has("notifications") && (
       <section className="panel">
         <div className="panel-head wrap">
           <h2>Thông báo</h2>
@@ -223,6 +301,7 @@ export function Dashboard({ setPage, setTaskId, setInstanceId }: DashboardProps)
           </div>
         )}
       </section>
+      )}
     </section>
   );
 }

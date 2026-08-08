@@ -12,6 +12,7 @@ import {
   getWorkflowTemplate,
   listWorkflowInstances,
   listWorkflowTemplates,
+  supplementWorkflowInstance,
   submitWorkflowInstance,
   updateWorkflowVersionStatus
 } from "./workflow.service.js";
@@ -25,7 +26,52 @@ const fieldValidationSchema = z
     maxLength: z.number().int().min(1).optional(),
     min: z.number().optional(),
     max: z.number().optional(),
-    options: z.array(z.string().trim().min(1)).max(100).optional()
+    options: z.array(z.string().trim().min(1)).max(100).optional(),
+    layout: z
+      .object({
+        tab: z.string().trim().max(80).optional(),
+        section: z.string().trim().max(120).optional(),
+        columnSpan: z.number().int().min(1).max(2).optional()
+      })
+      .strict()
+      .optional(),
+    visibleWhen: z
+      .object({
+        fieldCode: z.string().trim().min(1),
+        operator: z.enum(["eq", "neq", "gt", "gte", "lt", "lte", "contains", "exists"]),
+        compareValue: z.unknown().optional(),
+        groupType: z.enum(["AND", "OR"]).optional()
+      })
+      .strict()
+      .optional(),
+    calculation: z
+      .object({
+        operator: z.enum(["SUM", "DIFFERENCE", "PRODUCT", "RATIO"]),
+        fieldCodes: z.array(z.string().trim().min(1)).min(1).max(12)
+      })
+      .strict()
+      .optional(),
+    catalogSource: z
+      .object({
+        catalogCode: z.string().trim().min(1),
+        valueField: z.string().trim().min(1).optional(),
+        labelField: z.string().trim().min(1).optional()
+      })
+      .strict()
+      .optional(),
+    tableColumns: z
+      .array(
+        z
+          .object({
+            code: z.string().trim().min(1),
+            name: z.string().trim().min(1),
+            type: z.enum(["SHORT_TEXT", "NUMBER", "CURRENCY", "DATE"]),
+            required: z.boolean().optional()
+          })
+          .strict()
+      )
+      .max(30)
+      .optional()
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -150,6 +196,11 @@ const submitSchema = z.object({
   idempotencyKey: z.string().min(8).optional()
 });
 
+const supplementSchema = z.object({
+  formData: z.record(z.string(), z.unknown()),
+  idempotencyKey: z.string().min(8).optional()
+});
+
 const instanceQuerySchema = paginationSchema.extend({
   status: z
     .enum(["DRAFT", "SUBMITTED", "IN_PROGRESS", "NEEDS_INFO", "APPROVED", "REJECTED", "CANCELLED", "COMPLETED"])
@@ -217,6 +268,12 @@ export async function workflowRoutes(app: FastifyInstance) {
   app.get("/workflow-instances/:id", { preHandler: requireAuth }, async (request) => {
     const params = parseParams(request, idParamSchema);
     return getWorkflowInstance(prisma, request.auth!, params.id);
+  });
+
+  app.post("/workflow-instances/:id/supplement", { preHandler: requireAuth }, async (request) => {
+    const params = parseParams(request, idParamSchema);
+    const body = parseBody(request, supplementSchema);
+    return supplementWorkflowInstance(prisma, request.auth!, params.id, body, request.ip);
   });
 
   app.post("/workflow-instances/:id/actions", { preHandler: requireAuth }, async (request) => {

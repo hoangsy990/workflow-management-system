@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyWorkflowCalculatedValues,
   applyWorkflowDefaultValues,
   assertWorkflowVersionEditable,
   evaluateConditions,
@@ -120,5 +121,49 @@ describe("workflow domain", () => {
       "Trường 'Request type' phải thuộc danh sách lựa chọn.",
       "Trường 'Confirmation' phải thuộc danh sách lựa chọn."
     ]);
+  });
+
+  it("skips required validation for hidden fields and calculates numeric fields", () => {
+    const fields = [
+      {
+        code: "requestType",
+        name: "Request type",
+        type: "SELECT" as const,
+        isRequired: true,
+        validation: { options: ["Normal", "Asset"] }
+      },
+      {
+        code: "assetNote",
+        name: "Asset note",
+        type: "SHORT_TEXT" as const,
+        isRequired: true,
+        validation: { visibleWhen: { fieldCode: "requestType", operator: "eq", compareValue: "Asset" } }
+      },
+      {
+        code: "subtotal",
+        name: "Subtotal",
+        type: "CURRENCY" as const,
+        isRequired: true
+      },
+      {
+        code: "tax",
+        name: "Tax",
+        type: "CURRENCY" as const,
+        isRequired: true
+      },
+      {
+        code: "total",
+        name: "Total",
+        type: "CURRENCY" as const,
+        isRequired: true,
+        validation: { calculation: { operator: "SUM", fieldCodes: ["subtotal", "tax"] } }
+      }
+    ];
+
+    expect(validateWorkflowFormData(fields, { requestType: "Normal", subtotal: 100, tax: 10 })).toEqual([]);
+    expect(applyWorkflowCalculatedValues(fields, { subtotal: 100, tax: 10 }).total).toBe(110);
+    const hiddenFieldErrors = validateWorkflowFormData(fields, { requestType: "Asset", subtotal: 100, tax: 10 });
+    expect(hiddenFieldErrors).toHaveLength(1);
+    expect(hiddenFieldErrors[0]).toContain("Asset note");
   });
 });

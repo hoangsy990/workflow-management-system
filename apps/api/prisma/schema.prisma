@@ -13,6 +13,22 @@ enum UserStatus {
   LOCKED
 }
 
+enum SharedCatalogStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum SharedCatalogFieldType {
+  SHORT_TEXT
+  NUMBER
+  CURRENCY
+  DATE
+  BOOLEAN
+  SELECT
+  USER_SELECT
+  DEPARTMENT_SELECT
+}
+
 enum TaskStatus {
   DRAFT
   TODO
@@ -177,6 +193,8 @@ model Department {
   manager     User?        @relation("DepartmentManager", fields: [managerId], references: [id])
   users       User[]       @relation("UserDepartment")
   teams       Team[]
+  scopedSharedCatalogs SharedCatalog[] @relation("SharedCatalogScope")
+  scopedSharedCatalogItems SharedCatalogItem[] @relation("SharedCatalogItemScope")
   tasks       Task[]
   workflowStepAssigneeRules WorkflowStepAssignee[]
   createdAt   DateTime     @default(now()) @map("created_at")
@@ -254,6 +272,10 @@ model User {
   workflowInstances     WorkflowInstance[]     @relation("WorkflowRequester")
   workflowApprovals     WorkflowApproval[]     @relation("WorkflowApprover")
   workflowAttachments   WorkflowAttachment[]   @relation("WorkflowAttachmentUploader")
+  managedSharedCatalogs SharedCatalog[]         @relation("SharedCatalogManager")
+  createdSharedCatalogs SharedCatalog[]         @relation("SharedCatalogCreator")
+  managedSharedCatalogItems SharedCatalogItem[] @relation("SharedCatalogItemManager")
+  createdSharedCatalogItems SharedCatalogItem[] @relation("SharedCatalogItemCreator")
   notifications         Notification[]
   activityLogs          ActivityLog[]          @relation("ActivityActor")
   idempotencyKeys        IdempotencyKey[]
@@ -370,6 +392,74 @@ model Tag {
   tasks     TaskTag[]
 
   @@map("tags")
+}
+
+model SharedCatalog {
+  id                String                @id @default(uuid())
+  code              String                @unique
+  name              String
+  description       String?
+  status            SharedCatalogStatus   @default(ACTIVE)
+  scopeDepartmentId String?               @map("scope_department_id")
+  managerId         String?               @map("manager_id")
+  createdById       String?               @map("created_by")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+  deletedAt         DateTime?             @map("deleted_at")
+  scopeDepartment   Department?           @relation("SharedCatalogScope", fields: [scopeDepartmentId], references: [id])
+  manager           User?                 @relation("SharedCatalogManager", fields: [managerId], references: [id])
+  createdBy         User?                 @relation("SharedCatalogCreator", fields: [createdById], references: [id])
+  fields            SharedCatalogField[]
+  items             SharedCatalogItem[]
+
+  @@index([status, deletedAt])
+  @@index([scopeDepartmentId])
+  @@index([managerId])
+  @@map("shared_catalogs")
+}
+
+model SharedCatalogField {
+  id           String                 @id @default(uuid())
+  catalogId    String                 @map("catalog_id")
+  code         String
+  name         String
+  type         SharedCatalogFieldType @default(SHORT_TEXT)
+  isRequired   Boolean                @default(false) @map("is_required")
+  options      Json?
+  defaultValue Json?                  @map("default_value")
+  displayOrder Int                    @default(0) @map("display_order")
+  createdAt    DateTime               @default(now()) @map("created_at")
+  updatedAt    DateTime               @updatedAt @map("updated_at")
+  catalog      SharedCatalog          @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+
+  @@unique([catalogId, code])
+  @@index([catalogId, displayOrder])
+  @@map("shared_catalog_fields")
+}
+
+model SharedCatalogItem {
+  id                String              @id @default(uuid())
+  catalogId         String              @map("catalog_id")
+  code              String
+  name              String
+  status            SharedCatalogStatus @default(ACTIVE)
+  scopeDepartmentId String?             @map("scope_department_id")
+  managerId         String?             @map("manager_id")
+  values            Json?
+  createdById       String?             @map("created_by")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  deletedAt         DateTime?           @map("deleted_at")
+  catalog           SharedCatalog       @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  scopeDepartment   Department?         @relation("SharedCatalogItemScope", fields: [scopeDepartmentId], references: [id])
+  manager           User?               @relation("SharedCatalogItemManager", fields: [managerId], references: [id])
+  createdBy         User?               @relation("SharedCatalogItemCreator", fields: [createdById], references: [id])
+
+  @@unique([catalogId, code])
+  @@index([catalogId, status, deletedAt])
+  @@index([scopeDepartmentId])
+  @@index([managerId])
+  @@map("shared_catalog_items")
 }
 
 model Task {

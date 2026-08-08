@@ -26,7 +26,8 @@ const permissionCodes = [
   "workflow.instance.read_all",
   "notification.read",
   "audit.read",
-  "setting.manage"
+  "setting.manage",
+  "catalog.manage"
 ] as const;
 
 const password = {
@@ -341,6 +342,57 @@ async function main() {
     prisma.tag.upsert({ where: { name: "Báo cáo" }, update: { color: "#2563eb" }, create: { name: "Báo cáo", color: "#2563eb" } }),
     prisma.tag.upsert({ where: { name: "Nội bộ" }, update: { color: "#16a34a" }, create: { name: "Nội bộ", color: "#16a34a" } })
   ]);
+
+  const requestTypeCatalog = await prisma.sharedCatalog.upsert({
+    where: { code: "REQUEST_TYPES" },
+    update: {
+      name: "Loại đề xuất",
+      description: "Nguồn dữ liệu mẫu cho select trong form builder",
+      status: "ACTIVE",
+      scopeDepartmentId: null,
+      managerId: manager.id
+    },
+    create: {
+      code: "REQUEST_TYPES",
+      name: "Loại đề xuất",
+      description: "Nguồn dữ liệu mẫu cho select trong form builder",
+      status: "ACTIVE",
+      managerId: manager.id,
+      createdById: admin.id
+    }
+  });
+  await Promise.all([
+    prisma.sharedCatalogField.upsert({
+      where: { catalogId_code: { catalogId: requestTypeCatalog.id, code: "cost_center" } },
+      update: { name: "Cost center", type: "SHORT_TEXT", displayOrder: 1 },
+      create: { catalogId: requestTypeCatalog.id, code: "cost_center", name: "Cost center", type: "SHORT_TEXT", displayOrder: 1 }
+    }),
+    prisma.sharedCatalogField.upsert({
+      where: { catalogId_code: { catalogId: requestTypeCatalog.id, code: "requires_asset_review" } },
+      update: { name: "Cần duyệt tài sản", type: "BOOLEAN", displayOrder: 2 },
+      create: { catalogId: requestTypeCatalog.id, code: "requires_asset_review", name: "Cần duyệt tài sản", type: "BOOLEAN", displayOrder: 2 }
+    })
+  ]);
+  await Promise.all(
+    [
+      { code: "PAYMENT", name: "Đề xuất thanh toán", values: { cost_center: "FIN", requires_asset_review: false } },
+      { code: "PURCHASE", name: "Đề xuất mua hàng", values: { cost_center: "OPS", requires_asset_review: true } },
+      { code: "LEAVE", name: "Đề xuất nghỉ phép", values: { cost_center: "HR", requires_asset_review: false } }
+    ].map((item) =>
+      prisma.sharedCatalogItem.upsert({
+        where: { catalogId_code: { catalogId: requestTypeCatalog.id, code: item.code } },
+        update: { name: item.name, status: "ACTIVE", values: item.values },
+        create: {
+          catalogId: requestTypeCatalog.id,
+          code: item.code,
+          name: item.name,
+          status: "ACTIVE",
+          values: item.values,
+          createdById: admin.id
+        }
+      })
+    )
+  );
 
   const adminAuth = auth(admin.id, [...permissionCodes], ["system_admin"], admin.fullName);
   const managerAuth = auth(

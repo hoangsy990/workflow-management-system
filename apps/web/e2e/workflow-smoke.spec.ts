@@ -118,6 +118,7 @@ interface WorkflowTemplateRecord {
       code: string;
       defaultValue?: unknown;
       validation?: Record<string, unknown> | null;
+      editableBySteps?: string[] | null;
       visibleToRoles?: string[] | null;
     }>;
     steps?: Array<{
@@ -145,7 +146,9 @@ interface WorkflowInstanceRecord {
 }
 
 interface WorkflowInstanceDetailRecord extends WorkflowInstanceRecord {
+  requesterId?: string;
   formData?: Record<string, unknown>;
+  currentStep?: { id: string; code?: string; name: string } | null;
   workflowVersion?: {
     fields?: Array<{ code: string }>;
     steps?: Array<{ id: string; code: string; name: string }>;
@@ -351,6 +354,15 @@ async function getPaymentTemplate(request: APIRequestContext, session: ApiSessio
 async function openWorkflowApproval(page: Page, manager: ApiSession, instance: WorkflowInstanceRecord) {
   await openAppWithSession(page, manager);
   await page.getByTestId("nav-approvals").click();
+  const row = page.locator(`tr[data-testid="workflow-instance-row-${instance.id}"]`);
+  await expect(row).toBeVisible();
+  await row.click();
+  await expect(page.getByRole("heading", { name: instance.code })).toBeVisible();
+}
+
+async function openWorkflowInstanceDetail(page: Page, session: ApiSession, instance: WorkflowInstanceRecord) {
+  await openAppWithSession(page, session);
+  await page.getByTestId("nav-workflowInstances").click();
   const row = page.locator(`tr[data-testid="workflow-instance-row-${instance.id}"]`);
   await expect(row).toBeVisible();
   await row.click();
@@ -737,6 +749,19 @@ test("báo cáo lọc phía server theo phòng ban, trạng thái, ưu tiên và
     "/activity-logs?pageSize=20&action=report.export.xlsx&entityType=reports"
   );
   expect(excelLogs.data.some((log) => log.actor?.id === manager.user.id)).toBe(true);
+
+  const pdfDownload = page.waitForEvent("download");
+  await page.getByTestId("report-export-pdf").click();
+  const downloadedPdf = await pdfDownload;
+  expect(downloadedPdf.suggestedFilename()).toContain(".pdf");
+  await expect(page.getByTestId("report-export-message")).toContainText("PDF");
+
+  const pdfLogs = await apiGet<Paginated<Record<string, any>>>(
+    request,
+    admin,
+    "/activity-logs?pageSize=20&action=report.export.pdf&entityType=reports"
+  );
+  expect(pdfLogs.data.some((log) => log.actor?.id === manager.user.id)).toBe(true);
 });
 
 test("scheduler gửi thông báo task và bước phê duyệt sắp hạn/quá hạn", async ({ request }) => {
@@ -974,6 +999,86 @@ test("admin quản lý danh mục và nhãn công việc trên UI", async ({ pag
   expect(categoryLogs.data.some((log) => log.entityId === category.id)).toBe(true);
   const tagLogs = await apiGet<Paginated<Record<string, any>>>(request, admin, "/activity-logs?action=tag.delete&entityType=tags&pageSize=20");
   expect(tagLogs.data.some((log) => log.entityId === tag.id)).toBe(true);
+});
+
+test("admin CRUD shared catalog va item tren UI", async ({ page, request }) => {
+  const admin = await apiLogin(request, "admin");
+  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+  const catalogCode = `CAT_${suffix}`;
+  const catalogName = `Catalog ${suffix}`;
+  const updatedCatalogName = `Catalog ${suffix} update`;
+  const itemCode = `ITEM_${suffix}`;
+  const itemName = `Gia tri ${suffix}`;
+  const updatedItemName = `Gia tri ${suffix} update`;
+
+  await openAppWithSession(page, admin);
+  await page.getByTestId("nav-catalogs").click();
+
+  await page.getByTestId("shared-catalog-code").fill(catalogCode);
+  await page.getByTestId("shared-catalog-name").fill(catalogName);
+  await page.getByTestId("shared-catalog-status").selectOption("ACTIVE");
+  await page.getByTestId("shared-catalog-fields").fill("amount|So tien|CURRENCY|required");
+  const catalogCreateResponse = page.waitForResponse((response) => response.url().endsWith("/shared-catalogs") && response.request().method() === "POST");
+  await page.getByTestId("shared-catalog-create-save").click();
+  const catalog = (await (await catalogCreateResponse).json()) as Record<string, any>;
+  const catalogRow = page.locator(`tr[data-testid="shared-catalog-row-${catalog.id}"]`);
+  await expect(catalogRow).toBeVisible();
+
+  await page.getByTestId("shared-catalog-item-catalog").selectOption(catalog.id);
+  await page.getByTestId("shared-catalog-item-code").fill(itemCode);
+  await page.getByTestId("shared-catalog-item-name").fill(itemName);
+  await page.getByTestId("shared-catalog-item-status").selectOption("ACTIVE");
+  const itemCreateResponse = page.waitForResponse(
+    (response) => response.url().includes(`/shared-catalogs/${catalog.id}/items`) && response.request().method() === "POST"
+  );
+  await page.getByTestId("shared-catalog-item-create-save").click();
+  const item = (await (await itemCreateResponse).json()) as Record<string, any>;
+  const itemRow = catalogRow.getByTestId(`shared-catalog-item-row-${item.id}`);
+  await expect(itemRow).toBeVisible();
+
+  await catalogRow.getByTestId(`shared-catalog-edit-${catalog.id}`).click();
+  await catalogRow.getByTestId(`shared-catalog-edit-name-${catalog.id}`).fill(updatedCatalogName);
+  await catalogRow.getByTestId(`shared-catalog-edit-status-${catalog.id}`).selectOption("ACTIVE");
+  const catalogUpdateResponse = page.waitForResponse((response) => response.url().includes(`/shared-catalogs/${catalog.id}`) && response.request().method() === "PATCH");
+  await catalogRow.getByTestId(`shared-catalog-save-${catalog.id}`).click();
+  await catalogUpdateResponse;
+  await expect(catalogRow).toContainText(updatedCatalogName);
+
+  await itemRow.getByTestId(`shared-catalog-item-edit-${item.id}`).click();
+  await itemRow.getByTestId(`shared-catalog-item-edit-name-${item.id}`).fill(updatedItemName);
+  await itemRow.getByTestId(`shared-catalog-item-edit-status-${item.id}`).selectOption("ACTIVE");
+  const itemUpdateResponse = page.waitForResponse((response) => response.url().includes(`/shared-catalog-items/${item.id}`) && response.request().method() === "PATCH");
+  await itemRow.getByTestId(`shared-catalog-item-save-${item.id}`).click();
+  await itemUpdateResponse;
+  await expect(itemRow).toContainText(updatedItemName);
+
+  const options = await apiGet<Record<string, any>[]>(request, admin, `/shared-catalogs/${catalogCode}/options`);
+  expect(options.some((option) => option.value === itemCode && option.label === updatedItemName)).toBe(true);
+
+  page.once("dialog", async (dialog) => {
+    await dialog.accept();
+  });
+  const itemDeleteResponse = page.waitForResponse((response) => response.url().includes(`/shared-catalog-items/${item.id}`) && response.request().method() === "DELETE");
+  await itemRow.getByTestId(`shared-catalog-item-delete-${item.id}`).click();
+  await itemDeleteResponse;
+  await expect(itemRow).toBeHidden();
+
+  page.once("dialog", async (dialog) => {
+    await dialog.accept();
+  });
+  const catalogDeleteResponse = page.waitForResponse((response) => response.url().includes(`/shared-catalogs/${catalog.id}`) && response.request().method() === "DELETE");
+  await catalogRow.getByTestId(`shared-catalog-delete-${catalog.id}`).click();
+  await catalogDeleteResponse;
+  await expect(catalogRow).toBeHidden();
+
+  const catalogs = await apiGet<Record<string, any>[]>(request, admin, "/shared-catalogs");
+  expect(catalogs.some((catalogItem) => catalogItem.id === catalog.id)).toBe(false);
+  const deleteLogs = await apiGet<Paginated<Record<string, any>>>(
+    request,
+    admin,
+    "/activity-logs?action=shared_catalog.delete&entityType=shared_catalogs&pageSize=20"
+  );
+  expect(deleteLogs.data.some((log) => log.entityId === catalog.id)).toBe(true);
 });
 
 test("admin reviews role permission preview on UI", async ({ page, request }) => {
@@ -1322,6 +1427,8 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   await page.getByTestId("workflow-template-manager").selectOption(manager.user.id);
   await expect(page.getByTestId("workflow-template-starter-role-employee")).toBeVisible();
   await page.getByTestId("workflow-template-starter-role-employee").check();
+  await expect(page.getByTestId("workflow-field-editable-step-0-manager")).toBeVisible();
+  await page.getByTestId("workflow-field-editable-step-0-manager").check();
   await page.getByTestId("workflow-field-default-0").fill(defaultPurpose);
   await page.getByTestId("workflow-field-min-length-0").fill("5");
   await page.getByTestId("workflow-field-max-length-0").fill("90");
@@ -1368,7 +1475,7 @@ test("admin creates workflow template with dynamic builder", async ({ page, requ
   expect(created.versions?.[0]?.allowedStarters).toMatchObject({ roleCodes: ["employee"] });
   expect(condition).toMatchObject({ fieldCode: "amount", operator: "gt", compareValue: 50000000 });
   expect(minCountStep).toMatchObject({ approvalMode: "PARALLEL", completionRule: "MIN_COUNT", minCount: 1 });
-  expect(purposeField).toMatchObject({ defaultValue: defaultPurpose, validation: { minLength: 5, maxLength: 90 } });
+  expect(purposeField).toMatchObject({ defaultValue: defaultPurpose, validation: { minLength: 5, maxLength: 90 }, editableBySteps: ["manager"] });
   expect(amountField).toMatchObject({ validation: { min: 1000000, max: 100000000 } });
   expect(noteField).toMatchObject({ defaultValue: "Noi bo", validation: { options: ["Noi bo", "Khach hang"] }, visibleToRoles: ["manager"] });
   const invalidOption = await request.post(`${apiUrl}/workflow-instances`, {
@@ -1961,10 +2068,25 @@ test("yêu cầu bổ sung hồ sơ PAYMENT trên UI", async ({ page, request })
   const employee = await apiLogin(request, "employee");
   const manager = await apiLogin(request, "manager");
   const instance = await createSmokeWorkflowInstance(request, employee, "request-info");
+  const supplementPurpose = `Smoke da bo sung ${runId}`;
 
   await openWorkflowApproval(page, manager, instance);
   await runWorkflowAction(page, "workflow-action-request-info", `Bổ sung smoke ${runId}`);
   await expect(page.getByTestId("workflow-instance-status")).toContainText("Chờ bổ sung");
+  await openWorkflowInstanceDetail(page, employee, instance);
+  await expect(page.getByTestId("workflow-supplement-panel")).toBeVisible();
+  await page.getByTestId("workflow-instance-field-purpose").fill(supplementPurpose);
+  const supplementResponse = page.waitForResponse(
+    (response) => response.url().includes(`/workflow-instances/${instance.id}/supplement`) && response.request().method() === "POST"
+  );
+  await page.getByTestId("workflow-supplement-submit").click();
+  const supplementResult = await supplementResponse;
+  expect(supplementResult.ok(), await supplementResult.text()).toBeTruthy();
+  await expect(page.getByTestId("workflow-supplement-message")).toContainText("Da gui bo sung");
+  const detail = await apiGet<WorkflowInstanceDetailRecord>(request, manager, `/workflow-instances/${instance.id}`);
+  expect(detail.status).toBe("IN_PROGRESS");
+  expect(detail.formData?.purpose).toBe(supplementPurpose);
+  expect(detail.approvals?.some((approval) => approval.status === "PENDING" && approval.approver?.id === manager.user.id)).toBe(true);
 });
 
 test("trả bước hồ sơ PAYMENT về người xử lý trước", async ({ page, request }) => {

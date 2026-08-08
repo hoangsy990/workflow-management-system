@@ -12,10 +12,23 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 ## Cập nhật gần nhất
 
-**Tiến độ hiện tại:** `DONE=132`, `PARTIAL=116`, `TODO=13`, `WAITING=0`, `BLOCKED=0`, `TOTAL=261`; hoàn thành nghiêm ngặt `50.6%`, tính trọng số partial `72.8%`.
+**Tiến độ hiện tại:** `DONE=136`, `PARTIAL=125`, `TODO=0`, `WAITING=0`, `BLOCKED=0`, `TOTAL=261`; hoàn thành nghiêm ngặt `52.1%`, tính trọng số partial `76.1%`.
 
 | Ngày | Commit | Nội dung | Kiểm tra |
 | --- | --- | --- | --- |
+| 08/08/2026 | `VERIFY-DOCKER-SMOKE-43` | Chạy lại verification tổng sau CRUD catalog: thêm Playwright smoke case admin tạo/sửa/xóa shared catalog và item bằng UI, kiểm options API và audit delete; xác nhận Docker Compose chạy public web port `8099`, API health, migration `0004_shared_catalogs`, seed demo và report CSV/XLSX/PDF runtime. Chuyển `Dùng danh mục tùy chỉnh làm nguồn select...` và `Export Excel/CSV/PDF/print...` sang DONE. Docker cleanup đã dọn build cache từ `1.782GB` về `0B`; file `docker_data.vhdx` vẫn khoảng `19.13GB` và cần chạy `pnpm docker:compact` trong PowerShell Administrator để co vật lý. | `pnpm lint`, `pnpm test` 24/24, `pnpm build`, `pnpm typecheck`, `git diff --check`, `docker compose up -d --build web`, `pnpm docker:seed`, targeted shared catalog smoke 1/1, `pnpm smoke:web` 43/43, `scripts/clean-docker.ps1 -IncludeUnusedImages`; Docker images `1.127GB`, volumes `87.92MB`, build cache `0B`. |
+| 08/08/2026 | `SHARED-CATALOGS-CRUD` | Hoàn thiện CRUD danh mục tùy chỉnh: backend thêm `PATCH/DELETE /shared-catalogs/:id`, `PATCH/DELETE /shared-catalog-items/:id`, soft delete catalog kèm item, audit update/delete; UI trang `Danh mục` có sửa/xóa catalog inline, sửa/xóa item inline, status item khi tạo/sửa và bảng item theo catalog. Không đổi % vì mục tổng `Danh mục tùy chỉnh...` vẫn PARTIAL, còn thiếu scope/manager picker chi tiết, search/import/export. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`; sau đó verified bởi `VERIFY-DOCKER-SMOKE-43`. |
+| 08/08/2026 | `SHARED-CATALOGS-ADMIN-UI` | Bổ sung UI quản trị catalog tùy chỉnh ngay trong trang `Danh mục`: tải/list catalog từ `/shared-catalogs`, form tạo catalog với status và field definitions dạng `code|Tên|TYPE|required`, form thêm item vào catalog, bảng hiển thị code/name/status/field count/item count/manager; workflow builder và runtime vẫn dùng cùng API catalog. Không đổi % vì mục vẫn PARTIAL, còn thiếu sửa/xóa catalog/item, scope/manager picker chi tiết, search/import/export và smoke Docker/DB. | `pnpm --filter @workflow/web lint`, `pnpm build`, `pnpm lint`, `pnpm test`, `git diff --check`; Docker/browser smoke pending vì `docker` không có trong PATH của sandbox hiện tại. |
+| 08/08/2026 | `SHARED-CATALOGS-FORM-SOURCE` | Bổ sung nền tảng danh mục tùy chỉnh dùng chung: Prisma models/migration `shared_catalogs`, `shared_catalog_fields`, `shared_catalog_items` có status, scope department, manager, created_by, soft delete, fields JSON/options; API `/shared-catalogs`, `/shared-catalogs/:id/items`, `/shared-catalogs/:idOrCode/options` có RBAC `catalog.manage`, audit log và scope đọc theo phòng ban; seed catalog `REQUEST_TYPES`; workflow form builder chọn được catalog source cho SELECT/RADIO qua `validation.catalogSource` và runtime form tải option động theo catalog code. Chuyển hai mục danh mục tùy chỉnh còn lại từ TODO sang PARTIAL vì DB/API/source builder/runtime options cơ bản đã có, còn thiếu UI quản trị full CRUD, editor item nâng cao, cache options nâng cao và smoke Docker/DB. | `pnpm --filter @workflow/api prisma:generate`, `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `pnpm lint`, `pnpm test`, `pnpm build`, `git diff --check`; Docker/browser smoke pending vì `docker` không có trong PATH của sandbox hiện tại. |
+| 08/08/2026 | `WORKFLOW-FORM-LAYOUT-CONDITIONS` | Bổ sung metadata có cấu trúc cho workflow form builder: layout tab/section/grid span, điều kiện hiển thị `visibleWhen`, field calculated với toán tử an toàn `SUM/DIFFERENCE/PRODUCT/RATIO`, cấu hình cột cho TABLE/repeating table metadata; dynamic form runtime group theo tab/section, ẩn/hiện theo dữ liệu đang nhập, khóa field tự tính và backend cũng tính/bỏ validation field ẩn. Chuyển `Bố cục section/tab/grid/table` và `Điều kiện hiển thị/calculated field/repeating table` từ TODO sang PARTIAL vì đã có builder/runtime cơ bản, còn thiếu drag-drop form field, repeating table editor chuyên dụng và smoke browser/DB. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/api test` 17/17, `pnpm --filter @workflow/web test` 7/7, `pnpm lint`, `pnpm test`, `pnpm build`, `git diff --check`; Docker/browser smoke pending vì `docker` không có trong PATH của sandbox hiện tại. |
+| 08/08/2026 | `WORKFLOW-DESIGNER-LARGE-CANVAS` | Nâng workflow designer cho luồng nhiều bước: palette hiển thị tổng node, có nút thêm nhanh 10 bước để stress layout, canvas tự bật compact/scroll khi từ 30 node để tránh đẩy vỡ form và giữ node/action ổn định. Chuyển `Workflow designer 100 nodes mượt` sang PARTIAL vì UI đã có cơ chế compact cho flow lớn, còn thiếu browser performance smoke đo thực tế 100 node và pan/zoom/virtualization nâng cao. | `pnpm --filter @workflow/web lint`, `pnpm build`; Docker/browser smoke pending vì `docker` không có trong PATH của sandbox hiện tại. |
+| 08/08/2026 | `DASHBOARD-WIDGET-CUSTOMIZE` | Bổ sung tùy chỉnh dashboard client-side: panel chọn ẩn/hiện thẻ tổng quan, công việc cần chú ý, thống kê trạng thái/phòng ban, hồ sơ gần nhất và thông báo; cấu hình lưu `localStorage`, có nút khôi phục, số liệu vẫn lấy từ API thật theo filter/quyền. Chuyển `Dashboard tùy chỉnh` sang PARTIAL vì đã có cấu hình hiển thị theo thiết bị, còn thiếu lưu layout theo user trong database và kéo-thả sắp xếp widget. | `pnpm --filter @workflow/web lint`, `pnpm build`; Docker/browser smoke pending vì `docker` không có trong PATH của sandbox hiện tại. |
+| 08/08/2026 | `ORG-DRAG-DROP-DEPARTMENT` | Bổ sung kéo-thả phòng ban trong sơ đồ tổ chức: node phòng ban draggable, thả vào phòng ban khác để đổi parent, vùng `Đưa về cấp gốc`, gọi `PATCH /departments/:id`, chặn tự đưa vào nhánh con ở frontend và backend vẫn validate vòng lặp. Chuyển `Kéo chuyển phòng ban` sang PARTIAL vì UI/API đã nối, còn thiếu runtime smoke Docker/browser và trải nghiệm drag nâng cao trên mobile. | `pnpm --filter @workflow/web lint`, `pnpm build`; Docker/browser smoke pending vì `docker` không có trong PATH của sandbox hiện tại. |
+| 08/08/2026 | `NATIVE-SECURE-SESSION-ADAPTER` | Bổ sung adapter session token cho đa nền tảng: API client đọc/ghi qua `session-storage.ts`, web/dev fallback `sessionStorage`, native shell có thể cung cấp bridge `window.__WORKFLOW_SECURE_SESSION__` để cắm Keychain/Keystore/Credential Manager sau này; bootstrap/login/refresh/download dùng hydrate/persist async và unit test xác nhận không ghi vào web storage khi bridge có mặt. Chuyển `Secure token storage native` sang PARTIAL vì bridge đã có, plugin native thật vẫn cần triển khai trong shell. | `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/web test` 7/7, `pnpm build`; Docker/native device QA pending vì `docker` không có trong PATH và chưa chạy shell native trong sandbox hiện tại. |
+| 08/08/2026 | `WORKFLOW-DESIGNER-PROTOTYPE` | Bổ sung prototype workflow designer trong màn tạo mẫu: layout trái/giữa/phải, palette thêm node duyệt, canvas start/approval/end có chọn node và kéo-thả đổi thứ tự, panel cấu hình node đang chọn, responsive stack trên mobile. Chuyển các mục canvas/panel/layout/prototype designer sang PARTIAL vì đã có UI chạy được, còn thiếu canvas đường nối nâng cao, node đầy đủ, performance 100 nodes và runtime smoke Docker/browser. | `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/web test` 6/6, `pnpm build`; Docker smoke pending vì `docker` không có trong PATH của sandbox hiện tại. |
+| 08/08/2026 | `USER-CSV-IMPORT-PREVIEW` | Bổ sung import người dùng từ CSV: parser/preview lỗi từng dòng, endpoint `/users/import` có `apply=false/true`, transaction tạo user + role/team + gán quản lý trong cùng file, hash mật khẩu, audit `user.import`, client API và panel import trên trang Người dùng. Chuyển checklist import user sang PARTIAL vì CSV đã có, còn import `.xlsx` trực tiếp và runtime smoke Docker/DB. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/api test` 16/16, `pnpm test`, `pnpm build`, `pnpm lint`; Docker prune/smoke pending vì `docker` không có trong PATH của sandbox hiện tại. |
+| 08/08/2026 | `REPORT-PDF-EXPORT` | Bổ sung export PDF native cho báo cáo bằng generator PDF nội bộ không thêm dependency: API `/reports/export.pdf`, audit `report.export.pdf`, client method `exportReportsPdf`, nút `Tải PDF` trên trang Báo cáo, smoke test tải/audit PDF, unit test `reports/pdf.test.ts` và README mô tả các endpoint export. Chưa chuyển checklist export sang DONE vì môi trường hiện tại không có Docker CLI/DB để chạy runtime smoke đầy đủ. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/api test` 13/13, `pnpm test`, `pnpm build`, kiểm trực tiếp `makePdf` trả buffer bắt đầu `%PDF` và có `%%EOF`; Docker rebuild/smoke pending do `docker` không có trong PATH, port `5432/4000/8099` đều chưa mở trong sandbox hiện tại. |
+| 08/08/2026 | `WORKFLOW-FIELD-EDITABLE-STEPS` | Bổ sung cấu hình `editableBySteps` cho field biểu mẫu workflow: builder có checkbox chọn bước được sửa khi hồ sơ bị yêu cầu bổ sung, preview hiển thị scope sửa, API lưu/validate step code; thêm endpoint `/workflow-instances/:id/supplement` cho requester nộp bổ sung theo field được phép, cập nhật `formData`/`workflow_instance_values`, audit, mở lại pending approval cho bước hiện tại và giữ lịch sử `REQUESTED_INFO`. Chuyển checklist `Field config...editable/visible roles` và `Quyền theo trường` sang DONE. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, targeted workflow builder + bổ sung smoke 2/2, `pnpm test`, `pnpm build`, `pnpm smoke:web` 42/42, `docker builder prune -af`; Docker images `1.124GB`, volumes `86.6MB`, build cache `0B`. |
 | 01/08/2026 | `WORKFLOW-TEMPLATE-MANAGER` | Bổ sung UI chọn người quản lý quy trình trong workflow builder từ dữ liệu `/users`, gửi `managerId` khi tạo mẫu, preview hiển thị quản lý được chọn và smoke xác nhận template lưu đúng manager. Chuyển checklist trường cơ bản của workflow template sang DONE. | `pnpm --filter @workflow/web lint`, `pnpm --filter @workflow/api lint`, `docker compose up -d --build web`, targeted workflow builder smoke 1/1, `pnpm smoke:web` 42/42, `pnpm test`, `pnpm build`, `docker builder prune -af`; Docker images `1.124GB`, volumes `86.3MB`, build cache `0B`. |
 | 01/08/2026 | `WORKFLOW-ALLOWED-STARTERS` | Bổ sung đối tượng được phép khởi tạo mẫu quy trình: API nhận/lưu `workflow_versions.allowed_starters`, list/detail template lọc theo role/user/phòng ban, submit hồ sơ chặn người không thuộc scope; UI builder có checkbox `Vai trò được khởi tạo hồ sơ`, preview scope khởi tạo. Sửa thêm `useAsyncData` để bỏ qua response cũ, ổn định pagination/search async. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, targeted pagination smoke 1/1, `pnpm smoke:web` 42/42, `pnpm test`, `pnpm build`, `docker builder prune -af`; Docker images `1.124GB`, volumes `86.09MB`, build cache `0B`. |
 | 01/08/2026 | `WORKFLOW-FIELD-VISIBILITY` | Bổ sung quyền hiển thị trường biểu mẫu workflow theo role code: backend lọc field khi xem template/detail, chỉ validate và lưu value của field người tạo được thấy; UI builder tải role thật, có checkbox `Vai trò được xem trường`, preview hiển thị scope field và smoke kiểm admin thấy/validate field còn employee bị ẩn field. Chuyển checklist `Quyền theo trường` sang PARTIAL vì visible-by-role đã có, editable-by-step và policy nâng cao còn thiếu. | `pnpm --filter @workflow/api lint`, `pnpm --filter @workflow/web lint`, `docker compose up -d --build api web`, workflow smoke 42/42, `pnpm test`, `pnpm build`, `docker compose up -d --build api`, workflow smoke 42/42 sau sửa lọc payload, `docker builder prune -af`; Docker images `1.124GB`, volumes `85.47MB`, build cache `0B`. Compact VHDX bị chặn vì shell không chạy Administrator; script dừng trước khi stop Docker. |
@@ -190,7 +203,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | --- | --- | --- |
 | Workflow template fields: code/name/description/category/version/manager/allowed initiators/status | `DONE` | Code/name/category/version/status, manager select và allowed initiators theo role đã có UI/API/policy; backend schema cũng hỗ trợ user/phòng ban trong `allowed_starters` để mở rộng UI chi tiết sau. |
 | Form field types đầy đủ | `PARTIAL` | Schema enum có nhiều type; UI builder tạo template đã chọn được các loại field chính, SELECT/RADIO có options thật và new instance render dropdown/radio. ATTACHMENT/TABLE, user select và department select chuyên dụng còn cần UI/upload/query riêng theo form field. |
-| Field config required/default/placeholder/validation/order/editable/visible roles | `PARTIAL` | UI builder/API đã có required/default/placeholder/options/validation min-max/order và visible-by-role; backend lọc field theo role khi xem/tạo/detail hồ sơ. Editable-by-step và validation nâng cao còn thiếu UI đầy đủ. |
+| Field config required/default/placeholder/validation/order/editable/visible roles | `DONE` | UI builder/API đã có required/default/placeholder/options/validation min-max/order, visible-by-role và editable-by-step; backend lọc field theo role khi xem/tạo/detail và chỉ cho requester nộp bổ sung các field được phép sửa ở bước hiện tại. |
 | Step types start/handler/approval/review/notification/end | `DONE` | Enum/schema/API có. |
 | Assignee resolver theo user/role/department/manager/head/form field/previous | `DONE` | Service resolver có. |
 | Sequential approval | `DONE` | API/service/test/smoke pass. |
@@ -345,7 +358,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Web responsive | `PARTIAL` | Có; cần polish sâu mobile. |
 | Windows app chạy bằng Tauri | `PARTIAL` | Đã build `.exe`, MSI và NSIS setup. Chưa QA mở app desktop, auto-update, notification/deep link. |
 | Android/iOS app build | `PARTIAL` | Android Tauri project đã init, Android arm64 unsigned APK đã build lại cho test qua API `8099` và có cấu hình API URL runtime ở login. iOS vẫn `WAITING` vì cần macOS/Xcode và signing assets. |
-| Secure token storage native | `TODO` | Web dùng sessionStorage; native secure storage adapter chưa triển khai. |
+| Secure token storage native | `PARTIAL` | API client có adapter `session-storage.ts`: web/dev fallback `sessionStorage`, native shell có thể cung cấp `window.__WORKFLOW_SECURE_SESSION__` để lưu token bằng vùng an toàn OS; còn thiếu plugin Keychain/Keystore/Credential Manager thật trong Tauri shell và QA thiết bị. |
 | Push notification Android/iOS/PC | `PARTIAL` | Backend device token table/API có; adapter thật chưa. |
 | Offline draft/retry network weak | `PARTIAL` | Task draft + online/offline state có; queue retry an toàn chưa đủ. |
 | Camera/mobile file picker/compression/progress/cancel/retry | `PARTIAL` | Web file picker task có. Native camera/compression/progress/cancel chưa. |
@@ -387,9 +400,9 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Canvas kéo thả workflow | `TODO` | Chưa có. |
-| Node start/form/task/approval/condition/parallel/notification/wait/create task/end | `PARTIAL` | Backend model step/transition có; UI node trực quan chưa. |
-| Panel cấu hình node | `TODO` | Chưa có. |
+| Canvas kéo thả workflow | `PARTIAL` | Workflow builder có canvas trực quan start/approval/end, chọn node và kéo-thả node duyệt để đổi thứ tự; còn thiếu kéo đường nối tự do, pan/zoom và smoke runtime. |
+| Node start/form/task/approval/condition/parallel/notification/wait/create task/end | `PARTIAL` | Backend model step/transition có; UI designer đã hiển thị start/approval/end và palette thêm node duyệt. Chưa có node form/task/condition/notification/wait/create task trực quan riêng. |
+| Panel cấu hình node | `PARTIAL` | Designer có panel cấu hình node đang chọn cho tên/mã/resolver/mode/SLA/xóa/đổi thứ tự; còn thiếu config đầy đủ cho condition, assignee nâng cao và notification. |
 | Cấu hình đường nối/condition builder | `PARTIAL` | Backend structured conditions có; UI builder cấu hình điều kiện chuyển sang bước kế tiếp cơ bản. Chưa có canvas đường nối kéo thả. |
 | Kiểm tra quy trình/lỗi | `PARTIAL` | Backend validation cơ bản; UI checker chưa. |
 | Preview quy trình | `DONE` | Builder có preview form và flow trước khi lưu: fields/default/validation/options, steps/resolver/rule/SLA/condition và end node, có smoke test UI. |
@@ -399,11 +412,11 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Layout trái/giữa/phải | `TODO` | Chưa có builder kéo thả. |
+| Layout trái/giữa/phải | `PARTIAL` | Workflow builder có prototype layout trái palette, giữa canvas, phải cấu hình node và tự chuyển stack trên mobile; còn cần form builder kéo-thả field riêng. |
 | Loại trường đầy đủ | `PARTIAL` | Backend enum có; UI builder chọn được các loại field chính. |
-| Bố cục section/tab/grid/table | `TODO` | Chưa có UI builder. |
-| Cấu hình field/validation/default/placeholder | `PARTIAL` | UI có required/placeholder/order cơ bản; validation/default nâng cao chưa có. |
-| Điều kiện hiển thị/calculated field/repeating table | `TODO` | Chưa có. |
+| Bố cục section/tab/grid/table | `PARTIAL` | Builder có metadata tab/section/grid span, runtime tạo hồ sơ group theo tab/section và TABLE có cấu hình cột dạng metadata; còn thiếu drag-drop field layout, tab interaction nâng cao và editor bảng lặp trực quan. |
+| Cấu hình field/validation/default/placeholder | `PARTIAL` | UI/API có required/placeholder/default/min-max/options/layout/visibleWhen/calculation/tableColumns; còn thiếu editor chuyên dụng cho user/department select, attachment/table nâng cao và smoke runtime DB. |
+| Điều kiện hiển thị/calculated field/repeating table | `PARTIAL` | Có `visibleWhen` structured operator, frontend/backend cùng bỏ validation field ẩn, field số/tiền tự tính bằng toán tử an toàn và TABLE lưu cột metadata; còn thiếu repeating table nhập nhiều dòng thật và bộ rule condition nâng cao. |
 | Field permission theo step/role | `PARTIAL` | DB có; enforcement/UI chưa đầy đủ. |
 | Preview PC/mobile | `DONE` | Workflow builder có segmented control PC/Mobile; mobile preview co về khung 390px, desktop giữ hai cột, có smoke test chuyển thiết bị trước khi lưu template. |
 
@@ -435,18 +448,18 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Task categories/tags | `DONE` | Có seed/list, CRUD API có RBAC `task.update_any`, validation, audit log, soft delete và trang UI `Danh mục` để tạo/sửa/xóa category/tag kèm smoke test. |
-| Danh mục tùy chỉnh có fields/status/scope/manager | `TODO` | Chưa có. |
-| Dùng danh mục tùy chỉnh làm nguồn select trong form builder | `TODO` | Chưa có. |
+| Danh mục tùy chỉnh có fields/status/scope/manager | `PARTIAL` | Có DB/migration/API nền tảng `shared_catalogs`, `shared_catalog_fields`, `shared_catalog_items` với status, scope department, manager, fields, item values, seed mẫu, audit và UI tạo/sửa/xóa catalog + item cơ bản; smoke Docker/UI tạo-sửa-xóa catalog/item đã pass. Còn thiếu scope/manager picker chi tiết, search/import/export. |
+| Dùng danh mục tùy chỉnh làm nguồn select trong form builder | `DONE` | Workflow builder tải `/shared-catalogs`, lưu `validation.catalogSource` cho SELECT/RADIO và runtime form tải `/shared-catalogs/:code/options` để render dropdown/radio theo dữ liệu catalog; shared catalog CRUD/options/audit đã được smoke trên Docker. Cache nâng cao có thể tối ưu sau nhưng không còn là việc bắt buộc của mục này. |
 
 ## 25. Người dùng và tổ chức nâng cao
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
 | Sơ đồ tổ chức tree/org/list | `DONE` | Trang Phòng ban có panel sơ đồ tổ chức dạng tree/list responsive, lấy dữ liệu thật từ department/user/team và click node để chọn phòng ban. |
-| Kéo chuyển phòng ban | `TODO` | Chưa có. |
+| Kéo chuyển phòng ban | `PARTIAL` | Sơ đồ tổ chức có drag/drop đổi parent qua API `PATCH /departments/:id`, vùng đưa về cấp gốc, chặn chuyển vào nhánh con; còn thiếu smoke runtime và tối ưu thao tác mobile. |
 | User profile đầy đủ | `DONE` | Hồ sơ cá nhân đã có tự xem/sửa họ tên, phone, chức danh, upload avatar, đổi mật khẩu, xem phòng ban/quản lý/nhóm/vai trò/timestamps, timeline hoạt động gần đây và task/workflow liên quan từ DB thật. |
 | Thiết bị đăng nhập/hoạt động gần đây/task/workflow liên quan | `DONE` | Menu tài khoản có danh sách phiên đăng nhập, thu hồi từng thiết bị và đăng xuất tất cả; profile có timeline hoạt động gần đây, công việc liên quan, hồ sơ tôi tạo và hồ sơ chờ tôi phê duyệt. |
-| Import user Excel/CSV với preview/transaction/errors | `TODO` | Chưa có. |
+| Import user Excel/CSV với preview/transaction/errors | `PARTIAL` | Đã có import CSV với preview lỗi từng dòng, endpoint `/users/import` hỗ trợ `apply=false/true`, áp dụng trong transaction, hash mật khẩu, role/team/department/manager theo code và audit `user.import`; còn thiếu import `.xlsx` trực tiếp và runtime smoke Docker/DB. |
 
 ## 26. Ma trận vai trò và phân quyền
 
@@ -455,7 +468,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Quyền chức năng dạng ma trận | `PARTIAL` | Đã có ma trận theo nhóm quyền/từng permission code, preview scope và warning rule cơ bản. Chưa có ma trận module x action nâng cao và rule kế thừa/phụ thuộc quyền bắt buộc. |
 | Chọn toàn hàng/cột, copy role, reset, unsaved changes | `DONE` | Có chọn toàn bộ, chọn theo nhóm, sao chép quyền từ vai trò khác, khôi phục và cảnh báo thay đổi chưa lưu; QA browser pass. |
 | Phạm vi dữ liệu theo quyền | `PARTIAL` | Một số scope hard-coded theo permissions; chưa model cấu hình scope. |
-| Quyền theo trường | `PARTIAL` | Workflow form field đã cấu hình được `visibleToRoles` theo role code trên UI builder; backend lọc template/detail, validate và lưu value theo field người dùng được thấy. Còn thiếu editable-by-step, policy theo từng bước và UI quản trị nâng cao. |
+| Quyền theo trường | `DONE` | Workflow form field đã cấu hình được `visibleToRoles` theo role code và `editableBySteps` theo step code trên UI builder; backend lọc template/detail, validate/lưu value theo field người dùng được thấy và chỉ nhận bổ sung field được phép sửa ở bước hiện tại. |
 | Preview quyền | `PARTIAL` | Có preview phạm vi task/workflow/system/audit theo permission code trong trang Vai trò. Chưa có giả lập theo từng user/dữ liệu cụ thể. |
 | Cảnh báo xung đột quyền | `PARTIAL` | Có cảnh báo cơ bản khi manage thiếu read hoặc quyền liên quan chưa đủ. Chưa có rule engine đầy đủ/phụ thuộc quyền bắt buộc. |
 
@@ -463,12 +476,12 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 
 | Checklist | Trạng thái | Ghi chú |
 | --- | --- | --- |
-| Báo cáo công việc | `PARTIAL` | Có module `Báo cáo` riêng với API summary/drill-down/export CSV/XLSX theo quyền và filter server-side. Còn thiếu PDF native, lịch lưu báo cáo và báo cáo tùy chỉnh. |
-| Báo cáo quy trình | `PARTIAL` | Có thống kê workflow theo trạng thái/template, recent instances, drill-down và export CSV/XLSX theo quyền. Còn thiếu SLA phân tích sâu/PDF native. |
+| Báo cáo công việc | `PARTIAL` | Có module `Báo cáo` riêng với API summary/drill-down/export CSV/XLSX/PDF theo quyền và filter server-side; CSV/XLSX/PDF runtime smoke và audit đã pass. Lịch lưu báo cáo và báo cáo tùy chỉnh còn thiếu. |
+| Báo cáo quy trình | `PARTIAL` | Có thống kê workflow theo trạng thái/template, recent instances, drill-down và export CSV/XLSX/PDF theo quyền; CSV/XLSX/PDF runtime smoke và audit đã pass. SLA phân tích sâu còn thiếu. |
 | Bộ lọc báo cáo | `DONE` | Trang `Báo cáo` gọi API `/reports/summary` và lọc server-side theo phòng ban, trạng thái công việc, ưu tiên, trạng thái hồ sơ và khoảng ngày trong phạm vi quyền backend. |
 | Drill-down | `DONE` | Report charts mở bảng chi tiết qua API `/reports/drilldown` có pagination, áp đúng filter hiện tại và scope quyền backend; smoke test kiểm drill-down từ chart ưu tiên về task thật. |
-| Export Excel/CSV/PDF/print theo quyền + audit | `PARTIAL` | Đã có export CSV và Excel `.xlsx` qua API `/reports/export.*` theo filter/scope quyền, audit `report.export.csv`/`report.export.xlsx`, UI tải CSV/Excel và in bằng print stylesheet; chưa có PDF native. |
-| Dashboard tùy chỉnh | `TODO` | Chưa có. |
+| Export Excel/CSV/PDF/print theo quyền + audit | `DONE` | Export CSV, Excel `.xlsx` và PDF native qua API `/reports/export.*` theo filter/scope quyền, audit `report.export.csv`/`report.export.xlsx`/`report.export.pdf`, UI tải CSV/Excel/PDF và in bằng print stylesheet; Docker smoke 43/43 kiểm download và audit runtime. |
+| Dashboard tùy chỉnh | `PARTIAL` | Dashboard có panel chọn ẩn/hiện widget, lưu `localStorage`, khôi phục mặc định và vẫn dùng số liệu thật từ API theo filter/quyền; còn thiếu lưu cấu hình theo user trong DB và kéo-thả sắp xếp widget. |
 
 ## 28. Mobile
 
@@ -503,7 +516,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | Cache danh mục | `DONE` | Frontend có cache in-memory TTL ngắn cho dữ liệu nền dùng lại ở form/filter/admin; tự invalidation khi đổi API URL/session hoặc mutate user/department/team/role, có unit test. |
 | Upload/import/export không treo UI, progress task dài | `PARTIAL` | Loading/busy có; upload progress/cancel chưa. |
 | Skeleton loading | `DONE` | `LoadingBlock` dùng chung đã chuyển thành skeleton card/list responsive có shimmer và accessibility state, áp dụng cho dashboard/task/workflow/admin/profile qua component chung. |
-| Workflow designer 100 nodes mượt | `TODO` | Chưa có designer. |
+| Workflow designer 100 nodes mượt | `PARTIAL` | Designer có nút thêm nhanh 10 bước để stress layout, hiển thị tổng node và compact/scroll canvas từ 30 node; còn thiếu performance smoke đo 100 node thực tế, pan/zoom và virtualization nâng cao. |
 
 ## 31. Kiểm thử UI và trải nghiệm
 
@@ -529,7 +542,7 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | --- | --- | --- |
 | Design system/layout/component library | `PARTIAL` | Đã có common components, hook chung, page modules `tasks/workflows/admin`, layout shell/navigation và shared status/date helpers. Còn thiếu docs component library và UI primitives nâng cao như modal/sheet/skeleton/file picker chuẩn. |
 | Wireframe màn chính | `PARTIAL` | Implemented screens đóng vai trò prototype; chưa có wireframe doc. |
-| Prototype workflow designer/form builder | `TODO` | Chưa có. |
+| Prototype workflow designer/form builder | `PARTIAL` | Đã có prototype workflow designer trong builder với palette/canvas/config panel; form builder vẫn là danh sách cấu hình field, chưa kéo-thả field/section. |
 | Kiểm tra responsive trước khi hoàn thiện module | `PARTIAL` | Đã QA một số mobile, cần matrix. |
 | Không thiết kế màn riêng lẻ thiếu component chung | `PARTIAL` | UI primitives/hook chung, layout shell, navigation, shared formatters và page modules đã tách khỏi `App.tsx`; còn cần gom thêm form/table/modal patterns thành component dùng lại sâu hơn. |
 
@@ -539,12 +552,12 @@ File này là nguồn theo dõi trạng thái chính của dự án. Sau mỗi l
 | --- | --- | --- |
 | Design system rõ ràng/UI nhất quán/light-dark/responsive/card mobile/loading-empty-error-offline | `PARTIAL` | Có nền tảng, cần tài liệu và audit. |
 | Workflow designer kéo thả, node, mũi tên, panel, condition, validate, draft, publish version | `PARTIAL` | Chưa có canvas designer; đã có builder condition cơ bản cho transition tuần tự. |
-| Form builder kéo thả, section/tab/condition/field permission/preview PC-mobile | `PARTIAL` | Có builder động cơ bản cho field/step, condition tuần tự, field visible-by-role và preview PC/mobile. Chưa có kéo thả, section/tab, calculated/conditional display và editable-by-step. |
+| Form builder kéo thả, section/tab/condition/field permission/preview PC-mobile | `PARTIAL` | Có builder động cơ bản cho field/step, condition tuần tự, field visible-by-role, editable-by-step và preview PC/mobile. Chưa có kéo thả, section/tab và calculated/conditional display nâng cao. |
 | Configuration center, auto code, working days/SLA | `PARTIAL` | Settings cơ bản; center nâng cao chưa. |
-| Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản, dashboard theo quyền và field visibility theo role đã có; data scope nâng cao/editable-by-step chưa có. |
-| Reports, drill-down, export theo quyền | `PARTIAL` | Có báo cáo summary/drill-down/export CSV/XLSX/print theo filter và scope quyền backend; còn thiếu PDF native và report builder/lịch gửi nâng cao. |
+| Permission matrix, data scope, dashboard role-based | `PARTIAL` | Ma trận quyền, preview quyền/cảnh báo cơ bản, dashboard theo quyền, field visibility theo role và editable-by-step đã có; data scope nâng cao còn cần hoàn thiện. |
+| Reports, drill-down, export theo quyền | `PARTIAL` | Có báo cáo summary/drill-down/export CSV/XLSX/PDF/print theo filter và scope quyền backend; runtime smoke Docker đã kiểm export/audit. Report builder và lịch gửi nâng cao còn thiếu. |
 | Audit config changes | `DONE` | `/system-settings` ghi audit trong transaction kèm metadata trước/sau và redact value cho key nhạy cảm; smoke API xác nhận không lộ secret trong log. |
-| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Chunk workflow template manager đã pass lint API/web, Docker build/up web, targeted workflow builder smoke, full smoke 42/42, `pnpm test` và `pnpm build`. Responsive vẫn cần QA sâu trên thiết bị thật/Edge/iOS. |
+| Không còn responsive/lint/type-check/test/build errors | `PARTIAL` | Gate hiện tại pass `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm typecheck`, `git diff --check` và Docker smoke web 43/43 trên `8099`; responsive/native device vẫn cần QA sâu trên thiết bị thật/Edge/iOS. |
 
 ## Việc ưu tiên tiếp theo
 

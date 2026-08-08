@@ -11,6 +11,7 @@ import { registerErrorHandler } from "./http/errors.js";
 import { prisma } from "./prisma.js";
 import { auditRoutes } from "./modules/audit/audit.routes.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
+import { catalogRoutes } from "./modules/catalogs/catalog.routes.js";
 import { dashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
 import { identityRoutes } from "./modules/identity/identity.routes.js";
 import { notificationRoutes } from "./modules/notifications/notification.routes.js";
@@ -109,6 +110,7 @@ export async function createApp() {
     await api.register(authRoutes);
     await api.register(identityRoutes);
     await api.register(taskRoutes);
+    await api.register(catalogRoutes);
     await api.register(uploadRoutes);
     await api.register(workflowRoutes);
     await api.register(notificationRoutes);

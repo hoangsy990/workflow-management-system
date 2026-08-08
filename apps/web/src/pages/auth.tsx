@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { FormEvent, useState } from "react";
-import { api, ApiUser, getApiUrl, setApiUrl, setStoredSession } from "../api/client";
+import { api, ApiUser, getApiUrl, setApiUrl, setStoredSessionAsync } from "../api/client";
 
 export function Login({ onLogin }: { onLogin: (user: ApiUser) => void }) {
   const [email, setEmail] = useState("admin@workflow.local");
@@ -16,7 +16,7 @@ export function Login({ onLogin }: { onLogin: (user: ApiUser) => void }) {
     try {
       setApiUrl(apiUrl);
       const result = await api.login(email, password, "Web");
-      setStoredSession({ accessToken: result.accessToken, refreshToken: result.refreshToken });
+      await setStoredSessionAsync({ accessToken: result.accessToken, refreshToken: result.refreshToken });
       onLogin(result.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Đăng nhập thất bại.");

@@ -132,6 +132,17 @@ type WorkflowFieldDraft = {
   minValue: string;
   maxValue: string;
   optionText: string;
+  layoutTab: string;
+  layoutSection: string;
+  layoutColumnSpan: string;
+  visibleWhenFieldCode: string;
+  visibleWhenOperator: string;
+  visibleWhenValue: string;
+  calculationOperator: string;
+  calculationFieldCodes: string;
+  catalogSourceCode: string;
+  tableColumnsText: string;
+  editableStepCodes: string[];
   visibleRoleCodes: string[];
 };
 
@@ -182,6 +193,32 @@ type WorkflowValidationRules = {
   min?: number;
   max?: number;
   options?: string[];
+  layout?: {
+    tab?: string;
+    section?: string;
+    columnSpan?: number;
+  };
+  visibleWhen?: {
+    fieldCode: string;
+    operator: string;
+    compareValue?: unknown;
+    groupType?: "AND" | "OR";
+  };
+  calculation?: {
+    operator: string;
+    fieldCodes: string[];
+  };
+  catalogSource?: {
+    catalogCode: string;
+    valueField?: string;
+    labelField?: string;
+  };
+  tableColumns?: Array<{
+    code: string;
+    name: string;
+    type: string;
+    required?: boolean;
+  }>;
 };
 
 type WorkflowVersionDetail = {
@@ -372,6 +409,17 @@ function newWorkflowField(index: number): WorkflowFieldDraft {
       minValue: "",
       maxValue: "",
       optionText: "",
+      layoutTab: "Thông tin chung",
+      layoutSection: "Nội dung đề xuất",
+      layoutColumnSpan: "1",
+      visibleWhenFieldCode: "",
+      visibleWhenOperator: "eq",
+      visibleWhenValue: "",
+      calculationOperator: "SUM",
+      calculationFieldCodes: "",
+      catalogSourceCode: "",
+      tableColumnsText: "",
+      editableStepCodes: [],
       visibleRoleCodes: []
     };
   }
@@ -389,6 +437,17 @@ function newWorkflowField(index: number): WorkflowFieldDraft {
       minValue: "",
       maxValue: "",
       optionText: "",
+      layoutTab: "Thông tin chung",
+      layoutSection: "Chi phí",
+      layoutColumnSpan: "1",
+      visibleWhenFieldCode: "",
+      visibleWhenOperator: "eq",
+      visibleWhenValue: "",
+      calculationOperator: "SUM",
+      calculationFieldCodes: "",
+      catalogSourceCode: "",
+      tableColumnsText: "",
+      editableStepCodes: [],
       visibleRoleCodes: []
     };
   }
@@ -405,6 +464,17 @@ function newWorkflowField(index: number): WorkflowFieldDraft {
     minValue: "",
     maxValue: "",
     optionText: "",
+    layoutTab: "",
+    layoutSection: "",
+    layoutColumnSpan: "1",
+    visibleWhenFieldCode: "",
+    visibleWhenOperator: "eq",
+    visibleWhenValue: "",
+    calculationOperator: "SUM",
+    calculationFieldCodes: "",
+    catalogSourceCode: "",
+    tableColumnsText: "",
+    editableStepCodes: [],
     visibleRoleCodes: []
   };
 }
@@ -465,8 +535,146 @@ function workflowFieldOptions(field: { validation?: WorkflowValidationRules | nu
   return Array.isArray(field.validation?.options) ? field.validation.options.filter((option) => option.trim() !== "") : [];
 }
 
+function workflowFieldLayout(field: { validation?: WorkflowValidationRules | null }) {
+  return field.validation?.layout ?? {};
+}
+
+function workflowFieldVisibleWhen(field: { validation?: WorkflowValidationRules | null }) {
+  return field.validation?.visibleWhen ?? null;
+}
+
+function workflowFieldCalculation(field: { validation?: WorkflowValidationRules | null }) {
+  return field.validation?.calculation ?? null;
+}
+
+function workflowCatalogSource(field: { validation?: WorkflowValidationRules | null }) {
+  return field.validation?.catalogSource ?? null;
+}
+
+function workflowTableColumns(field: { validation?: WorkflowValidationRules | null }) {
+  return Array.isArray(field.validation?.tableColumns) ? field.validation.tableColumns : [];
+}
+
+function parseWorkflowTableColumns(value: string): { columns?: WorkflowValidationRules["tableColumns"]; error?: string } {
+  const rows = value
+    .split(/\n/)
+    .map((row) => row.trim())
+    .filter(Boolean);
+  if (rows.length === 0) {
+    return {};
+  }
+
+  const columns = rows.map((row) => {
+    const parts = row.split("|").map((part) => part.trim());
+    const rawCode = parts[0] ?? "";
+    const rawName = parts[1] ?? "";
+    const rawType = parts[2] ?? "";
+    const rawRequired = parts[3] ?? "";
+    return {
+      code: normalizeWorkflowCode(rawCode),
+      name: rawName,
+      type: rawType || "SHORT_TEXT",
+      required: rawRequired === "required" || rawRequired === "true" || rawRequired === "bat_buoc"
+    };
+  });
+  const invalid = columns.find((column) => !column.code || !column.name || !["SHORT_TEXT", "NUMBER", "CURRENCY", "DATE"].includes(column.type));
+  if (invalid) {
+    return { error: "Cột bảng cần nhập theo dạng code|Tên cột|SHORT_TEXT/NUMBER/CURRENCY/DATE|required." };
+  }
+  if (new Set(columns.map((column) => column.code)).size !== columns.length) {
+    return { error: "Mã cột trong bảng không được trùng." };
+  }
+  return { columns };
+}
+
+function compareWorkflowValue(actual: unknown, operator: string, expected: unknown) {
+  const normalizedActual = typeof actual === "string" && actual.trim() && !Number.isNaN(Number(actual)) ? Number(actual) : actual;
+  const normalizedExpected = typeof expected === "string" && expected.trim() && !Number.isNaN(Number(expected)) ? Number(expected) : expected;
+  switch (operator) {
+    case "eq":
+      return normalizedActual === normalizedExpected;
+    case "neq":
+      return normalizedActual !== normalizedExpected;
+    case "gt":
+      return Number(normalizedActual) > Number(normalizedExpected);
+    case "gte":
+      return Number(normalizedActual) >= Number(normalizedExpected);
+    case "lt":
+      return Number(normalizedActual) < Number(normalizedExpected);
+    case "lte":
+      return Number(normalizedActual) <= Number(normalizedExpected);
+    case "contains":
+      return String(normalizedActual ?? "").includes(String(normalizedExpected ?? ""));
+    case "exists":
+      return !isBlankWorkflowValue(normalizedActual);
+    default:
+      return true;
+  }
+}
+
+function workflowFieldVisibleByValues(field: WorkflowFormField, values: Record<string, unknown>) {
+  const rule = workflowFieldVisibleWhen(field);
+  if (!rule?.fieldCode || !rule.operator) {
+    return true;
+  }
+  return compareWorkflowValue(values[rule.fieldCode], rule.operator, rule.compareValue);
+}
+
+function workflowCalculatedNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return undefined;
+}
+
+function calculateWorkflowFieldValue(field: WorkflowFormField, values: Record<string, unknown>) {
+  const calculation = workflowFieldCalculation(field);
+  if (!calculation || (field.type !== "NUMBER" && field.type !== "CURRENCY")) {
+    return undefined;
+  }
+  const numbers = calculation.fieldCodes.map((code) => workflowCalculatedNumber(values[code]));
+  if (numbers.length === 0 || numbers.some((value) => value === undefined)) {
+    return undefined;
+  }
+  const safeNumbers = numbers as number[];
+  if (calculation.operator === "SUM") return safeNumbers.reduce((sum, value) => sum + value, 0);
+  if (calculation.operator === "DIFFERENCE") return safeNumbers.slice(1).reduce((result, value) => result - value, safeNumbers[0] ?? 0);
+  if (calculation.operator === "PRODUCT") return safeNumbers.reduce((result, value) => result * value, 1);
+  if (calculation.operator === "RATIO") return safeNumbers.slice(1).reduce((result, value) => (value === 0 ? Number.NaN : result / value), safeNumbers[0] ?? 0);
+  return undefined;
+}
+
+function applyWorkflowCalculations(fields: WorkflowFormField[], values: Record<string, unknown>) {
+  const next = { ...values };
+  for (const field of fields) {
+    const calculated = calculateWorkflowFieldValue(field, next);
+    if (calculated !== undefined && Number.isFinite(calculated)) {
+      next[field.code] = calculated;
+    }
+  }
+  return next;
+}
+
+function shallowWorkflowValuesEqual(left: Record<string, unknown>, right: Record<string, unknown>) {
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  for (const key of keys) {
+    if (left[key] !== right[key]) return false;
+  }
+  return true;
+}
+
 function workflowVisibleRoleCodes(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "") : [];
+}
+
+function workflowEditableStepCodes(value: unknown) {
+  if (Array.isArray(value)) {
+    return workflowVisibleRoleCodes(value);
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return workflowVisibleRoleCodes(record.stepCodes ?? record.steps ?? record.codes);
+  }
+  return [];
 }
 
 function workflowUserRoleCodes(roles: Array<{ code?: string } | string> | undefined) {
@@ -486,6 +694,23 @@ function workflowFieldVisibleForRoles(field: Pick<WorkflowFormField, "visibleToR
 
 function filterWorkflowFieldsByRoles(fields: WorkflowFormField[], roles: Array<{ code?: string } | string> | undefined) {
   return fields.filter((field) => workflowFieldVisibleForRoles(field, roles));
+}
+
+function workflowFieldEditableForStep(field: Pick<WorkflowFormField, "editableBySteps">, stepCode?: string | null) {
+  const editableStepCodes = workflowEditableStepCodes(field.editableBySteps);
+  if (!stepCode || editableStepCodes.length === 0) {
+    return true;
+  }
+  return editableStepCodes.includes(stepCode);
+}
+
+function buildWorkflowValuesFromData(fields: WorkflowFormField[], values: Record<string, unknown>) {
+  return fields.reduce<Record<string, unknown>>((result, field) => {
+    if (field.type !== "HEADING") {
+      result[field.code] = Object.prototype.hasOwnProperty.call(values, field.code) ? values[field.code] : defaultFieldValue(field);
+    }
+    return result;
+  }, {});
 }
 
 function parseOptionalWorkflowNumber(value: string) {
@@ -546,12 +771,72 @@ function buildWorkflowFieldValidation(field: WorkflowFieldDraft): { validation?:
     }
   }
 
-  if (supportsChoiceOptions(field.type)) {
+  if (supportsChoiceOptions(field.type) && field.catalogSourceCode.trim()) {
+    validation.catalogSource = { catalogCode: field.catalogSourceCode.trim() };
+  }
+
+  if (supportsChoiceOptions(field.type) && !field.catalogSourceCode.trim()) {
     const options = parseWorkflowOptions(field.optionText);
     if (options.length === 0) {
       return { error: `${field.name} cần ít nhất một lựa chọn.` };
     }
     validation.options = options;
+  }
+
+  const columnSpan = parseOptionalWorkflowNumber(field.layoutColumnSpan);
+  if (columnSpan === null || (columnSpan !== undefined && (columnSpan < 1 || columnSpan > 2))) {
+    return { error: `Bố cục cột của ${field.name} chỉ nhận 1 hoặc 2.` };
+  }
+  const layout = {
+    tab: field.layoutTab.trim() || undefined,
+    section: field.layoutSection.trim() || undefined,
+    columnSpan: columnSpan ? Math.trunc(columnSpan) : undefined
+  };
+  if (layout.tab || layout.section || layout.columnSpan) {
+    validation.layout = layout;
+  }
+
+  if (field.visibleWhenFieldCode.trim()) {
+    if (field.visibleWhenOperator !== "exists" && field.visibleWhenValue.trim() === "") {
+      return { error: `Điều kiện hiển thị của ${field.name} cần giá trị so sánh.` };
+    }
+    validation.visibleWhen = {
+      fieldCode: normalizeWorkflowCode(field.visibleWhenFieldCode),
+      operator: field.visibleWhenOperator,
+      compareValue: field.visibleWhenOperator === "exists" ? true : parseConditionValue(field.visibleWhenValue),
+      groupType: "AND"
+    };
+  }
+
+  if (field.calculationFieldCodes.trim()) {
+    if (!supportsNumberValidation(field.type)) {
+      return { error: `${field.name} chỉ được tính toán khi là trường số hoặc tiền tệ.` };
+    }
+    const fieldCodes = Array.from(
+      new Set(
+        field.calculationFieldCodes
+          .split(/[\n,]/)
+          .map((code) => normalizeWorkflowCode(code))
+          .filter(Boolean)
+      )
+    );
+    if (fieldCodes.length === 0) {
+      return { error: `Công thức của ${field.name} cần ít nhất một trường nguồn.` };
+    }
+    validation.calculation = {
+      operator: field.calculationOperator,
+      fieldCodes
+    };
+  }
+
+  if (field.type === "TABLE" && field.tableColumnsText.trim()) {
+    const tableResult = parseWorkflowTableColumns(field.tableColumnsText);
+    if (tableResult.error) {
+      return { error: `${field.name}: ${tableResult.error}` };
+    }
+    if (tableResult.columns?.length) {
+      validation.tableColumns = tableResult.columns;
+    }
   }
 
   return Object.keys(validation).length > 0 ? { validation } : {};
@@ -582,16 +867,38 @@ function buildInitialWorkflowValues(fields: WorkflowFormField[]) {
   }, {});
 }
 
+function groupWorkflowFieldsByLayout(fields: WorkflowFormField[]) {
+  const tabMap = new Map<string, Map<string, WorkflowFormField[]>>();
+  for (const field of fields) {
+    const layout = workflowFieldLayout(field);
+    const tab = layout.tab?.trim() || "Thong tin chung";
+    const section = layout.section?.trim() || "Noi dung";
+    if (!tabMap.has(tab)) {
+      tabMap.set(tab, new Map());
+    }
+    const sectionMap = tabMap.get(tab)!;
+    sectionMap.set(section, [...(sectionMap.get(section) ?? []), field]);
+  }
+  return [...tabMap.entries()].map(([tab, sectionMap]) => ({
+    tab,
+    sections: [...sectionMap.entries()].map(([section, sectionFields]) => ({ section, fields: sectionFields }))
+  }));
+}
+
 function isBlankWorkflowValue(value: unknown) {
   return value === undefined || value === null || value === "";
 }
 
 function validateWorkflowValues(fields: WorkflowFormField[], values: Record<string, unknown>) {
+  const effectiveValues = applyWorkflowCalculations(fields, values);
   return fields.reduce<Record<string, string>>((errors, field) => {
     if (field.type === "HEADING") {
       return errors;
     }
-    const value = values[field.code];
+    if (!workflowFieldVisibleByValues(field, effectiveValues)) {
+      return errors;
+    }
+    const value = effectiveValues[field.code];
     if (field.isRequired && isBlankWorkflowValue(value)) {
       errors[field.code] = "Trường này là bắt buộc.";
       return errors;
@@ -628,6 +935,9 @@ function validateWorkflowValues(fields: WorkflowFormField[], values: Record<stri
       }
     }
     if (supportsChoiceOptions(field.type)) {
+      if (workflowCatalogSource(field)) {
+        return errors;
+      }
       const options = workflowFieldOptions(field);
       if (options.length > 0 && !options.includes(String(value))) {
         errors[field.code] = "Vui lòng chọn giá trị trong danh sách.";
@@ -861,6 +1171,28 @@ function workflowFieldValidationPreview(field: WorkflowFieldDraft) {
     validation.max !== undefined ? `Tối đa ${validation.max}` : "",
     validation.options?.length ? `Lựa chọn: ${validation.options.join(", ")}` : ""
   ].filter(Boolean);
+  if (validation.layout?.tab || validation.layout?.section) {
+    rules.push(`Layout: ${[validation.layout.tab, validation.layout.section].filter(Boolean).join(" / ")}`);
+  }
+  if (validation.layout?.columnSpan === 2) {
+    rules.push("Rộng 2 cột");
+  }
+  if (validation.visibleWhen) {
+    rules.push(
+      `Hiện khi ${validation.visibleWhen.fieldCode} ${optionLabel(conditionOperatorOptions, validation.visibleWhen.operator).toLowerCase()} ${
+        validation.visibleWhen.operator === "exists" ? "có dữ liệu" : workflowPreviewValue(validation.visibleWhen.compareValue)
+      }`
+    );
+  }
+  if (validation.calculation) {
+    rules.push(`Tính ${validation.calculation.operator}: ${validation.calculation.fieldCodes.join(", ")}`);
+  }
+  if (validation.catalogSource) {
+    rules.push(`Nguon danh muc: ${validation.catalogSource.catalogCode}`);
+  }
+  if (validation.tableColumns?.length) {
+    rules.push(`Bảng ${validation.tableColumns.length} cột`);
+  }
   return rules.length > 0 ? rules.join(" · ") : "Không có rule bổ sung";
 }
 
@@ -928,6 +1260,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
   const workflowSettings = useAsyncData<Record<string, any>[]>(() => api.settings().catch(() => []), []);
   const roles = useAsyncData<RoleSummary[]>(() => api.roles() as Promise<RoleSummary[]>, []);
   const users = useAsyncData(() => api.users(), []);
+  const sharedCatalogs = useAsyncData<Record<string, any>[]>(() => api.sharedCatalogs().catch(() => []), []);
   const [form, setForm] = useState({
     code: "",
     name: "",
@@ -938,6 +1271,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
   });
   const [fields, setFields] = useState<WorkflowFieldDraft[]>([newWorkflowField(1), newWorkflowField(2)]);
   const [approvalSteps, setApprovalSteps] = useState<WorkflowApprovalStepDraft[]>([newApprovalStep(1)]);
+  const [selectedDesignerStepId, setSelectedDesignerStepId] = useState("");
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
   const [workflowDefaultsApplied, setWorkflowDefaultsApplied] = useState(false);
   const [error, setError] = useState("");
@@ -945,6 +1279,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
   const defaults = workflowBuilderDefaults(workflowSettings.data);
   const roleNameByCode = useMemo(() => new Map((roles.data ?? []).map((role) => [role.code, role.name])), [roles.data]);
   const userOptions = users.data?.data ?? [];
+  const sharedCatalogOptions = sharedCatalogs.data ?? [];
 
   useEffect(() => {
     if (workflowDefaultsApplied || !workflowSettings.data) return;
@@ -961,6 +1296,16 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
     );
     setWorkflowDefaultsApplied(true);
   }, [defaults, workflowDefaultsApplied, workflowSettings.data]);
+
+  useEffect(() => {
+    if (approvalSteps.length === 0) {
+      setSelectedDesignerStepId("");
+      return;
+    }
+    if (!selectedDesignerStepId || !approvalSteps.some((step) => step.id === selectedDesignerStepId)) {
+      setSelectedDesignerStepId(approvalSteps[0]?.id ?? "");
+    }
+  }, [approvalSteps, selectedDesignerStepId]);
 
   function updateField(id: string, patch: Partial<WorkflowFieldDraft>) {
     setFields((current) => current.map((field) => (field.id === id ? { ...field, ...patch } : field)));
@@ -981,6 +1326,21 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
     );
   }
 
+  function toggleFieldEditableStep(id: string, stepCode: string, checked: boolean) {
+    setFields((current) =>
+      current.map((field) => {
+        if (field.id !== id) return field;
+        const editableStepCodes = new Set(field.editableStepCodes);
+        if (checked) {
+          editableStepCodes.add(stepCode);
+        } else {
+          editableStepCodes.delete(stepCode);
+        }
+        return { ...field, editableStepCodes: [...editableStepCodes] };
+      })
+    );
+  }
+
   function toggleStarterRole(roleCode: string, checked: boolean) {
     setForm((current) => {
       const starterRoleCodes = new Set(current.starterRoleCodes);
@@ -997,6 +1357,39 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
     setApprovalSteps((current) => current.map((step) => (step.id === id ? { ...step, ...patch } : step)));
   }
 
+  function appendApprovalSteps(count: number, patch: Partial<WorkflowApprovalStepDraft> = {}) {
+    const safeCount = Math.max(1, Math.min(100, count));
+    const nextSteps = Array.from({ length: safeCount }, (_, offset) => {
+      const nextStep = applyWorkflowStepDefaults(newApprovalStep(approvalSteps.length + offset + 1), defaults);
+      return { ...nextStep, ...patch };
+    });
+    setApprovalSteps((current) => [...current, ...nextSteps]);
+    setSelectedDesignerStepId(nextSteps[0]?.id ?? "");
+  }
+
+  function appendApprovalStep(patch: Partial<WorkflowApprovalStepDraft> = {}) {
+    appendApprovalSteps(1, patch);
+  }
+
+  function removeApprovalStep(id: string) {
+    setApprovalSteps((current) => current.filter((step) => step.id !== id));
+  }
+
+  function moveApprovalStep(sourceId: string, targetId: string) {
+    if (!sourceId || sourceId === targetId) return;
+    setApprovalSteps((current) => {
+      const sourceIndex = current.findIndex((step) => step.id === sourceId);
+      const targetIndex = current.findIndex((step) => step.id === targetId);
+      if (sourceIndex < 0 || targetIndex < 0) return current;
+      const next = [...current];
+      const [moved] = next.splice(sourceIndex, 1);
+      if (!moved) return current;
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+    setSelectedDesignerStepId(sourceId);
+  }
+
   function validateBuilder() {
     const fieldCodes = fields.map((field) => normalizeWorkflowCode(field.code));
     const stepCodes = approvalSteps.map((step) => normalizeWorkflowCode(step.code));
@@ -1006,11 +1399,23 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
     if (stepCodes.some((code) => !code)) return "Mã bước không được để trống.";
     if (new Set(fieldCodes).size !== fieldCodes.length) return "Mã trường không được trùng.";
     if (new Set(stepCodes).size !== stepCodes.length) return "Mã bước không được trùng.";
+    const stepCodeSet = new Set(stepCodes);
+    const invalidEditableStep = fields.find((field) => field.editableStepCodes.some((stepCode) => !stepCodeSet.has(stepCode)));
+    if (invalidEditableStep) return `Truong ${invalidEditableStep.name} chon buoc duoc sua khong hop le.`;
     for (const field of fields) {
       const defaultResult = parseWorkflowFieldDefault(field);
       if (defaultResult.error) return defaultResult.error;
       const validationResult = buildWorkflowFieldValidation(field);
       if (validationResult.error) return validationResult.error;
+      const normalizedCode = normalizeWorkflowCode(field.code);
+      const visibleFieldCode = validationResult.validation?.visibleWhen?.fieldCode;
+      if (visibleFieldCode && (!fieldCodes.includes(visibleFieldCode) || visibleFieldCode === normalizedCode)) {
+        return `Điều kiện hiển thị của ${field.name} tham chiếu trường không hợp lệ.`;
+      }
+      const invalidCalculatedFieldCode = validationResult.validation?.calculation?.fieldCodes.find((fieldCode) => !fieldCodes.includes(fieldCode) || fieldCode === normalizedCode);
+      if (invalidCalculatedFieldCode) {
+        return `Công thức của ${field.name} tham chiếu trường không hợp lệ.`;
+      }
       if (
         supportsChoiceOptions(field.type) &&
         defaultResult.value !== undefined &&
@@ -1034,6 +1439,14 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
     return "";
   }
 
+  const editableStepOptions = approvalSteps
+    .map((step, index) => ({
+      code: normalizeWorkflowCode(step.code),
+      label: step.name.trim() || `Buoc duyet ${index + 1}`
+    }))
+    .filter((step) => step.code);
+  const editableStepNameByCode = new Map(editableStepOptions.map((step) => [step.code, step.label]));
+
   const previewFields = fields.map((field, index) => {
     const defaultResult = parseWorkflowFieldDefault(field);
     return {
@@ -1049,6 +1462,10 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
         field.visibleRoleCodes.length > 0
           ? field.visibleRoleCodes.map((roleCode) => roleNameByCode.get(roleCode) ?? roleCode).join(", ")
           : "Tất cả vai trò",
+      editableLabel:
+        field.editableStepCodes.length > 0
+          ? field.editableStepCodes.map((stepCode) => editableStepNameByCode.get(stepCode) ?? stepCode).join(", ")
+          : "Tat ca buoc bo sung",
       placeholder: field.placeholder.trim()
     };
   });
@@ -1057,6 +1474,8 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
       ? form.starterRoleCodes.map((roleCode) => roleNameByCode.get(roleCode) ?? roleCode).join(", ")
       : "Tất cả người có quyền tạo hồ sơ";
   const managerName = userOptions.find((user: Record<string, any>) => user.id === form.managerId)?.fullName ?? "Chưa chọn";
+  const selectedDesignerStep = approvalSteps.find((step) => step.id === selectedDesignerStepId) ?? approvalSteps[0];
+  const selectedDesignerStepIndex = selectedDesignerStep ? approvalSteps.findIndex((step) => step.id === selectedDesignerStep.id) : -1;
 
   const previewSteps = approvalSteps.map((step, index) => {
     const nextStep = approvalSteps[index + 1];
@@ -1130,6 +1549,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
             defaultValue: defaultResult.value,
             placeholder: field.placeholder.trim() || undefined,
             validation: validationResult.validation,
+            editableBySteps: field.editableStepCodes.length > 0 ? field.editableStepCodes : undefined,
             visibleToRoles: field.visibleRoleCodes.length > 0 ? field.visibleRoleCodes : undefined,
             displayOrder: index + 1
           };
@@ -1216,6 +1636,164 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
           <small>{"Để trống nghĩa là mọi người có quyền tạo hồ sơ đều được dùng mẫu này."}</small>
         </div>
       </fieldset>
+      <fieldset className="workflow-designer full" data-testid="workflow-designer">
+        <legend>Designer quy trình</legend>
+        <div className="workflow-designer-layout">
+          <section className="workflow-palette" data-testid="workflow-designer-palette">
+            <div className="workflow-palette-head">
+              <h3>Node</h3>
+              <span className="status-chip">{approvalSteps.length} node</span>
+            </div>
+            <button className="ghost-button compact" type="button" onClick={() => appendApprovalStep({ resolverType: "REQUESTER_MANAGER" })}>
+              <CircleDot size={16} />
+              Quản lý duyệt
+            </button>
+            <button className="ghost-button compact" type="button" onClick={() => appendApprovalStep({ resolverType: "REQUESTER_DEPARTMENT_HEAD" })}>
+              <GitBranch size={16} />
+              Trưởng phòng duyệt
+            </button>
+            <button className="ghost-button compact" type="button" onClick={() => appendApprovalStep({ resolverType: "PREVIOUS_STEP_ASSIGNEE" })}>
+              <Plus size={16} />
+              Người xử lý trước
+            </button>
+            <button className="ghost-button compact" data-testid="workflow-designer-add-10" type="button" onClick={() => appendApprovalSteps(10)}>
+              <Plus size={16} />
+              Thêm 10 bước
+            </button>
+          </section>
+          <section className={`workflow-canvas ${approvalSteps.length >= 30 ? "compact" : ""}`} data-testid="workflow-designer-canvas" aria-label="Canvas quy trình">
+            <div className="workflow-canvas-terminal start">
+              <span>Bắt đầu</span>
+            </div>
+            {approvalSteps.map((step, index) => (
+              <button
+                className={`workflow-canvas-node ${selectedDesignerStep?.id === step.id ? "active" : ""}`}
+                data-testid={`workflow-designer-node-${index}`}
+                draggable
+                key={step.id}
+                type="button"
+                onClick={() => setSelectedDesignerStepId(step.id)}
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", step.id);
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  moveApprovalStep(event.dataTransfer.getData("text/plain"), step.id);
+                }}
+              >
+                <span className="workflow-node-index">{index + 1}</span>
+                <span className="workflow-node-main">
+                  <strong>{step.name.trim() || `Bước duyệt ${index + 1}`}</strong>
+                  <small>
+                    {normalizeWorkflowCode(step.code) || "step_code"} · {optionLabel(resolverTypeOptions, step.resolverType)}
+                  </small>
+                </span>
+                <span className="status-chip">{step.approvalMode === "PARALLEL" ? "Đồng thời" : "Tuần tự"}</span>
+              </button>
+            ))}
+            <div className="workflow-canvas-terminal end">
+              <CheckCircle2 size={16} />
+              <span>Kết thúc</span>
+            </div>
+          </section>
+          <section className="workflow-node-config" data-testid="workflow-node-config">
+            <h3>Cấu hình node</h3>
+            {selectedDesignerStep ? (
+              <>
+                <label>
+                  Tên bước
+                  <input
+                    data-testid="workflow-designer-step-name"
+                    value={selectedDesignerStep.name}
+                    onChange={(event) => updateStep(selectedDesignerStep.id, { name: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Mã bước
+                  <input
+                    data-testid="workflow-designer-step-code"
+                    value={selectedDesignerStep.code}
+                    onChange={(event) => updateStep(selectedDesignerStep.id, { code: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Người xử lý
+                  <select
+                    data-testid="workflow-designer-step-resolver"
+                    value={selectedDesignerStep.resolverType}
+                    onChange={(event) => updateStep(selectedDesignerStep.id, { resolverType: event.target.value })}
+                  >
+                    {resolverTypeOptions.map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Cơ chế duyệt
+                  <select
+                    data-testid="workflow-designer-step-mode"
+                    value={selectedDesignerStep.approvalMode}
+                    onChange={(event) => updateStep(selectedDesignerStep.id, { approvalMode: event.target.value })}
+                  >
+                    <option value="SEQUENTIAL">Tuần tự</option>
+                    <option value="PARALLEL">Đồng thời</option>
+                  </select>
+                </label>
+                <label>
+                  Hạn xử lý
+                  <span className="inline-fields">
+                    <input
+                      data-testid="workflow-designer-step-deadline"
+                      min={0}
+                      type="number"
+                      value={selectedDesignerStep.deadlineAmount}
+                      onChange={(event) => updateStep(selectedDesignerStep.id, { deadlineAmount: Number(event.target.value) })}
+                    />
+                    <select
+                      data-testid="workflow-designer-step-deadline-unit"
+                      value={selectedDesignerStep.deadlineUnit}
+                      onChange={(event) => updateStep(selectedDesignerStep.id, { deadlineUnit: event.target.value })}
+                    >
+                      <option value="HOUR">Giờ</option>
+                      <option value="DAY">Ngày</option>
+                    </select>
+                  </span>
+                </label>
+                <div className="form-actions">
+                  <button
+                    className="ghost-button compact"
+                    type="button"
+                    disabled={selectedDesignerStepIndex <= 0}
+                    onClick={() => moveApprovalStep(selectedDesignerStep.id, approvalSteps[selectedDesignerStepIndex - 1]?.id ?? selectedDesignerStep.id)}
+                  >
+                    Lên
+                  </button>
+                  <button
+                    className="ghost-button compact"
+                    type="button"
+                    disabled={selectedDesignerStepIndex < 0 || selectedDesignerStepIndex >= approvalSteps.length - 1}
+                    onClick={() => moveApprovalStep(selectedDesignerStep.id, approvalSteps[selectedDesignerStepIndex + 1]?.id ?? selectedDesignerStep.id)}
+                  >
+                    Xuống
+                  </button>
+                  <button className="ghost-button compact" type="button" disabled={approvalSteps.length <= 1} onClick={() => removeApprovalStep(selectedDesignerStep.id)}>
+                    Xóa node
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="empty-text">Chưa có bước phê duyệt.</p>
+            )}
+          </section>
+        </div>
+      </fieldset>
       <fieldset className="builder-list">
         <legend>{"Biểu mẫu"}</legend>
         {fields.map((field, index) => (
@@ -1262,6 +1840,22 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
                 />
               </label>
               <label>
+                Nguon danh muc
+                <select
+                  data-testid={"workflow-field-catalog-source-" + index}
+                  value={field.catalogSourceCode}
+                  disabled={!supportsChoiceOptions(field.type)}
+                  onChange={(event) => updateField(field.id, { catalogSourceCode: event.target.value })}
+                >
+                  <option value="">Khong dung</option>
+                  {sharedCatalogOptions.map((catalog) => (
+                    <option key={catalog.id ?? catalog.code} value={catalog.code}>
+                      {catalog.name} ({catalog.code})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
                 {"Ký tự tối thiểu"}
                 <input
                   data-testid={"workflow-field-min-length-" + index}
@@ -1303,6 +1897,114 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
                   onChange={(event) => updateField(field.id, { maxValue: event.target.value })}
                 />
               </label>
+              <div className="workflow-field-advanced" data-testid={"workflow-field-layout-" + index}>
+                <span>Bo cuc hien thi</span>
+                <label>
+                  Tab
+                  <input value={field.layoutTab} onChange={(event) => updateField(field.id, { layoutTab: event.target.value })} />
+                </label>
+                <label>
+                  Section
+                  <input value={field.layoutSection} onChange={(event) => updateField(field.id, { layoutSection: event.target.value })} />
+                </label>
+                <label>
+                  So cot
+                  <select value={field.layoutColumnSpan} onChange={(event) => updateField(field.id, { layoutColumnSpan: event.target.value })}>
+                    <option value="1">1 cot</option>
+                    <option value="2">2 cot</option>
+                  </select>
+                </label>
+              </div>
+              <div className="workflow-field-advanced" data-testid={"workflow-field-visible-when-" + index}>
+                <span>Dieu kien hien thi</span>
+                <label>
+                  Truong dieu kien
+                  <select value={field.visibleWhenFieldCode} onChange={(event) => updateField(field.id, { visibleWhenFieldCode: event.target.value })}>
+                    <option value="">Luon hien</option>
+                    {fields
+                      .filter((candidate) => candidate.id !== field.id)
+                      .map((candidate) => (
+                        <option key={candidate.id} value={normalizeWorkflowCode(candidate.code)}>
+                          {candidate.name || candidate.code}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label>
+                  Toan tu
+                  <select
+                    value={field.visibleWhenOperator}
+                    disabled={!field.visibleWhenFieldCode}
+                    onChange={(event) => updateField(field.id, { visibleWhenOperator: event.target.value })}
+                  >
+                    {conditionOperatorOptions.map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Gia tri
+                  <input
+                    value={field.visibleWhenValue}
+                    disabled={!field.visibleWhenFieldCode || field.visibleWhenOperator === "exists"}
+                    onChange={(event) => updateField(field.id, { visibleWhenValue: event.target.value })}
+                  />
+                </label>
+              </div>
+              <div className="workflow-field-advanced" data-testid={"workflow-field-calculation-" + index}>
+                <span>Tinh toan / bang lap</span>
+                <label>
+                  Cong thuc
+                  <select
+                    value={field.calculationOperator}
+                    disabled={!supportsNumberValidation(field.type)}
+                    onChange={(event) => updateField(field.id, { calculationOperator: event.target.value })}
+                  >
+                    <option value="SUM">Cong</option>
+                    <option value="DIFFERENCE">Tru</option>
+                    <option value="PRODUCT">Nhan</option>
+                    <option value="RATIO">Chia</option>
+                  </select>
+                </label>
+                <label>
+                  Truong nguon
+                  <input
+                    placeholder="amount, tax"
+                    value={field.calculationFieldCodes}
+                    disabled={!supportsNumberValidation(field.type)}
+                    onChange={(event) => updateField(field.id, { calculationFieldCodes: event.target.value })}
+                  />
+                </label>
+                <label className="workflow-table-columns">
+                  Cot bang
+                  <textarea
+                    placeholder={"item|Hang muc|SHORT_TEXT|required\nqty|So luong|NUMBER"}
+                    rows={3}
+                    value={field.tableColumnsText}
+                    disabled={field.type !== "TABLE"}
+                    onChange={(event) => updateField(field.id, { tableColumnsText: event.target.value })}
+                  />
+                </label>
+              </div>
+              <div className="workflow-field-visibility" data-testid={"workflow-field-editable-steps-" + index}>
+                <span>{"Buoc duoc sua khi bo sung"}</span>
+                <div className="workflow-field-role-options">
+                  {editableStepOptions.map((step) => (
+                    <label className="toggle-line compact-toggle" key={step.code}>
+                      <input
+                        data-testid={`workflow-field-editable-step-${index}-${step.code}`}
+                        type="checkbox"
+                        checked={field.editableStepCodes.includes(step.code)}
+                        onChange={(event) => toggleFieldEditableStep(field.id, step.code, event.target.checked)}
+                      />
+                      {step.label}
+                    </label>
+                  ))}
+                </div>
+                <small>{"De trong nghia la requester co the sua truong nay o moi buoc bo sung."}</small>
+              </div>
               <div className="workflow-field-visibility" data-testid={"workflow-field-visible-roles-" + index}>
                 <span>{"Vai trò được xem trường"}</span>
                 <div className="workflow-field-role-options">
@@ -1402,7 +2104,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
               <option value="HOUR">{"Giờ"}</option>
               <option value="DAY">{"Ngày"}</option>
             </select>
-            <button className="icon-button" type="button" title="Xóa bước" disabled={approvalSteps.length <= 1} onClick={() => setApprovalSteps((current) => current.filter((item) => item.id !== step.id))}>
+            <button className="icon-button" type="button" title="Xóa bước" disabled={approvalSteps.length <= 1} onClick={() => removeApprovalStep(step.id)}>
               <Trash2 size={16} />
             </button>
           </div>
@@ -1449,7 +2151,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
           className="ghost-button compact"
           data-testid="workflow-step-add"
           type="button"
-          onClick={() => setApprovalSteps((current) => [...current, applyWorkflowStepDefaults(newApprovalStep(current.length + 1), defaults)])}
+          onClick={() => appendApprovalStep()}
         >
           <Plus size={16} />
           {"Thêm bước"}
@@ -1512,6 +2214,7 @@ export function WorkflowBuilder({ setPage }: WorkflowPageProps) {
                   {field.placeholder && <small>Gợi ý: {field.placeholder}</small>}
                   {field.defaultLabel && <small>Mặc định: {field.defaultLabel}</small>}
                   <small>{field.validationLabel}</small>
+                  <small>Buoc duoc sua: {field.editableLabel}</small>
                   <small>Vai trò xem: {field.roleLabel}</small>
                 </article>
               ))}
@@ -1599,14 +2302,20 @@ function WorkflowDynamicField({
   field,
   value,
   error,
+  catalogOptions,
+  readOnly,
   onChange
 }: {
   field: WorkflowFormField;
   value: unknown;
   error?: string;
+  catalogOptions?: Array<{ value: string; label: string }>;
+  readOnly?: boolean;
   onChange: (value: unknown) => void;
 }) {
   const testId = "workflow-instance-field-" + field.code;
+  const layout = workflowFieldLayout(field);
+  const columnSpan = layout.columnSpan === 2 ? "span-2" : "span-1";
   if (field.type === "HEADING") {
     return (
       <div className="workflow-field-heading">
@@ -1618,37 +2327,40 @@ function WorkflowDynamicField({
 
   const commonProps = {
     "data-testid": testId,
+    disabled: readOnly,
     required: field.isRequired,
     placeholder: field.placeholder ?? undefined
   };
-  const choiceOptions = workflowFieldOptions(field);
+  const choiceOptions = catalogOptions?.length
+    ? catalogOptions
+    : workflowFieldOptions(field).map((option) => ({ value: option, label: option }));
 
   return (
-    <label>
+    <label className={`workflow-dynamic-field ${columnSpan} ${readOnly ? "readonly" : ""}`}>
       {field.name}
       {field.isRequired && <span className="required-mark"> *</span>}
       {field.type === "LONG_TEXT" || field.type === "TABLE" ? (
         <textarea {...commonProps} value={String(value ?? "")} rows={field.type === "TABLE" ? 5 : 3} onChange={(event) => onChange(event.target.value)} />
       ) : field.type === "CHECKBOX" ? (
         <span className="toggle-line dynamic-checkbox">
-          <input data-testid={testId} type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} />
+          <input data-testid={testId} type="checkbox" checked={Boolean(value)} disabled={readOnly} onChange={(event) => onChange(event.target.checked)} />
           <span>Đã chọn</span>
         </span>
       ) : field.type === "SELECT" && choiceOptions.length > 0 ? (
         <select {...commonProps} value={String(value ?? "")} onChange={(event) => onChange(event.target.value)}>
           <option value="">{"Chọn giá trị"}</option>
           {choiceOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
           ))}
         </select>
       ) : field.type === "RADIO" && choiceOptions.length > 0 ? (
         <div className="workflow-radio-options" data-testid={testId}>
           {choiceOptions.map((option) => (
-            <label className="toggle-line compact-toggle" key={option}>
-              <input name={field.code} type="radio" checked={String(value ?? "") === option} value={option} onChange={(event) => onChange(event.target.value)} />
-              {option}
+            <label className="toggle-line compact-toggle" key={option.value}>
+              <input name={field.code} type="radio" checked={String(value ?? "") === option.value} disabled={readOnly} value={option.value} onChange={(event) => onChange(event.target.value)} />
+              {option.label}
             </label>
           ))}
         </div>
@@ -1666,6 +2378,7 @@ function WorkflowDynamicField({
         ((field.type === "SELECT" || field.type === "RADIO") && choiceOptions.length === 0)) && (
         <small className="field-hint">Phiên bản này lưu giá trị nhập; danh sách lựa chọn và upload chuyên dụng sẽ được nối ở bước tiếp theo.</small>
       )}
+      {readOnly && <small className="field-hint">Truong nay duoc he thong tu tinh tu cac truong nguon.</small>}
       {error && <span className="field-error">{error}</span>}
     </label>
   );
@@ -1682,19 +2395,65 @@ export function NewWorkflowInstance({ setPage, setInstanceId }: WorkflowPageProp
   const selectedVersion = activeWorkflowVersion(templateDetail.data);
   const fields = selectedVersion?.fields ?? emptyWorkflowFields;
   const currentRoles = me.data?.roles ?? emptyWorkflowRoles;
-  const visibleFields = useMemo(() => filterWorkflowFieldsByRoles(fields, currentRoles), [fields, currentRoles]);
+  const roleVisibleFields = useMemo(() => filterWorkflowFieldsByRoles(fields, currentRoles), [fields, currentRoles]);
   const [values, setValues] = useState<Record<string, unknown>>({});
+  const [catalogOptionsByCode, setCatalogOptionsByCode] = useState<Record<string, Array<{ value: string; label: string }>>>({});
+  const visibleFields = useMemo(() => roleVisibleFields.filter((field) => workflowFieldVisibleByValues(field, values)), [roleVisibleFields, values]);
+  const groupedVisibleFields = useMemo(() => groupWorkflowFieldsByLayout(visibleFields), [visibleFields]);
+  const catalogSourceCodes = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          roleVisibleFields
+            .map((field) => workflowCatalogSource(field)?.catalogCode)
+            .filter((code): code is string => Boolean(code))
+        )
+      ),
+    [roleVisibleFields]
+  );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setValues(visibleFields.length > 0 ? buildInitialWorkflowValues(visibleFields) : {});
+    setValues(roleVisibleFields.length > 0 ? applyWorkflowCalculations(roleVisibleFields, buildInitialWorkflowValues(roleVisibleFields)) : {});
     setFieldErrors({});
-  }, [selectedVersion?.id, visibleFields]);
+  }, [selectedVersion?.id, roleVisibleFields]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (catalogSourceCodes.length === 0) {
+      setCatalogOptionsByCode({});
+      return () => {
+        cancelled = true;
+      };
+    }
+    void Promise.all(
+      catalogSourceCodes.map(async (code) => {
+        const options = await api.sharedCatalogOptions(code).catch(() => []);
+        return [
+          code,
+          options.map((option) => ({
+            value: String(option.value ?? option.code ?? ""),
+            label: String(option.label ?? option.name ?? option.value ?? option.code ?? "")
+          })).filter((option) => option.value && option.label)
+        ] as const;
+      })
+    ).then((entries) => {
+      if (!cancelled) {
+        setCatalogOptionsByCode(Object.fromEntries(entries));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogSourceCodes]);
 
   function updateValue(code: string, value: unknown) {
-    setValues((current) => ({ ...current, [code]: value }));
+    setValues((current) => {
+      const next = applyWorkflowCalculations(roleVisibleFields, { ...current, [code]: value });
+      return shallowWorkflowValuesEqual(current, next) ? current : next;
+    });
     setFieldErrors((current) => {
       if (!current[code]) return current;
       const next = { ...current };
@@ -1709,7 +2468,12 @@ export function NewWorkflowInstance({ setPage, setInstanceId }: WorkflowPageProp
       setError("Vui lòng chọn mẫu quy trình.");
       return;
     }
-    const nextFieldErrors = validateWorkflowValues(visibleFields, values);
+    const nextValues = applyWorkflowCalculations(roleVisibleFields, values);
+    const runtimeVisibleFields = roleVisibleFields.filter((field) => workflowFieldVisibleByValues(field, nextValues));
+    if (!shallowWorkflowValuesEqual(values, nextValues)) {
+      setValues(nextValues);
+    }
+    const nextFieldErrors = validateWorkflowValues(runtimeVisibleFields, nextValues);
     setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length > 0) {
       setError("Vui lòng kiểm tra lại các trường bắt buộc hoặc sai định dạng.");
@@ -1720,7 +2484,7 @@ export function NewWorkflowInstance({ setPage, setInstanceId }: WorkflowPageProp
     try {
       const instance = await api.submitWorkflowInstance({
         templateId,
-        formData: serializeWorkflowValues(visibleFields, values),
+        formData: serializeWorkflowValues(runtimeVisibleFields, nextValues),
         idempotencyKey: crypto.randomUUID()
       });
       setInstanceId(instance.id);
@@ -1751,12 +2515,32 @@ export function NewWorkflowInstance({ setPage, setInstanceId }: WorkflowPageProp
       {templateId && templateDetail.loading && <LoadingBlock />}
       {templateDetail.error && <p className="form-error">{templateDetail.error}</p>}
       {selectedVersion && (
-        <fieldset className="dynamic-form-fields">
+        <fieldset className="dynamic-form-fields dynamic-form-layout">
           <legend>
             Biểu mẫu phiên bản {selectedVersion.versionNo}
           </legend>
-          {visibleFields.map((field) => (
-            <WorkflowDynamicField key={field.id ?? field.code} field={field} value={values[field.code]} error={fieldErrors[field.code]} onChange={(value) => updateValue(field.code, value)} />
+          {groupedVisibleFields.map((group) => (
+            <section className="dynamic-layout-tab" key={group.tab}>
+              <h3>{group.tab}</h3>
+              {group.sections.map((section) => (
+                <div className="dynamic-layout-section" key={section.section}>
+                  <h4>{section.section}</h4>
+                  <div className="dynamic-layout-grid">
+                    {section.fields.map((field) => (
+                      <WorkflowDynamicField
+                        key={field.id ?? field.code}
+                        field={field}
+                        value={values[field.code]}
+                        error={fieldErrors[field.code]}
+                        catalogOptions={workflowCatalogSource(field) ? catalogOptionsByCode[workflowCatalogSource(field)!.catalogCode] : undefined}
+                        readOnly={Boolean(workflowFieldCalculation(field))}
+                        onChange={(value) => updateValue(field.code, value)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </section>
           ))}
         </fieldset>
       )}
@@ -1789,6 +2573,40 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null);
+  const [supplementValues, setSupplementValues] = useState<Record<string, unknown>>({});
+  const [supplementFieldErrors, setSupplementFieldErrors] = useState<Record<string, string>>({});
+  const [supplementError, setSupplementError] = useState("");
+  const [supplementMessage, setSupplementMessage] = useState("");
+  const [supplementLoading, setSupplementLoading] = useState(false);
+  const detailFields = useMemo(
+    () =>
+      filterWorkflowFieldsByRoles(
+        (data?.workflowVersion?.fields ?? emptyWorkflowFields) as WorkflowFormField[],
+        me.data?.roles ?? emptyWorkflowRoles
+      ).filter((field) => field.type !== "HEADING"),
+    [data?.workflowVersion?.fields, me.data?.roles]
+  );
+  const currentStepCode = (data?.currentStep?.code ?? null) as string | null;
+  const formData = useMemo(() => (data?.formData ?? {}) as Record<string, unknown>, [data?.formData]);
+  const supplementFields = useMemo(
+    () => detailFields.filter((field) => workflowFieldEditableForStep(field, currentStepCode)),
+    [currentStepCode, detailFields]
+  );
+  const canSupplement = Boolean(
+    data && me.data && data.status === "NEEDS_INFO" && data.requesterId === me.data.id && supplementFields.length > 0
+  );
+
+  useEffect(() => {
+    if (!data || data.status !== "NEEDS_INFO") {
+      setSupplementValues({});
+      setSupplementFieldErrors({});
+      setSupplementError("");
+      return;
+    }
+    setSupplementValues(buildWorkflowValuesFromData(supplementFields, formData));
+    setSupplementFieldErrors({});
+    setSupplementError("");
+  }, [currentStepCode, data, formData, supplementFields]);
 
   function openAction(action: WorkflowActionType) {
     setPendingAction(action);
@@ -1863,16 +2681,48 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
     }
   }
 
+  function updateSupplementValue(code: string, value: unknown) {
+    setSupplementValues((current) => ({ ...current, [code]: value }));
+    setSupplementFieldErrors((current) => {
+      if (!current[code]) return current;
+      const next = { ...current };
+      delete next[code];
+      return next;
+    });
+    setSupplementError("");
+    setSupplementMessage("");
+  }
+
+  async function submitSupplement(event: FormEvent) {
+    event.preventDefault();
+    if (!instanceId || !data) return;
+    const nextFieldErrors = validateWorkflowValues(supplementFields, supplementValues);
+    setSupplementFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setSupplementError("Vui long kiem tra lai du lieu bo sung.");
+      return;
+    }
+    setSupplementLoading(true);
+    setSupplementError("");
+    try {
+      await api.supplementWorkflowInstance(instanceId, {
+        formData: serializeWorkflowValues(supplementFields, supplementValues),
+        idempotencyKey: crypto.randomUUID()
+      });
+      setSupplementMessage("Da gui bo sung va mo lai buoc xu ly.");
+      await reload();
+    } catch (err) {
+      setSupplementError(err instanceof Error ? err.message : "Khong gui duoc du lieu bo sung.");
+    } finally {
+      setSupplementLoading(false);
+    }
+  }
+
   if (!instanceId) return <ErrorBlock message="Chưa chọn hồ sơ." />;
   if (loading) return <LoadingBlock />;
   if (error) return <ErrorBlock message={error} />;
   if (!data) return <ErrorBlock message="Không tìm thấy hồ sơ." />;
 
-  const detailFields = filterWorkflowFieldsByRoles(
-    (data.workflowVersion?.fields ?? emptyWorkflowFields) as WorkflowFormField[],
-    me.data?.roles ?? emptyWorkflowRoles
-  ).filter((field) => field.type !== "HEADING");
-  const formData = (data.formData ?? {}) as Record<string, unknown>;
   const workflowTracker = buildWorkflowTracker(data);
   const completedTrackerSteps = workflowTracker.filter((node) => node.state === "done").length;
   const currentTrackerApprovers = uniqueWorkflowNames(workflowTracker.flatMap((node) => node.pendingApprovers));
@@ -1901,6 +2751,34 @@ export function WorkflowInstanceDetail({ instanceId, setPage }: { instanceId: st
         ) : (
           <div className="json-view">{JSON.stringify(data.formData ?? {}, null, 2)}</div>
         )}
+        {canSupplement && (
+          <form className="approval-confirm-panel workflow-supplement-panel" data-testid="workflow-supplement-panel" onSubmit={submitSupplement}>
+            <div>
+              <h3>{"Bo sung ho so"}</h3>
+              <p>{"Cap nhat cac truong duoc phep sua tai buoc hien tai roi gui lai cho nguoi xu ly."}</p>
+            </div>
+            <fieldset className="dynamic-form-fields">
+              <legend>{"Du lieu bo sung"}</legend>
+              {supplementFields.map((field) => (
+                <WorkflowDynamicField
+                  key={field.id ?? field.code}
+                  field={field}
+                  value={supplementValues[field.code]}
+                  error={supplementFieldErrors[field.code]}
+                  onChange={(value) => updateSupplementValue(field.code, value)}
+                />
+              ))}
+            </fieldset>
+            {supplementError && <p className="form-error">{supplementError}</p>}
+            <div className="form-actions">
+              <button className="primary-button" data-testid="workflow-supplement-submit" type="submit" disabled={supplementLoading}>
+                {supplementLoading && <Loader2 className="spin" size={16} />}
+                {"Gui bo sung"}
+              </button>
+            </div>
+          </form>
+        )}
+        {supplementMessage && <p className="success-text" data-testid="workflow-supplement-message">{supplementMessage}</p>}
         <section className="workflow-tracker-panel" data-testid="workflow-progress-map">
           <div className="panel-head wrap">
             <div>

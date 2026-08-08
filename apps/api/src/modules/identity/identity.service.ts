@@ -5,6 +5,7 @@ import { writeAuditLog } from "../audit/audit.service.js";
 import { badRequest, conflict, notFound } from "../../http/errors.js";
 import { visibleTaskWhere } from "../tasks/task.service.js";
 import { visibleWorkflowInstanceWhere } from "../workflows/workflow.service.js";
+import { buildUserImportPreview, parseUserImportCsv, type UserImportPreviewRow } from "./user-import.js";
 
 export async function listUsers(db: PrismaClient, input: { page: number; pageSize: number; keyword?: string }) {
   const where: Prisma.UserWhereInput = {
@@ -463,6 +464,137 @@ export async function updateUser(
 
     return user;
   });
+}
+
+function lowerKey(value?: string | null) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+async function loadUserImportReferenceData(db: PrismaClient) {
+  const [users, departments, roles, teams] = await Promise.all([
+    db.user.findMany({
+      select: { id: true, employeeCode: true, email: true, deletedAt: true }
+    }),
+    db.department.findMany({
+      where: { deletedAt: null },
+      select: { id: true, code: true }
+    }),
+    db.role.findMany({
+      select: { id: true, code: true }
+    }),
+    db.team.findMany({
+      where: { deletedAt: null },
+      select: { id: true, code: true }
+    })
+  ]);
+
+  return {
+    references: {
+      existingEmployeeCodes: new Set(users.map((user) => lowerKey(user.employeeCode))),
+      existingEmails: new Set(users.map((user) => lowerKey(user.email))),
+      departmentCodes: new Set(departments.map((department) => lowerKey(department.code))),
+      managerEmployeeCodes: new Set(users.filter((user) => !user.deletedAt).map((user) => lowerKey(user.employeeCode))),
+      roleCodes: new Set(roles.map((role) => lowerKey(role.code))),
+      teamCodes: new Set(teams.map((team) => lowerKey(team.code)))
+    },
+    usersByCode: new Map(users.filter((user) => !user.deletedAt).map((user) => [lowerKey(user.employeeCode), user])),
+    departmentsByCode: new Map(departments.map((department) => [lowerKey(department.code), department])),
+    rolesByCode: new Map(roles.map((role) => [lowerKey(role.code), role])),
+    teamsByCode: new Map(teams.map((team) => [lowerKey(team.code), team]))
+  };
+}
+
+export async function importUsersFromCsv(
+  db: PrismaClient,
+  actorId: string,
+  input: {
+    csv: string;
+    apply?: boolean;
+  }
+) {
+  const records = parseUserImportCsv(input.csv);
+  const references = await loadUserImportReferenceData(db);
+  const preview = buildUserImportPreview(records, references.references);
+  if (!input.apply) {
+    return { ...preview, applied: 0 };
+  }
+  if (!preview.canApply) {
+    return { ...preview, applied: 0 };
+  }
+
+  const validRows = preview.rows.filter((row): row is UserImportPreviewRow & { status: "VALID" } => row.status === "VALID");
+  const created = await db.$transaction(async (tx) => {
+    const createdByCode = new Map<string, { id: string }>();
+
+    for (const row of validRows) {
+      const user = await tx.user.create({
+        data: {
+          employeeCode: row.employeeCode,
+          fullName: row.fullName,
+          email: row.email,
+          phone: row.phone,
+          title: row.title,
+          passwordHash: await hashPassword(row.password ?? "Demo@123456"),
+          departmentId: row.departmentCode ? references.departmentsByCode.get(lowerKey(row.departmentCode))?.id : undefined,
+          managerId: row.managerEmployeeCode ? references.usersByCode.get(lowerKey(row.managerEmployeeCode))?.id : undefined,
+          roles: row.roleCodes.length
+            ? {
+                createMany: {
+                  data: row.roleCodes
+                    .map((roleCode) => references.rolesByCode.get(lowerKey(roleCode))?.id)
+                    .filter((roleId): roleId is string => Boolean(roleId))
+                    .map((roleId) => ({ roleId })),
+                  skipDuplicates: true
+                }
+              }
+            : undefined,
+          teams: row.teamCodes.length
+            ? {
+                createMany: {
+                  data: row.teamCodes
+                    .map((teamCode) => references.teamsByCode.get(lowerKey(teamCode))?.id)
+                    .filter((teamId): teamId is string => Boolean(teamId))
+                    .map((teamId) => ({ teamId })),
+                  skipDuplicates: true
+                }
+              }
+            : undefined
+        },
+        select: { id: true, employeeCode: true }
+      });
+      createdByCode.set(lowerKey(user.employeeCode), { id: user.id });
+    }
+
+    for (const row of validRows) {
+      const managerCode = lowerKey(row.managerEmployeeCode);
+      const managerId = references.usersByCode.get(managerCode)?.id ?? createdByCode.get(managerCode)?.id;
+      if (!managerId) continue;
+      const importedUser = createdByCode.get(lowerKey(row.employeeCode));
+      if (importedUser) {
+        await tx.user.update({
+          where: { id: importedUser.id },
+          data: { managerId }
+        });
+      }
+    }
+
+    await writeAuditLog(tx, {
+      actorId,
+      action: "user.import",
+      entityType: "users",
+      metadata: {
+        totalRows: preview.summary.total,
+        importedRows: createdByCode.size
+      }
+    });
+
+    return createdByCode.size;
+  });
+
+  return {
+    ...preview,
+    applied: created
+  };
 }
 
 export async function listDepartments(db: PrismaClient) {

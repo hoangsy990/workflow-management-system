@@ -54,6 +54,8 @@ Nếu Docker Desktop báo dung lượng lớn sau nhiều lần build, phần ph
 pnpm docker:clean
 ```
 
+Lần verify gần nhất: Docker CLI sau cleanup còn images `1.127GB`, volumes `87.92MB`, build cache `0B`. Nếu Windows vẫn báo `docker_data.vhdx` khoảng `19GB`, cần chạy lệnh compact bên dưới trong PowerShell Administrator để co file vật lý.
+
 Trên Windows, nếu công cụ đo ổ đĩa vẫn thấy `C:\Users\<user>\AppData\Local\Docker\wsl\disk\docker_data.vhdx` rất lớn sau khi dọn cache, đó là file ổ đĩa ảo WSL chưa tự co lại. Hãy mở PowerShell bằng quyền Administrator rồi chạy:
 
 ```powershell
@@ -94,6 +96,39 @@ API: `http://localhost:4000`. Web: `http://localhost:5173`.
 - `API_RATE_LIMIT_MAX`: giới hạn request API chung mỗi phút, mặc định `600`. Route đăng nhập vẫn có giới hạn riêng thấp hơn để chống dò mật khẩu.
 - `MAX_UPLOAD_MB`: trần dung lượng tối đa mỗi tệp upload ở tầng hạ tầng; quản trị viên có thể cấu hình giới hạn thực tế và MIME type trong trang Cấu hình > Tệp upload.
 - `ACCESS_TOKEN_TTL` và `REFRESH_TOKEN_TTL_DAYS`: thời gian sống access token và refresh token.
+
+## Nhập người dùng
+
+Trang `Người dùng` hỗ trợ nhập tài khoản từ CSV qua API `/api/v1/users/import`. Gọi với `apply=false` để xem trước, nhận lỗi theo từng dòng và không ghi database; gọi lại với `apply=true` để backend kiểm tra lại toàn bộ rồi tạo tài khoản trong transaction, hash mật khẩu và ghi audit `user.import`.
+
+Header CSV khuyến nghị:
+
+```csv
+employeeCode,fullName,email,phone,title,departmentCode,managerEmployeeCode,roleCodes,teamCodes,password
+```
+
+`roleCodes` và `teamCodes` nhận nhiều mã bằng dấu `;` hoặc `,` trong cùng ô. Nếu bỏ trống `password`, môi trường development dùng mặc định `Demo@123456`. Phiên bản hiện tại hỗ trợ CSV; import trực tiếp `.xlsx` còn ở trạng thái pending để bổ sung parser riêng mà không làm tăng Docker image khi chưa cần.
+
+## Form builder quy trình
+
+Màn `Tạo mẫu quy trình` hỗ trợ metadata versioned cho từng field: tab, section, độ rộng 1/2 cột, điều kiện hiển thị `visibleWhen`, công thức tính an toàn cho trường số/tiền (`SUM`, `DIFFERENCE`, `PRODUCT`, `RATIO`) và cấu hình cột cho field `TABLE`.
+
+Khi tạo hồ sơ, web render form theo tab/section responsive, tự ẩn/hiện field theo dữ liệu đang nhập và khóa field calculated. Backend cũng áp calculated values và bỏ validation field đang bị ẩn, nên quy tắc không chỉ nằm ở giao diện. Repeating table editor nhiều dòng và nguồn select từ danh mục tùy chỉnh vẫn đang ở trạng thái phát triển tiếp.
+
+Danh mục tùy chỉnh dùng chung có schema/API nền tảng qua `/api/v1/shared-catalogs` và `/api/v1/shared-catalogs/:idOrCode/options`. Mỗi catalog có `fields`, `status`, `scopeDepartmentId`, `managerId` và item values JSON. Trang `Danh mục` có UI tạo/sửa/xóa catalog và item cơ bản. Seed development có catalog `REQUEST_TYPES`; workflow SELECT/RADIO có thể lưu nguồn này trong `validation.catalogSource`, và runtime form sẽ tải options theo catalog code để render dropdown/radio.
+
+## Báo cáo và export
+
+Trang `Báo cáo` lấy số liệu thật từ API `/api/v1/reports/summary`, hỗ trợ lọc phía server theo phòng ban, trạng thái công việc, ưu tiên, trạng thái hồ sơ và khoảng ngày. Các biểu đồ có drill-down qua `/api/v1/reports/drilldown`.
+
+Export hiện có:
+
+- CSV: `/api/v1/reports/export.csv`
+- Excel `.xlsx`: `/api/v1/reports/export.xlsx`
+- PDF native: `/api/v1/reports/export.pdf`
+- In từ trình duyệt: nút `In` trên trang báo cáo.
+
+Tất cả export dùng cùng filter và scope quyền backend, đồng thời ghi audit log `report.export.*`. PDF được tạo bằng generator nội bộ text-only để không tăng dependency/Docker image; CSV/XLSX vẫn giữ dữ liệu Unicode đầy đủ cho xử lý nghiệp vụ.
 
 ## Build production
 
@@ -194,6 +229,20 @@ Các sự kiện task/workflow đã ghi notification nội bộ; adapter push c�
 
 Frontend hiển thị trạng thái online/offline. Form tạo công việc lưu draft tạm trên thiết bị. Các thao tác phê duyệt dùng `idempotencyKey` để chống ghi nhận trùng; client không tự retry approval khi mất mạng.
 
+## Secure session storage native
+
+Web development vẫn fallback về `sessionStorage`. Khi chạy trong Windows/Android/iOS shell, native layer có thể cung cấp bridge sau để API client lưu access/refresh token qua vùng an toàn của hệ điều hành:
+
+```ts
+window.__WORKFLOW_SECURE_SESSION__ = {
+  get: async () => stringOrNull,
+  set: async (value) => {},
+  remove: async () => {}
+};
+```
+
+Bridge này được đọc bởi `apps/web/src/api/session-storage.ts`; nghiệp vụ đăng nhập, refresh token và logout không phụ thuộc vào riêng web storage.
+
 ## Kiểm thử đã chạy
 
 ```bash
@@ -206,7 +255,7 @@ pnpm smoke:web
 DATABASE_URL=postgresql://workflow:workflow@localhost:5432/workflow_management?schema=public pnpm db:validate
 ```
 
-`pnpm smoke:web` chạy Playwright trên web `http://localhost:8099` và API `http://localhost:4000/api/v1`, vì vậy hãy chạy `docker compose up -d --build` trước. Docker Compose đã được kiểm tra với API, web và PostgreSQL. Trạng thái hiện tại được ghi lại trong [`CHECKLIST.md`](CHECKLIST.md).
+`pnpm smoke:web` chạy Playwright trên web `http://localhost:8099` và API `http://localhost:4000/api/v1`, vì vậy hãy chạy `docker compose up -d --build` trước. Docker Compose đã được kiểm tra với API, web và PostgreSQL. Lần verify gần nhất pass `43/43` smoke cases, gồm CRUD shared catalog/item và report CSV/XLSX/PDF export audit. Trạng thái hiện tại được ghi lại trong [`CHECKLIST.md`](CHECKLIST.md).
 
 ## CI GitHub Actions
 

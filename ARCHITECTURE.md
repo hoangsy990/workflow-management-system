@@ -31,6 +31,7 @@ Repository ban đầu trống, vì vậy hệ thống được khởi tạo mớ
   - Không dùng WebView đơn giản kiểu đóng gói nguyên website: giao diện đã có responsive layout, bottom navigation trên mobile, API client, xử lý mạng yếu, upload và trạng thái đồng bộ ở tầng client.
 - **Validation:** Zod ở backend; frontend hiển thị lỗi trả về theo cấu trúc thống nhất.
 - **Auth:** JWT access token ngắn hạn + refresh token lưu hashed trong database, hỗ trợ thu hồi phiên.
+- **Native session storage:** API client dùng adapter `apps/web/src/api/session-storage.ts`. Web/dev fallback về `sessionStorage`; Windows/Android/iOS shell có thể cung cấp bridge `window.__WORKFLOW_SECURE_SESSION__` để lưu token trong vùng an toàn của hệ điều hành mà không đổi nghiệp vụ hoặc API call.
 - **Tài liệu API:** OpenAPI/Swagger tại `/docs`.
 - **Kiểm thử:** Vitest cho domain/service quan trọng.
 - **Triển khai:** Docker Compose gồm API, web và PostgreSQL.
@@ -271,6 +272,8 @@ Form builder sẽ dùng cùng `workflow_form_fields` và `workflow_versions.form
 
 Backend validate form theo version đang active để hồ sơ cũ tiếp tục chạy đúng schema cũ.
 
+Trạng thái hiện tại: workflow field metadata đã mở rộng trong `validation` JSON có cấu trúc gồm `layout` (tab/section/columnSpan), `visibleWhen` (field/operator/compareValue), `calculation` (`SUM`, `DIFFERENCE`, `PRODUCT`, `RATIO`) và `tableColumns` cho TABLE/repeating table metadata. Web render form theo tab/section responsive, tự ẩn/hiện field theo dữ liệu đang nhập, khóa field tự tính; backend cũng áp calculated values và bỏ validate required với field đang ẩn. Không dùng `eval`; mobile/desktop native chỉ cần render cùng metadata từ API.
+
 ### 9.4. Cấu hình hệ thống và danh mục dùng chung
 
 `system_settings` hiện là key/value. Cần mở rộng UI theo nhóm:
@@ -286,6 +289,8 @@ Backend validate form theo version đang active để hồ sơ cũ tiếp tục 
 - Dữ liệu và sao lưu.
 
 Danh mục dùng chung cần module riêng để quản trị các danh mục tùy chỉnh, có thể làm nguồn dữ liệu cho field select trong form builder.
+
+Trạng thái hiện tại: nền tảng danh mục dùng chung đã có `shared_catalogs`, `shared_catalog_fields`, `shared_catalog_items`, migration và API `/shared-catalogs`. Catalog có status, scope theo phòng ban, manager, fields và item values JSON; trang `Danh mục` có UI tạo/sửa/xóa catalog và item cơ bản. Workflow form field có thể lưu `validation.catalogSource` để dùng catalog làm nguồn select, runtime form tải options động từ `/shared-catalogs/:code/options`. Scope/manager picker chi tiết, search/import/export và cache/options UX nâng cao vẫn nằm ở giai đoạn tiếp theo.
 
 Nhóm `Tệp upload` đã có cấu hình vận hành qua `system_settings`: `file.upload.max_mb` và `file.upload.allowed_mime_types`. API `/upload-config` cung cấp cấu hình này cho web/PC/mobile; `MAX_UPLOAD_MB` trong môi trường vẫn là trần bảo vệ hạ tầng để không mở upload quá lớn ngoài ý muốn.
 
@@ -328,7 +333,7 @@ Mobile web/Tauri không được là bản PC thu nhỏ. Cần tiếp tục:
 
 ### 9.8. Kế hoạch kiểm thử mở rộng
 
-Đã có Playwright smoke suite cho web tại `apps/web/e2e/workflow-smoke.spec.ts`, chạy bằng `pnpm smoke:web` khi Docker API/web đang bật. Suite hiện phủ login, mở task vừa tạo, upload/download attachment, cập nhật progress lên chờ đánh giá, approve/reject/request-info hồ sơ PAYMENT và idempotency key chống duyệt trùng. GitHub Actions chạy `verify` và `smoke-web` trên `push`/`pull_request`.
+Đã có Playwright smoke suite cho web tại `apps/web/e2e/workflow-smoke.spec.ts`, chạy bằng `pnpm smoke:web` khi Docker API/web đang bật. Suite hiện pass `43/43` case trên Docker port `8099`, phủ login, accessibility cơ bản, mobile navigation/filter/offline, dashboard, báo cáo CSV/XLSX/PDF export audit, quản trị user/department/team/category/tag/shared catalog, tạo task/upload/download/progress/evaluation/redo, workflow submit/approve/reject/request-info/return/transfer và idempotency key chống duyệt trùng. GitHub Actions chạy `verify` và `smoke-web` trên `push`/`pull_request`.
 
 Ngoài Vitest hiện có, cần thêm UI/e2e suite:
 

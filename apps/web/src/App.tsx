@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { api, ApiUser, getStoredSession, setStoredSession } from "./api/client";
+import { api, ApiUser, getStoredSession, hydrateStoredSession, setStoredSession } from "./api/client";
 import { LoadingBlock } from "./components/common";
 import { AppShell } from "./components/layout";
 import { Page } from "./navigation";
@@ -54,7 +54,7 @@ export default function App() {
 
   useEffect(() => {
     async function bootstrap() {
-      const session = getStoredSession();
+      const session = await hydrateStoredSession();
       if (!session) {
         setBooting(false);
         return;

@@ -1,3 +1,5 @@
+import { cacheSessionText, readSessionText, readSessionTextSync, writeSessionText, writeSessionTextSync } from "./session-storage";
+
 const defaultApiUrl = import.meta.env.VITE_API_URL ?? "/api/v1";
 const apiUrlKey = "workflow.apiUrl";
 
@@ -36,7 +38,6 @@ export interface ApiErrorShape {
   };
 }
 
-const sessionKey = "workflow.session";
 const cachedApiTtlMs = 60_000;
 let refreshPromise: Promise<ApiSession | null> | null = null;
 const apiCache = new Map<string, { expiresAt: number; value?: unknown; promise?: Promise<unknown> }>();
@@ -53,7 +54,12 @@ class ApiRequestError extends Error {
 }
 
 export function getStoredSession(): ApiSession | null {
-  const value = sessionStorage.getItem(sessionKey);
+  const value = readSessionTextSync();
+  return value ? (JSON.parse(value) as ApiSession) : null;
+}
+
+export async function hydrateStoredSession(): Promise<ApiSession | null> {
+  const value = await readSessionText();
   return value ? (JSON.parse(value) as ApiSession) : null;
 }
 
@@ -62,11 +68,28 @@ export function setStoredSession(session: ApiSession | null) {
   if (current?.refreshToken !== session?.refreshToken) {
     clearApiCache();
   }
-  if (!session) {
-    sessionStorage.removeItem(sessionKey);
-    return;
+  const value = session ? JSON.stringify(session) : null;
+  cacheSessionText(value);
+  writeSessionTextSync(value);
+  void writeSessionText(value);
+}
+
+export async function setStoredSessionAsync(session: ApiSession | null) {
+  const current = getStoredSession();
+  if (current?.refreshToken !== session?.refreshToken) {
+    clearApiCache();
   }
-  sessionStorage.setItem(sessionKey, JSON.stringify(session));
+  const value = session ? JSON.stringify(session) : null;
+  cacheSessionText(value);
+  await writeSessionText(value);
+}
+
+function parseStoredSession(value: string | null): ApiSession | null {
+  return value ? (JSON.parse(value) as ApiSession) : null;
+}
+
+async function getStoredSessionAsync(): Promise<ApiSession | null> {
+  return parseStoredSession(await readSessionText());
 }
 
 function normalizeApiUrl(value: string) {
@@ -157,7 +180,7 @@ function buildHeaders(options: RequestInit, session: ApiSession | null) {
 }
 
 async function refreshStoredSession(): Promise<ApiSession | null> {
-  const session = getStoredSession();
+  const session = await getStoredSessionAsync();
   if (!session?.refreshToken) {
     return null;
   }
@@ -174,11 +197,11 @@ async function refreshStoredSession(): Promise<ApiSession | null> {
       .then(async (response) => {
         const data = await parseResponse<{ accessToken: string }>(response);
         const nextSession = { ...session, accessToken: data.accessToken };
-        setStoredSession(nextSession);
+        await setStoredSessionAsync(nextSession);
         return nextSession;
       })
       .catch((error) => {
-        setStoredSession(null);
+        void setStoredSessionAsync(null);
         throw error;
       })
       .finally(() => {
@@ -190,7 +213,7 @@ async function refreshStoredSession(): Promise<ApiSession | null> {
 }
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
-  const session = getStoredSession();
+  const session = await getStoredSessionAsync();
   const headers = buildHeaders(options, session);
 
   const response = await fetch(`${getApiUrl()}${path}`, {
@@ -242,7 +265,7 @@ async function parseBlobResponse(response: Response): Promise<{ blob: Blob; file
 }
 
 export async function apiBlobRequest(path: string, options: RequestInit = {}, retried = false): Promise<{ blob: Blob; filename: string }> {
-  const session = getStoredSession();
+  const session = await getStoredSessionAsync();
   const headers = buildHeaders(options, session);
   const response = await fetch(`${getApiUrl()}${path}`, {
     ...options,
@@ -293,10 +316,18 @@ export const api = {
   reportsDrilldown: (query = "") => apiRequest<Paginated<Record<string, any>> & { entity: string; bucket: string; value?: string }>(`/reports/drilldown${query}`),
   exportReportsCsv: (query = "") => apiBlobRequest(`/reports/export.csv${query}`),
   exportReportsXlsx: (query = "") => apiBlobRequest(`/reports/export.xlsx${query}`),
+  exportReportsPdf: (query = "") => apiBlobRequest(`/reports/export.pdf${query}`),
   users: () => cachedApiRequest<Paginated<Record<string, any>>>("/users?pageSize=100"),
   createUser: async (payload: Record<string, unknown>) => {
     const result = await apiRequest<Record<string, any>>("/users", { method: "POST", body: JSON.stringify(payload) });
     clearApiCache("/users");
+    return result;
+  },
+  importUsers: async (payload: { csv: string; apply?: boolean }) => {
+    const result = await apiRequest<Record<string, any>>("/users/import", { method: "POST", body: JSON.stringify(payload) });
+    if (payload.apply) {
+      clearApiCache("/users");
+    }
     return result;
   },
   updateUser: async (id: string, payload: Record<string, unknown>) => {
@@ -337,6 +368,39 @@ export const api = {
     return result;
   },
   taskCategories: () => cachedApiRequest<Record<string, any>[]>("/task-categories"),
+  sharedCatalogs: () => cachedApiRequest<Record<string, any>[]>("/shared-catalogs"),
+  sharedCatalogOptions: (idOrCode: string) => cachedApiRequest<Record<string, any>[]>(`/shared-catalogs/${encodeURIComponent(idOrCode)}/options`),
+  createSharedCatalog: async (payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>("/shared-catalogs", { method: "POST", body: JSON.stringify(payload) });
+    clearApiCache("/shared-catalogs");
+    return result;
+  },
+  updateSharedCatalog: async (id: string, payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>(`/shared-catalogs/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+    clearApiCache("/shared-catalogs");
+    return result;
+  },
+  deleteSharedCatalog: async (id: string) => {
+    const result = await apiRequest<Record<string, any>>(`/shared-catalogs/${id}`, { method: "DELETE" });
+    clearApiCache("/shared-catalogs");
+    return result;
+  },
+  createSharedCatalogItem: async (catalogId: string, payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>(`/shared-catalogs/${catalogId}/items`, { method: "POST", body: JSON.stringify(payload) });
+    clearApiCache("/shared-catalogs");
+    clearApiCache(`/shared-catalogs/${catalogId}/options`);
+    return result;
+  },
+  updateSharedCatalogItem: async (id: string, payload: Record<string, unknown>) => {
+    const result = await apiRequest<Record<string, any>>(`/shared-catalog-items/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+    clearApiCache("/shared-catalogs");
+    return result;
+  },
+  deleteSharedCatalogItem: async (id: string) => {
+    const result = await apiRequest<Record<string, any>>(`/shared-catalog-items/${id}`, { method: "DELETE" });
+    clearApiCache("/shared-catalogs");
+    return result;
+  },
   createTaskCategory: async (payload: Record<string, unknown>) => {
     const result = await apiRequest<Record<string, any>>("/task-categories", { method: "POST", body: JSON.stringify(payload) });
     clearApiCache("/task-categories");
@@ -406,6 +470,8 @@ export const api = {
   workflowInstance: (id: string) => apiRequest<Record<string, any>>(`/workflow-instances/${id}`),
   submitWorkflowInstance: (payload: Record<string, unknown>) =>
     apiRequest<Record<string, any>>("/workflow-instances", { method: "POST", body: JSON.stringify(payload) }),
+  supplementWorkflowInstance: (id: string, payload: Record<string, unknown>) =>
+    apiRequest<Record<string, any>>(`/workflow-instances/${id}/supplement`, { method: "POST", body: JSON.stringify(payload) }),
   actWorkflow: (id: string, payload: Record<string, unknown>) =>
     apiRequest<Record<string, any>>(`/workflow-instances/${id}/actions`, { method: "POST", body: JSON.stringify(payload) }),
   activityLogs: () => apiRequest<Paginated<Record<string, any>>>("/activity-logs?pageSize=50"),
